@@ -1,9 +1,12 @@
 """Test-process guards. Never imported by the production application."""
 import os
+import builtins
+import io
 from pathlib import Path
 import shutil
 import socket
 import sqlite3
+import subprocess
 import tempfile
 import urllib.request
 from unittest.mock import patch
@@ -12,6 +15,7 @@ from contextvars import ContextVar
 
 
 _ACTIVE_ROOT = ContextVar("delvane_test_root", default=None)
+_INTERNAL_SOCKETPAIR = ContextVar("delvane_internal_socketpair", default=False)
 
 
 class TestSafetyError(RuntimeError):
@@ -44,10 +48,65 @@ class IsolatedEnvironment:
         original_glob = Path.glob
         original_copy = shutil.copy2
         original_unlink = Path.unlink
+        original_open = builtins.open
+        original_io_open = io.open
+        original_os_open = os.open
+        original_os_unlink = os.unlink
+        original_socketpair = socket.socketpair
+        original_socket_connect = socket.socket.connect
+        self.connections = []
+
+        def socketpair(*args, **kwargs):
+            # Windows implements asyncio's private wake-up pair using loopback TCP.
+            token = _INTERNAL_SOCKETPAIR.set(True)
+            try:
+                return original_socketpair(*args, **kwargs)
+            finally:
+                _INTERNAL_SOCKETPAIR.reset(token)
+
+        def socket_connect(sock, address):
+            if _INTERNAL_SOCKETPAIR.get() and address[0] in {"127.0.0.1", "::1"}:
+                return original_socket_connect(sock, address)
+            return self.block_network()
+
+        def guard_data_file(value):
+            if isinstance(value, (str, bytes, os.PathLike)):
+                path = Path(os.fsdecode(value))
+                name = path.name.lower()
+                if any(suffix in name for suffix in (".db", ".sqlite")) or name.startswith(".env"):
+                    self.require_path(path)
 
         def connect(database, *args, **kwargs):
             self.require_path(database)
-            return original_connect(database, *args, **kwargs)
+            connection = original_connect(database, *args, **kwargs)
+            self.connections.append(connection)
+
+            def authorize(action, arg1, arg2, database_name, trigger):
+                if action == sqlite3.SQLITE_ATTACH:
+                    try:
+                        self.require_path(arg1)
+                    except (TestSafetyError, TypeError, ValueError):
+                        return sqlite3.SQLITE_DENY
+                return sqlite3.SQLITE_OK
+
+            connection.set_authorizer(authorize)
+            return connection
+
+        def open_file(file, *args, **kwargs):
+            guard_data_file(file)
+            return original_open(file, *args, **kwargs)
+
+        def io_open(file, *args, **kwargs):
+            guard_data_file(file)
+            return original_io_open(file, *args, **kwargs)
+
+        def os_open(file, *args, **kwargs):
+            guard_data_file(file)
+            return original_os_open(file, *args, **kwargs)
+
+        def os_unlink(file, *args, **kwargs):
+            guard_data_file(file)
+            return original_os_unlink(file, *args, **kwargs)
 
         def read_text(path, *args, **kwargs):
             if path.name.startswith(".env") and not path.resolve().is_relative_to(self.root):
@@ -74,9 +133,16 @@ class IsolatedEnvironment:
 
         for target, replacement in (
             ("sqlite3.connect", connect), ("pathlib.Path.read_text", read_text),
+            ("sqlite3.dbapi2.connect", connect),
+            ("builtins.open", open_file), ("io.open", io_open),
+            ("os.open", os_open), ("os.unlink", os_unlink), ("os.remove", os_unlink),
+            ("subprocess.Popen", self.block_subprocess),
+            # JUnit metadata must not launch Windows' `ver` subprocess via platform.uname().
+            ("platform.node", lambda: "isolated-tests"),
             ("pathlib.Path.glob", glob), ("shutil.copy2", copy),
             ("pathlib.Path.unlink", unlink),
-            ("socket.socket.connect", self.block_network),
+            ("socket.socketpair", socketpair),
+            ("socket.socket.connect", socket_connect),
             ("socket.socket.connect_ex", self.block_network),
             ("socket.create_connection", self.block_network),
             ("socket.getaddrinfo", self.block_network),
@@ -84,7 +150,16 @@ class IsolatedEnvironment:
             ("urllib.request.urlopen", self.block_network),
         ):
             self.stack.enter_context(patch(target, replacement))
+        self.stack.callback(self.close_connections)
         return self
+
+    def close_connections(self):
+        for connection in self.connections:
+            try:
+                connection.close()
+            except sqlite3.Error:
+                pass  # Application-owned worker-thread connections close in app.db().
+        self.connections.clear()
 
     def require_path(self, value):
         # Reject SQLite URI/memory names too: all test data must be identifiable files.
@@ -96,6 +171,10 @@ class IsolatedEnvironment:
     @staticmethod
     def block_network(*args, **kwargs):
         raise TestSafetyError("External network access is forbidden during tests; mock the adapter")
+
+    @staticmethod
+    def block_subprocess(*args, **kwargs):
+        raise TestSafetyError("Child processes do not inherit test guards and are forbidden")
 
     def protect_app(self, app):
         original_init = app.init_db

@@ -39,6 +39,8 @@ def test_v223_frontend_uses_compact_primary_nav_and_chat_send(tmp_path, monkeypa
     assert "['operations',tr('operations')]" in src
     assert 'data-settings-nav' in src
     assert 'rosa-chat-thread' in src
-    assert 'sendRosaChat' in src
+    assert 'async function sendDelvaneChat()' in src
+    assert "$('#commandSend').onclick=sendDelvaneChat" in src
+    assert "e.preventDefault();sendDelvaneChat()" in src
     assert "input.value=b.textContent" in src  # quick prompts fill; they do not auto-send
     assert 'guest-ticket' in src

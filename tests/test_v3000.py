@@ -37,7 +37,7 @@ def test_rate_plan_creation_and_mapping(tmp_path,monkeypatch):
     assert any(x['channex_rate_plan_id']=='rate-nonref' for x in mappings)
 
 
-def test_viza_id_scan_completes_guest_registration_and_queues_event(tmp_path,monkeypatch):
+def test_viza_id_scan_requires_owner_verification_before_queueing(tmp_path,monkeypatch):
     client,db_file,property_id,_=fresh(tmp_path,monkeypatch)
     with sqlite3.connect(db_file) as con:
         con.row_factory=sqlite3.Row
@@ -48,10 +48,24 @@ def test_viza_id_scan_completes_guest_registration_and_queues_event(tmp_path,mon
             rec=con.execute("SELECT id FROM guest_records WHERE reservation_id=? LIMIT 1",(res['id'],)).fetchone()
     r=client.post('/api/government/viza/id-scan',json={'reservation_id':res['id'],'guest_record_id':rec['id'],'full_name':'Test Guest','date_of_birth':'1990-01-02','nationality':'HUN','document_type':'ID','document_number':'TEST123','address':'Eger'})
     assert r.status_code==200,r.text
-    assert r.json()['registration_status']=='complete'
+    assert r.json()['registration_status']=='pending'
     with sqlite3.connect(db_file) as con:
-        out=con.execute("SELECT system,event_type,status FROM government_outbox WHERE reservation_id=? ORDER BY created_at DESC",(res['id'],)).fetchall()
-    assert any(row[0]=='VIZA' and row[1]=='guest.registration_updated' for row in out)
+        assert con.execute("SELECT status,verified_by,verified_at FROM guest_identity_verifications WHERE guest_record_id=?", (rec['id'],)).fetchone() == ('needs_review', None, None)
+        assert con.execute("SELECT COUNT(*) FROM government_outbox WHERE reservation_id=?", (res['id'],)).fetchone()[0] == 0
+    verified = client.post(f"/api/reservations/{res['id']}/guests/{rec['id']}/verify",
+                           json={'decision':'verify','verification_method':'in_person'})
+    assert verified.status_code == 200, verified.text
+    assert verified.json()['registration_status'] == 'complete'
+    assert verified.json()['verification_status'] == 'verified'
+    assert verified.json()['government_submission_queued'] is True
+    with sqlite3.connect(db_file) as con:
+        out=con.execute("SELECT system,event_type,status FROM government_outbox WHERE reservation_id=?", (res['id'],)).fetchall()
+        identity=con.execute("SELECT status,verification_method,verified_by,verified_at FROM guest_identity_verifications WHERE guest_record_id=?", (rec['id'],)).fetchone()
+    assert identity[0:2] == ('verified', 'in_person')
+    assert identity[2] and identity[3]
+    assert sorted((row[0], row[1]) for row in out) == [
+        ('NTAK', 'guest.registration_verified'), ('VIZA', 'guest.registration_verified')]
+    assert all(row[2] != 'sent' for row in out)
 
 
 def test_government_status_reports_missing_official_transport(tmp_path,monkeypatch):

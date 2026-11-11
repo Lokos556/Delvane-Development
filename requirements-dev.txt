@@ -1,5 +1,5 @@
-# Explicit development baseline; not yet installed/validated as a complete environment.
-# Runtime versions match the pre-existing Python 3.14 environment inspected for this task.
+# Development baseline installed in .venv with Python 3.14.
+# requirements-dev.lock.txt records the full resolved environment used for validation.
 fastapi==0.141.1
 starlette==1.6.0
 uvicorn==0.52.4

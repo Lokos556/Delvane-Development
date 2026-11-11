@@ -29,7 +29,8 @@ def test_v3030_room_type_capacity_is_used_for_availability(tmp_path, monkeypatch
         now = rosa.now_iso()
         con.execute("""INSERT INTO room_types(id,organization_id,property_id,name,code,inventory_count,max_guests,active,created_at,updated_at)
             VALUES (?,?,?,?,?,?,?,1,?,?)""", (room_id,org,prop,"Two Bedroom","two-bedroom",2,5,now,now))
-        from datetime import date, timedelta
+        from datetime import timedelta
+        date = rosa.date
         arrival = date.today() + timedelta(days=30)
         departure = arrival + timedelta(days=3)
         for guest in ("A", "B"):

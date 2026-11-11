@@ -71,12 +71,18 @@ def test_manual_closure_survives_booking_cancellation(tmp_path,monkeypatch):
         'departure_date':str(stay+timedelta(days=1)),'guest_count':1,'total_huf':42000,'source':'Direct',
     })
     assert created.status_code==200,created.text
+    with sqlite3.connect(db_file) as con:
+        before_ids={row[0] for row in con.execute("SELECT id FROM channel_ari_outbox WHERE integration_id=? AND endpoint='/api/v1/availability'", (integration_id,))}
     assert client.delete('/api/reservations/'+created.json()['id']).status_code==200
     with sqlite3.connect(db_file) as con:
         row=con.execute("SELECT availability,manual_availability,reservation_availability FROM channel_ari_values WHERE integration_id=? AND stay_date=?",(integration_id,str(stay))).fetchone()
-        jobs=con.execute("SELECT COUNT(*) FROM channel_ari_outbox WHERE endpoint='/api/v1/availability'",()).fetchone()[0]
+        jobs=con.execute("SELECT id,payload_json FROM channel_ari_outbox WHERE integration_id=? AND endpoint='/api/v1/availability'",(integration_id,)).fetchall()
     assert row==(0,0,1)
-    assert jobs==1
+    reconciliation=[job for job in jobs if job[0] not in before_ids]
+    assert len(reconciliation)==1
+    values=json.loads(reconciliation[0][1])['values']
+    assert values == [{'property_id':'bridge-casa','room_type_id':'room-aqua',
+                       'date_from':str(stay),'date_to':str(stay),'availability':0}]
 
 
 def test_modification_reopens_old_dates_and_closes_new_dates(tmp_path,monkeypatch):

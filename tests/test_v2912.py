@@ -84,5 +84,5 @@ def test_channex_429_sets_minimum_60_second_pause(tmp_path,monkeypatch):
         integration=con.execute("SELECT channex_rate_limit_until FROM integrations WHERE id=?",(integration_id,)).fetchone()
     assert row['status']=='retry'
     assert integration['channex_rate_limit_until'] is not None
-    pause=(__import__('datetime').datetime.fromisoformat(integration['channex_rate_limit_until'])-__import__('datetime').datetime.now()).total_seconds()
+    pause=(rosa.datetime.fromisoformat(integration['channex_rate_limit_until'])-rosa.datetime.now()).total_seconds()
     assert pause>=59

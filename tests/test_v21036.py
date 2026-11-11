@@ -2,6 +2,7 @@ import json
 import sys
 from pathlib import Path
 import sqlite3
+from datetime import date, timedelta
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import app as rosa
@@ -18,11 +19,12 @@ def test_certification_can_resend_unchanged_availability_when_forced(tmp_path, m
         or {"data": [{"id": "task-forced"}]},
     )
     twin_id = rooms[0][0]
+    day = str(date.today() + timedelta(days=16))
     response = client.put(
         f"/api/integrations/{iid}/channex/ari",
         json={
-            "date_from": "2026-11-17",
-            "date_to": "2026-11-17",
+            "date_from": day,
+            "date_to": day,
             "room_type_id": twin_id,
             "availability": 8,
             "force_availability": True,
@@ -40,13 +42,16 @@ def test_certification_availability_delivery_returns_the_new_action_task_not_an_
     client, db_file, iid, rooms, plans = cert_fixture(tmp_path, monkeypatch)
     twin_id = rooms[0][0]
     now = rosa.now_iso()
+    old_day = str(date.today())
+    start = str(date.today() + timedelta(days=9))
+    end = str(date.today() + timedelta(days=15))
     with sqlite3.connect(db_file) as con:
         con.execute(
             """INSERT INTO channel_ari_outbox
                (id,organization_id,integration_id,endpoint,payload_json,status,attempts,available_at,task_ids_json,last_error,created_at,sent_at)
                VALUES (?,?,?,?,?,'queued',0,?,'[]',NULL,?,NULL)""",
             ('old-cert-job','org_casa_rosa',iid,'/api/v1/availability',json.dumps({'values':[{
-                'property_id':'remote-cert','room_type_id':'remote-double','date_from':'2026-11-01','date_to':'2026-11-01','availability':1
+                'property_id':'remote-cert','room_type_id':'remote-double','date_from':old_day,'date_to':old_day,'availability':1
             }]}),now,now),
         )
         con.commit()
@@ -58,7 +63,7 @@ def test_certification_availability_delivery_returns_the_new_action_task_not_an_
     monkeypatch.setattr(rosa, '_channex_request', fake_request)
 
     response = client.put(f'/api/integrations/{iid}/channex/ari', json={
-        'date_from':'2026-11-10','date_to':'2026-11-16',
+        'date_from':start,'date_to':end,
         'room_type_id':twin_id,'availability':3,'force_availability':True,
     })
     assert response.status_code == 200, response.text
@@ -66,8 +71,8 @@ def test_certification_availability_delivery_returns_the_new_action_task_not_an_
     assert body['delivery']['delivered'][0]['task_ids']==['task-new-twin']
     payload=calls[0][1]
     assert payload['values'][0]['room_type_id']=='remote-twin'
-    assert payload['values'][0]['date_from']=='2026-11-10'
-    assert payload['values'][0]['date_to']=='2026-11-16'
+    assert payload['values'][0]['date_from']==start
+    assert payload['values'][0]['date_to']==end
     assert payload['values'][0]['availability']==3
     with sqlite3.connect(db_file) as con:
         old=con.execute("SELECT status FROM channel_ari_outbox WHERE id='old-cert-job'").fetchone()[0]

@@ -4,6 +4,7 @@ from pathlib import Path
 import shutil
 import socket
 import sqlite3
+import subprocess
 from types import SimpleNamespace
 import unittest
 import urllib.request
@@ -84,6 +85,38 @@ class IsolationTests(unittest.TestCase):
                 urllib.request.urlopen("https://example.invalid")
             with self.assertRaises(TestSafetyError):
                 socket.getaddrinfo("example.invalid", 443)
+            with socket.socket() as sock:
+                with self.assertRaises(TestSafetyError):
+                    sock.connect(("127.0.0.1", 1))
+
+    def test_raw_file_access_and_sqlite_alias_are_blocked(self):
+        with IsolatedEnvironment() as safety:
+            outside = safety.root.parent / "never-access.db"
+            for operation in (lambda: open(outside, "wb"),
+                              lambda: outside.write_bytes(b"synthetic"),
+                              lambda: os.open(outside, os.O_RDONLY),
+                              lambda: os.remove(outside),
+                              lambda: sqlite3.dbapi2.connect(outside)):
+                with self.assertRaises(TestSafetyError):
+                    operation()
+
+    def test_attach_outside_temporary_storage_is_denied(self):
+        with IsolatedEnvironment() as safety:
+            with closing(sqlite3.connect(safety.root / "safe.db")) as con:
+                with self.assertRaises(sqlite3.DatabaseError):
+                    con.execute("ATTACH DATABASE ? AS forbidden", (str(safety.root.parent / "never-attach.db"),))
+
+    def test_child_process_is_blocked(self):
+        with IsolatedEnvironment():
+            with self.assertRaises(TestSafetyError):
+                subprocess.run(["never-launch-this-program"])
+
+    def test_internal_socketpair_works_but_normal_loopback_stays_blocked(self):
+        with IsolatedEnvironment():
+            first, second = socket.socketpair()
+            with first, second:
+                first.sendall(b"synthetic")
+                self.assertEqual(second.recv(9), b"synthetic")
             with socket.socket() as sock:
                 with self.assertRaises(TestSafetyError):
                     sock.connect(("127.0.0.1", 1))

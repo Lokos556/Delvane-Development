@@ -1,9 +1,12 @@
 """Install isolation before pytest imports any application test modules."""
 import sys
+from datetime import date, datetime
+from pathlib import Path
 
 import pytest
 
 from testing_safety import IsolatedEnvironment
+from testing_clock import FixedDate, FixedDatetime, reset_clock
 
 
 def pytest_configure(config):
@@ -20,7 +23,23 @@ def pytest_configure(config):
 
 
 @pytest.fixture(autouse=True)
-def isolated_application(request, tmp_path, monkeypatch):
+def deterministic_calendar(monkeypatch):
+    import app
+    reset_clock()
+    test_root = (Path(__file__).parent / "tests").resolve()
+    for module in list(sys.modules.values()):
+        source = getattr(module, "__file__", None)
+        if module is not app and (not source or not Path(source).resolve().is_relative_to(test_root)):
+            continue
+        for name, value in list(vars(module).items()):
+            if value is date:
+                monkeypatch.setattr(module, name, FixedDate)
+            elif value is datetime:
+                monkeypatch.setattr(module, name, FixedDatetime)
+
+
+@pytest.fixture(autouse=True)
+def isolated_application(request, tmp_path, monkeypatch, deterministic_calendar):
     import app
     safety = request.config._delvane_safety
     safety.require_path(tmp_path / "test.db")
@@ -38,3 +57,17 @@ def isolated_application(request, tmp_path, monkeypatch):
     monkeypatch.setattr(app, "AI_PROVIDER", "local")
     monkeypatch.setattr(app, "AI_LAST_STATUS", {"state": "never_called", "error": None,
                         "last_success_at": None, "last_attempt_at": None})
+    assert app.DB_PATH.resolve().is_relative_to(safety.root)
+    assert app.APP_ENV == "test" and app.DB_BACKEND == "sqlite"
+    assert not app.CHANNEX_API_KEY and not app.OPENAI_API_KEY
+    try:
+        yield
+    finally:
+        safety.close_connections()
+
+
+def pytest_collection_modifyitems(items):
+    for item in items:
+        if item.path.name == "test_localization.py":
+            item.add_marker(pytest.mark.skip(
+                reason="Node child process cannot inherit Python isolation/network guards"))

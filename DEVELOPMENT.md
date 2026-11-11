@@ -6,7 +6,8 @@ to prepare a test environment. Flutter is outside this phase.
 
 ## Commands (from the repository root)
 
-Python 3.14 is the inspected interpreter. No packages were installed in this phase.
+The project-local `.venv` uses Python 3.14. Development dependencies have been
+installed and validated with `pip check`.
 The safety-guard tests need only Python's standard library:
 
 ```powershell
@@ -14,17 +15,17 @@ python -B -m unittest discover -s tests -p test_isolation.py -v
 ```
 
 For API tests, use a dedicated virtual environment containing the development
-dependencies. `requirements-dev.txt` records an exact top-level baseline; runtime
-versions reflect the existing interpreter. Pytest/httpx are required because the
-tests use pytest fixtures and FastAPI TestClient. Their proposed versions have not
-yet been installed or validated together. Transitive dependencies are not locked;
-a fully resolved lock requires a separate dependency-installation/validation step.
+dependencies. `requirements-dev.txt` records the top-level baseline;
+`requirements-dev.lock.txt` pins the complete resolved Windows/Python 3.14 test
+environment. Pytest/httpx are required for pytest fixtures and FastAPI TestClient.
+The current Starlette/httpx combination works but emits deprecation warnings;
+switching clients is separate work, not needed to execute these tests.
 
 When dependency installation is authorized, prepare the environment with:
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\python -m pip install -r requirements-dev.txt
+.\.venv\Scripts\python -m pip --isolated install --index-url https://pypi.org/simple -r requirements-dev.lock.txt
 ```
 
 First run the guards and the previously unsafe database tests:
@@ -39,20 +40,54 @@ After that passes, the normal suite command is:
 .\.venv\Scripts\python -B -m pytest -q
 ```
 
-Do not use full unittest discovery: legacy tests require the pytest safety hooks.
+Pytest configuration disables external plugin autoloading. Do not use full
+unittest discovery: legacy tests require the pytest safety hooks.
 Do not import application modules in external pytest plugins, disable the root
 conftest, pass `--noconftest`, or supply `--basetemp`. Run sequentially; parallel
-pytest execution is not validated. JavaScript-only tests require an existing Node
-installation; the localization test skips when Node is unavailable. Do not run
+pytest execution is not validated. The Python localization wrapper is explicitly
+skipped because its Node child process would not inherit Python guards. Do not run
 the synthetic benchmark generator as part of the normal suite: it writes fixtures
 and invokes an external OCR executable.
 
-Implementation validation: eight standard-library guard tests passed, and the
-real application initialized its schema successfully inside the guarded temporary
-tree. The API suite was not run because pytest and httpx are absent. No production
-migration or external connection was performed. Normal API development remains
-conditional on preparing the development environment and passing the targeted
-pytest command above.
+The same localization check and eight scanner/MRZ JavaScript files can now be run
+through the separate guarded source-snapshot runner (an existing Node 20+ is
+required, with no download or install):
+
+```powershell
+.\.venv\Scripts\python -B run_js_tests.py --node '<absolute path to node.exe>'
+```
+
+The runner copies only explicitly reviewed JavaScript source into a temporary
+directory. Node permissions grant read access only to that snapshot, no writes,
+child processes, workers, or native addons. A preload blocks network/DNS access
+and verifies permission denials before any test runs. Environment variables are
+replaced, including home/config paths. Do not launch Node directly against this
+repository as a substitute for this command.
+
+`testing_clock.py` fixes the test calendar at 2026-11-01 12:00:00 so November 2026
+certification migration fixtures stay future-dated on any host. Pytest replaces
+date/datetime references only in app/test modules; production date validation is
+unchanged. Each test resets a deterministic microsecond counter so separate
+high-resolution events remain ordered instead of sharing a timestamp. Import
+date/time at module scope in new tests (or use `app.date` and
+`app.datetime`) so it uses this clock. The JS runner fixes Date in the host and
+test VM contexts to the same UTC instant. Tests of real elapsed time and other
+calendar scenarios require explicit fixtures; this is not a production clock.
+
+Initial validation on 2026-11-11: 196 unique tests selected in five stages; 182 passed,
+13 failed, and one was skipped (195 actually executed). All 12 guard tests and
+18 authentication/authorization-stage tests passed. See `TEST_VALIDATION.md` for
+the stage results and failure classifications. No production migration or real
+external API connection was performed. This is a usable isolated development
+environment with a known failing baseline, not a fully passing release gate.
+The follow-up in `TEST_VALIDATION.md` records the Decimal fix, evidence-based
+assertion updates, new precision/date coverage, JavaScript results, and unresolved
+runtime metadata ambiguity. Do not reinterpret those metadata failures as passing
+tests or suppress them with skips/xfails.
+Final follow-up counts: Python 204 collected / 203 executed, 199 passed, 4 failed,
+1 skipped; guarded JavaScript 9 files executed, all passed. The original 13 failing
+tests now yield 9 passes and the four unchanged metadata failures. This remains a
+known failing regression baseline until the metadata contract is resolved.
 
 ## Isolation guarantees and boundaries
 
@@ -66,19 +101,29 @@ an already imported application and user-selected pytest base directories.
   redirect to their own pytest `tmp_path` inside the allocated temporary tree.
 - SQLite connections and application database initialization/reset are rejected
   outside that tree. The reset guard runs before any database deletion.
+- SQLite's dbapi2 alias, SQL ATTACH, raw database/environment file opens, and
+  database removals are also guarded. Tracked SQLite connections are closed on
+  teardown, including raw connections left open by existing tests on Windows.
 - Copies involving outside files are blocked, preventing adoption of live data.
 - Application database connections reject PostgreSQL. Socket connections and
   urllib requests, DNS resolution, and UDP sends are blocked; external adapters
   must use test doubles.
+- On Windows, only the standard-library socketpair operation may establish its
+  internal loopback pair for asyncio wake-ups. Ordinary loopback connections to
+  local services remain blocked. JUnit uses a synthetic hostname to avoid Windows
+  platform detection spawning a process.
 - All schema initialization and demo seeding happen only in disposable data.
 - Process environment and guards are restored at session end; owned temporary
   data is removed. No operational database is opened by the harness.
 
 These are accidental-access guards for this suite, not an OS security sandbox.
-New subprocesses do not inherit Python patches; review subprocess-based tests
-before running them. Tests must not bypass guards, use alternate database drivers,
-or access operational files through raw file APIs. Background-worker behavior and
-real PostgreSQL/provider integration are separate test concerns.
+Subprocess creation is blocked because children do not inherit Python patches.
+Tests must not bypass guards, use alternate database drivers, retain unpatched
+function references, rename operational files, or access data under unrecognized
+filenames. These remain reasons to review new tests before execution.
+Background-worker behavior and real PostgreSQL/provider integration are separate
+test concerns. Never treat this harness as permission to run unreviewed code with
+operational-data access.
 
 ## Initial test-infrastructure audit
 

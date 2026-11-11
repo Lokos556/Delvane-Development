@@ -90,7 +90,7 @@ const requiredHungarian = {
   'TURNOVER':'FORDULÓ',
   'MAINTENANCE':'KARBANTARTÁS',
   'REGISTRATION':'REGISZTRÁCIÓ',
-  'Ask Rosa anything…':'Kérdezz bármit Rosától…',
+  'Ask Delvane anything…':'Kérdezz bármit Rosától…',
   'Late checkout request':'Késői kijelentkezési kérés',
   'Assign Bálint':'Bálint kijelölése',
   "What's happening tomorrow?":'Mi történik holnap?',

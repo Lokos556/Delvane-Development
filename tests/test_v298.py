@@ -1,4 +1,6 @@
 from pathlib import Path
+import re
+from urllib.parse import urlsplit, parse_qs
 
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -18,6 +20,14 @@ def test_desktop_sidebar_is_fixed_without_changing_mobile_drawer():
     assert 'transform:translateX(-104%)' in mobile_rules
 
 
-def test_static_assets_are_cache_busted_for_v2104():
+def test_static_assets_have_explicit_release_cache_versions():
     html=(ROOT/'static'/'index.html').read_text(encoding='utf-8')
-    assert html.count('?v=2.10.27')==3
+    assets = re.findall(r'(?:href|src)="(/static/[^\"]+)"', html)
+    expected = {"/static/styles.css": "2.11.26", "/static/app.js": "2.11.26",
+                "/static/v283.js": "2.10.50"}
+    assert len(assets) == len(expected)
+    assert {urlsplit(asset).path for asset in assets} == set(expected)
+    for asset in assets:
+        parsed = urlsplit(asset)
+        assert parse_qs(parsed.query) == {"v": [expected[parsed.path]]}
+        assert (ROOT / parsed.path.lstrip('/')).is_file()

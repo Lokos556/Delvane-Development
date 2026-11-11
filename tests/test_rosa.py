@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+from datetime import date, timedelta
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from fastapi.testclient import TestClient
 import app as rosa
@@ -58,7 +59,6 @@ def test_create_reservation_and_overlap_guard(tmp_path, monkeypatch):
     client.headers.update({'X-Rosa-CSRF':login_response.json()['csrf_token']})
     props = client.get('/api/properties').json()
     terra = next(p for p in props if p['name']=='Terra')
-    from datetime import date, timedelta
     a = date.today()+timedelta(days=20); d=a+timedelta(days=3)
     payload={'property_id':terra['id'],'guest_name':'V1.3 Test Guest','arrival_date':str(a),'departure_date':str(d),'guest_count':2,'source':'Direct','special_requests':['High chair']}
     made=client.post('/api/reservations',json=payload)

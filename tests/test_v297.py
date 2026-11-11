@@ -3,6 +3,7 @@ import sqlite3
 import sys
 from datetime import date, timedelta
 from pathlib import Path
+import pytest
 
 from fastapi.testclient import TestClient
 
@@ -47,6 +48,38 @@ def test_whole_forint_price_is_sent_in_channex_minor_units(tmp_path,monkeypatch)
     with sqlite3.connect(db_file) as con:
         # Rosa continues to store and show normal whole-forint amounts.
         assert con.execute("SELECT nightly_rate_huf FROM channel_ari_values WHERE integration_id=?",(integration_id,)).fetchone()[0]==42000
+
+
+@pytest.mark.parametrize("amount,stored,minor", [
+    ("42000", 42000, 4200000),
+    ("42000.49", 42000, 4200049),
+    ("42000.50", 42000, 4200050),
+    ("42001.50", 42002, 4200150),
+    ("42000.51", 42001, 4200051),
+    ("9007199254740993", 9007199254740993, 900719925474099300),
+])
+def test_legacy_decimal_rate_uses_exact_integer_storage_and_minor_units(
+        tmp_path, monkeypatch, amount, stored, minor):
+    client, db_file, integration_id = fresh(tmp_path, monkeypatch)
+    calls = []
+    monkeypatch.setattr(rosa, "_channex_request",
+                        lambda path, method="POST", payload=None:
+                        (calls.append((path, payload)) or {"data": [{"id": "exact-rate"}]}))
+    day = str(date.today() + timedelta(days=5))
+    response = client.put(f"/api/integrations/{integration_id}/channex/ari", json={
+        "date_from": day, "date_to": day, "rate_huf": amount,
+    })
+    assert response.status_code == 200, response.text
+    with sqlite3.connect(db_file) as con:
+        row = con.execute("""SELECT nightly_rate_huf,rate_override_huf,
+            typeof(nightly_rate_huf),typeof(rate_override_huf),availability
+            FROM channel_ari_values WHERE integration_id=? AND stay_date=?""",
+            (integration_id, day)).fetchone()
+    # Legacy HUF storage already rounds whole forints using Decimal's half-even
+    # rule. The override must use exactly that same integer, never a float.
+    assert row == (stored, stored, "integer", "integer", None)
+    assert [path for path, _ in calls] == ["/api/v1/restrictions"]
+    assert calls[0][1]["values"][0]["rate"] == minor
 
 
 def test_upgrade_repairs_pending_and_already_sent_wrong_rates(tmp_path,monkeypatch):
