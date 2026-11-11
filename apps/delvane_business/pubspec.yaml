@@ -9,6 +9,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_secure_storage: 9.2.4
 
 dev_dependencies:
   flutter_test:
@@ -17,3 +18,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/delvane-icon.png
+    - assets/web-locales.json

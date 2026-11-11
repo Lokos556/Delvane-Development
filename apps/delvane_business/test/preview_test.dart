@@ -32,7 +32,10 @@ void main() {
       });
       final key = GlobalKey();
       await tester.pumpWidget(
-        RepaintBoundary(key: key, child: const DelvaneBusinessApp()),
+        RepaintBoundary(
+          key: key,
+          child: const DelvaneBusinessApp(demoMode: true),
+        ),
       );
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);

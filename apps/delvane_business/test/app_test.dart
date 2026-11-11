@@ -24,7 +24,7 @@ void main() {
         tester.view.devicePixelRatio = 1;
         addTearDown(tester.view.resetPhysicalSize);
         addTearDown(tester.view.resetDevicePixelRatio);
-        await tester.pumpWidget(const DelvaneBusinessApp());
+        await tester.pumpWidget(const DelvaneBusinessApp(demoMode: true));
         await tester.pumpAndSettle();
         final controller = tester
             .widget<AppShell>(find.byType(AppShell))
@@ -49,7 +49,7 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
-      await tester.pumpWidget(const DelvaneBusinessApp());
+      await tester.pumpWidget(const DelvaneBusinessApp(demoMode: true));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('nav-reservations')));
       await tester.pumpAndSettle();
@@ -70,7 +70,7 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    await tester.pumpWidget(const DelvaneBusinessApp());
+    await tester.pumpWidget(const DelvaneBusinessApp(demoMode: true));
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Open navigation'));
     await tester.pumpAndSettle();
@@ -83,7 +83,7 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    await tester.pumpWidget(const DelvaneBusinessApp());
+    await tester.pumpWidget(const DelvaneBusinessApp(demoMode: true));
     await tester.pumpAndSettle();
     final controller = tester
         .widget<AppShell>(find.byType(AppShell))
@@ -106,7 +106,7 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
-      await tester.pumpWidget(const DelvaneBusinessApp());
+      await tester.pumpWidget(const DelvaneBusinessApp(demoMode: true));
       await tester.pumpAndSettle();
       final controller = tester
           .widget<AppShell>(find.byType(AppShell))

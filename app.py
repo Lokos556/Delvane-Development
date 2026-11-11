@@ -8645,18 +8645,40 @@ def sensitive_guest_save(guest_record_id: str, body: SensitiveGuestBody, request
         audit_event(con,user["organization_id"],"registration.sensitive_updated","Sensitive registration record updated.",actor_user_id=user["id"],entity_type="guest_record",entity_id=guest_record_id,metadata={"fields":[k for k,v in payload.items() if v]},request=request)
     return {"ok":True}
 
+@app.get("/api/operations/properties")
+def operational_properties(rosa_session: str | None = Cookie(default=None)):
+    """Minimal property context for role-scoped operational records, not guest data."""
+    user=require_user(rosa_session)
+    require_roles(user,"owner","manager","cleaner","maintenance")
+    org=user["organization_id"]
+    with db() as con:
+        query="SELECT p.id,p.name,p.checkin_time,p.checkout_time FROM properties p WHERE p.organization_id=?"
+        args=[org]
+        if user["role"]=="cleaner":
+            query+=""" AND (EXISTS (SELECT 1 FROM work_tasks t WHERE t.organization_id=p.organization_id
+                         AND t.property_id=p.id AND t.assigned_to=?)
+                         OR EXISTS (SELECT 1 FROM maintenance_cases m WHERE m.organization_id=p.organization_id
+                         AND m.property_id=p.id))"""
+            args.append(user["id"])
+        elif user["role"]=="maintenance":
+            query+=""" AND EXISTS (SELECT 1 FROM maintenance_cases m WHERE m.organization_id=p.organization_id
+                         AND m.property_id=p.id AND (m.assigned_to=? OR m.assigned_to IS NULL))"""
+            args.append(user["id"])
+        return rows(con.execute(query+" ORDER BY p.name,p.id",args))
+
+
 @app.get("/api/operations/today-command")
 def today_command(rosa_session: str | None = Cookie(default=None)):
     user=require_user(rosa_session); require_roles(user,"owner","manager")
     org=user["organization_id"]; today=str(date.today())
     refresh_cleaning_tasks(org)
     with db() as con:
-        arrivals=rows(con.execute("SELECT r.id,r.guest_name,r.arrival_time,r.registration_status,r.guest_count,p.name property_name,p.checkin_time FROM reservations r JOIN properties p ON p.id=r.property_id WHERE r.organization_id=? AND r.arrival_date=? AND r.status='confirmed' ORDER BY p.name",(org,today)))
-        departures=rows(con.execute("SELECT r.id,r.guest_name,p.name property_name,p.checkout_time FROM reservations r JOIN properties p ON p.id=r.property_id WHERE r.organization_id=? AND r.departure_date=? AND r.status='confirmed' ORDER BY p.name",(org,today)))
-        cleaning=rows(con.execute("SELECT t.id,t.status,t.deadline_time,t.priority,p.name property_name,u.full_name assigned_name FROM work_tasks t JOIN properties p ON p.id=t.property_id LEFT JOIN users u ON u.id=t.assigned_to WHERE t.organization_id=? AND t.task_type='cleaning' AND t.scheduled_date=? ORDER BY t.deadline_time,p.name",(org,today)))
-        maintenance=rows(con.execute("SELECT m.id,m.title,m.severity,m.status,p.name property_name FROM maintenance_cases m JOIN properties p ON p.id=m.property_id WHERE m.organization_id=? AND m.status NOT IN ('resolved','verified') ORDER BY CASE m.severity WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END,m.created_at",(org,)))
+        arrivals=rows(con.execute("SELECT r.id,r.property_id,r.guest_name,r.arrival_time,r.registration_status,r.guest_count,p.name property_name,p.checkin_time FROM reservations r JOIN properties p ON p.id=r.property_id WHERE r.organization_id=? AND r.arrival_date=? AND r.status='confirmed' ORDER BY p.name",(org,today)))
+        departures=rows(con.execute("SELECT r.id,r.property_id,r.guest_name,p.name property_name,p.checkout_time FROM reservations r JOIN properties p ON p.id=r.property_id WHERE r.organization_id=? AND r.departure_date=? AND r.status='confirmed' ORDER BY p.name",(org,today)))
+        cleaning=rows(con.execute("SELECT t.id,t.property_id,t.status,t.scheduled_date,t.earliest_time,t.worker_note,t.assigned_to,t.previous_reservation_id,t.next_reservation_id,t.deadline_time,t.priority,p.name property_name,u.full_name assigned_name FROM work_tasks t JOIN properties p ON p.id=t.property_id LEFT JOIN users u ON u.id=t.assigned_to WHERE t.organization_id=? AND t.task_type='cleaning' AND t.scheduled_date=? ORDER BY t.deadline_time,p.name",(org,today)))
+        maintenance=rows(con.execute("SELECT m.id,m.property_id,m.title,m.severity,m.status,p.name property_name FROM maintenance_cases m JOIN properties p ON p.id=m.property_id WHERE m.organization_id=? AND m.status NOT IN ('resolved','verified') ORDER BY CASE m.severity WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END,m.created_at",(org,)))
         tomorrow=str(date.today()+timedelta(days=1))
-        registration=rows(con.execute("""SELECT r.id,r.guest_name,r.arrival_date,r.arrival_time,r.registration_status,r.guest_count,p.name property_name,p.checkin_time
+        registration=rows(con.execute("""SELECT r.id,r.property_id,r.guest_name,r.arrival_date,r.arrival_time,r.registration_status,r.guest_count,p.name property_name,p.checkin_time
                                        FROM reservations r JOIN properties p ON p.id=r.property_id
                                        WHERE r.organization_id=? AND r.status='confirmed' AND r.registration_status!='complete'
                                        AND r.arrival_date BETWEEN ? AND ? ORDER BY r.arrival_date,p.name""",(org,today,tomorrow)))

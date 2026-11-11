@@ -1,8 +1,11 @@
 # Safe development and tests
 
-The existing PMS and operational database are preserved. Do not start the app,
-run setup scripts, copy a live database into tests, or use production credentials
-to prepare a test environment. Flutter is outside this phase.
+The existing PMS and operational database are preserved. Do not start the app with
+ordinary launchers, run setup scripts, copy a live database into tests, or use
+production credentials to prepare a test environment. Integrated Flutter development
+now uses only `run_development_workspace.py`, which installs these isolation guards
+before importing the app and serves disposable data on loopback. See
+[Delvane Business setup](apps/delvane_business/README.md) for the two-terminal launch.
 
 ## Commands (from the repository root)
 

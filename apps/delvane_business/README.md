@@ -1,123 +1,200 @@
 # Delvane Business
 
-An offline Flutter preview of Delvane's hospitality workspace. Targets Windows
-first, with Android, iOS, and macOS runners in this same repository.
+Milestone 1 connects the native Flutter client to the existing FastAPI PMS using
+its own session-cookie/CSRF authentication. The original backend/web PMS stays at
+the repository root. The app defaults to a sign-in screen, not fixture data.
 
-## Run and validate
+## Launch the integrated Windows workspace
 
-Use Flutter 3.32.2 / Dart 3.8.1. From this directory:
+Use two terminals. Do not run `uvicorn app:app`, existing production launchers, or
+supply a database path for this milestone.
+
+Terminal 1, from the repository root:
 
 ```powershell
+Set-Location C:\Delvane\Delvane-Development
+.\.venv\Scripts\python -B run_development_workspace.py
+```
+
+Enter a new disposable password of at least 12 characters at the hidden prompt.
+The same password applies to these **synthetic accounts only**:
+
+- `owner@workspace.invalid`
+- `manager@workspace.invalid`
+- `cleaner@workspace.invalid`
+- `maintenance@workspace.invalid`
+
+The launcher serves `http://127.0.0.1:8765`. It installs the existing isolation
+guards **before importing app.py**, creates fresh temporary SQLite data, suppresses
+local environment/credential loading and sibling database adoption, disables the
+seeded demo logins, and blocks outbound sockets/DNS/urllib and child processes.
+It never opens or copies an operational database. Existing schema initialization
+and derived-record refreshes run only inside that temporary tree. Access logging
+is disabled. Keep the terminal open; Ctrl+C stops the server and cleans up data.
+A force-killed process may leave ignored OS-temporary synthetic files.
+
+Terminal 2:
+
+```powershell
+Set-Location C:\Delvane\Delvane-Development\apps\delvane_business
 flutter --no-version-check pub get
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tool\build_windows.ps1
+.\build\windows-vs2026\x64\runner\Release\delvane_business.exe
+```
+
+Sign in using one of the accounts above and the password you chose. The existing
+web client is also available at `http://127.0.0.1:8765/` against this disposable
+data. Restarting the server creates a new workspace and invalidates the native
+client's saved session. Press Reconnect if the app started before the server.
+
+The build script first attempts Flutter's standard Windows release build. This
+host has VS 2026 while Flutter 3.32.2 selects a VS 2019 generator; the reviewed
+script handles that specific mismatch with installed VS 2026 CMake/MSBuild. The
+ExecutionPolicy setting above applies to that one child process only. It does not
+change system policy. On a compatible Flutter/VS pair, use `flutter run -d windows`
+or launch `build/windows/x64/runner/Release/delvane_business.exe` after the standard
+build. Keep all DLLs and `data/` beside the executable, including the secure-storage
+plugin DLL.
+
+The default API origin is compiled as `http://127.0.0.1:8765`. There is no arbitrary
+server picker or production-mode bypass. Before sending credentials/restoring a
+cookie, the app requires `/api/development/workspace` to identify the disposable
+launcher instance. This endpoint exists only in the guarded launcher, not the
+ordinary backend. The marker prevents accidental environment confusion; actual
+data isolation is enforced by the Python guards. Do not proxy it onto another PMS.
+A future approved staging/production rollout needs a separate configuration and
+release review, not removal of the marker check.
+
+## Functional scope
+
+- Owner/manager: Today queues for arrivals, departures, cleaning turnovers,
+  maintenance, near-term incomplete registration and derived operational
+  priorities; real property readiness and reasons; read-only reservation search.
+- Cleaner: My day with assigned upcoming cleaning, deadlines/preparation,
+  read-only checklists and permitted maintenance cases. Fresh assignment is
+  checked through the worker dashboard before opening a task.
+- Maintenance: My cases and visible assigned/unassigned maintenance cases;
+  restricted operational property context. No reservation or guest-document view.
+- Stable-ID property selection filters every workspace queue and reservation list.
+- Reservation, property, cleaning and maintenance records have their own routes,
+  linked records, Back navigation, loading/error/retry states and explicit
+  read-only status. Role/organization/permission changes discard protected routes.
+- Refresh and foreground resume revalidate identity. Failed refresh clears the
+  previous snapshot and shows an unavailable state; fixture data is never used.
+- Desktop sidebar, tablet rail and compact phone/short-landscape bottom navigation
+  use the existing white/ink/yellow theme with dense operational lists.
+
+Registration means the backend's completeness/review state, not certified identity
+or government acceptance. Property readiness is the existing backend heuristic,
+not an invented occupancy or revenue metric. Cleaning schedules and checklist
+initialization can be refreshed by backend GET handlers; this is why the launcher
+must always use disposable data even though the client has no business-write UI.
+
+## Authentication and security
+
+`POST /api/login` issues the existing HttpOnly `rosa_session` cookie. The native
+transport captures that cookie; it does not manufacture bearer tokens. `GET
+/api/me` validates the session and supplies user, organization, permissions and the
+CSRF token. `POST /api/logout` sends both cookie and `X-Rosa-CSRF` to revoke the
+server session. A 401 clears local credentials and protected routes. A 403 remains
+an access/security error, not a reason to grant access or fabricate data.
+
+Only the cookie, expiry and origin/workspace binding are persisted using
+[flutter_secure_storage 9.2.4](https://pub.dev/packages/flutter_secure_storage/versions/9.2.4).
+Its Windows plugin uses encrypted storage backed by a key in Windows Credential
+Manager; Android uses encrypted preferences/KeyStore; Apple uses Keychain. The
+package and resolved dependencies are locked for this Flutter/Dart toolchain.
+No passwords, guest records or CSRF tokens are persisted. Storage failure fails
+closed; there is no plaintext fallback. Native secret-store behavior still needs
+interactive device acceptance testing beyond compilation and fake-store tests.
+
+Cookie Max-Age is bounded to the current seven-day contract. Local expiry also
+clears the UI; server expiry/revocation/active-account checks remain authoritative.
+The backend's declared idle timeout is not enforced by its current implementation;
+this milestone does not silently change that policy or its known login-rate-limit
+debt. Offline logout clears local state and reports when server revocation could
+not be confirmed; the server session can remain until expiry/revocation. Secure
+store deletion failure is reported rather than claimed successful.
+
+HTTPS is required for non-loopback origins. HTTP is permitted only for explicit
+loopback development. Redirects are disabled, proxy routing is disabled, responses
+are size/time bounded and errors never display raw server bodies. Credentials
+stay on one fixed origin. Provider credentials and guest identity vault endpoints
+are never requested. Android backup is disabled; macOS client networking and
+Keychain capabilities are configured. No global TLS or certificate bypass exists.
+
+## Demo separation
+
+Explore offline demo is an explicit sign-in-screen action and has an Exit demo
+control. It retains the seven original synthetic preview screens and labels.
+It has no session, remote repository, fallback path or provider calls. Demo task
+checkboxes, drafts, scripted AI and settings stay in memory and do not affect the
+connected workspace. Authenticated mode never embeds these demo screens.
+
+## Backend API contract
+
+Existing endpoints used:
+
+- `POST /api/login`, `GET /api/me`, `POST /api/logout`.
+- Owner/manager: `GET /api/operations/today-command`, `/api/owner/dashboard`,
+  `/api/properties`, `/api/reservations`, `/api/reservations/{id}/detail`,
+  `/api/properties/{id}/overview` and `/api/work-tasks/{id}/checklist`.
+- Workers: `GET /api/worker/dashboard`; checklist/preparation comes from the
+  assigned-task payload, avoiding the older broad checklist-read permission.
+- All supported roles: `GET /api/maintenance`.
+
+Minimal backend additions:
+
+- `GET /api/operations/properties`: organization-scoped ID/name/check-in/checkout
+  only. Cleaner context is restricted to assigned work or already-visible cases;
+  maintenance context to assigned/unassigned visible cases. Existing `/properties`
+  authorization remains unchanged. No guest/address/financial fields are returned.
+- Additive `property_id` fields on every Today queue and cleaning scheduling/context
+  fields so Flutter never joins records by display name. Existing fields and query
+  semantics remain intact; browser handlers continue to use their old fields.
+- `/api/development/workspace` is registered only by the isolated launcher.
+
+## Tests and builds
+
+From this Flutter directory:
+
+```powershell
 flutter --no-version-check analyze
 flutter --no-version-check test
-.\tool\build_windows.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tool\build_windows.ps1
 ```
 
-### Windows / Visual Studio 2026 compatibility
+Flutter tests use injected transports and in-memory secret stores, never a real
+server, operational database or external API. Existing demo tests explicitly opt
+into demo mode. Backend commands run from the repository root through conftest:
 
-Flutter 3.32.2's Doctor accepts VS 2026, but its Windows builder only recognizes
-VS 2019/2022 generator names. A direct `flutter build windows --release` selects
-`Visual Studio 16 2019` and fails on this VS-2026-only host. The script above first
-tries that standard command (preparing Flutter's generated configuration), then
-handles only this known generator mismatch using installed VS 2026 CMake/MSBuild
-and Flutter's normal assemble/install targets. Other build errors still fail.
-No Flutter SDK or system installation is modified. The fallback uses a separate
-ignored build directory, so it never deletes or reuses the old generator's cache.
-
-Verified release bundle on this machine:
-
-```text
-build/windows-vs2026/x64/runner/Release/
-  delvane_business.exe
-  flutter_windows.dll
-  data/
+```powershell
+.\.venv\Scripts\python -B -m pytest -q tests/test_isolation.py tests/test_flutter_workspace.py tests/test_v22.py tests/test_v25.py
 ```
 
-Open `delvane_business.exe` in that folder to use the offline preview. On a
-compatible Flutter/Visual Studio pair, the standard `flutter run -d windows` and
-`flutter build windows --release` commands work normally, and the script returns
-after the standard build. Their usual output is `build/windows/x64/runner/Release`.
+This selection currently yields 34 passes and one pre-existing version/schema
+metadata failure, recorded in TEST_VALIDATION.md and unchanged by these additive
+API changes. No failure is skipped or assertion weakened. See MILESTONE_1.md for
+exact validation results and changed files.
 
-Keep `pubspec.lock` in Git for reproducible dependency resolution. No runtime
-packages beyond the Flutter SDK are used; `flutter_lints` is a dev dependency.
-The generated build directory is ignored. Distribute the entire release bundle,
-including DLLs and `data/`, rather than the executable alone.
+## Remaining work and structure
 
-iOS/macOS builds require a Mac with Xcode and the corresponding Flutter setup.
-Their runners are generated here but cannot be validated on Windows. Android
-device/emulator verification and store signing are later development steps.
+This is a functional authenticated read-oriented milestone, not complete PMS
+parity. Booking mutation/calendar, reception/messaging, task start/finish/edit,
+identity approval, team administration, AI execution and provider/reporting writes
+remain in the web PMS. No offline writes, persistent guest cache, background push
+or external delivery is introduced. Worker readiness is intentionally restricted.
+The existing reference worker Maintenance-page dependency issue is not rewritten.
 
-### Validation of this initial version
+Windows is the verified build target here. Android/iOS/macOS runners are retained;
+Apple requires a Mac/signing and all mobile/native secret-store behavior needs
+device testing. Android loopback debug access also requires an explicit local
+network policy/ADB setup; do not disable TLS globally to work around it.
 
-- `flutter analyze`: no issues.
-- `flutter test`: 19 passed, none failed or skipped.
-- All seven screens checked at seven phone/tablet/desktop viewport sizes,
-  including short landscape windows; navigation switches to a drawer when needed.
-- Fake-transport API tests cover HTTPS/origin/path validation, status errors,
-  malformed JSON, timeouts, injected session headers, and native integer precision.
-- Interaction tests cover reservation search/details, mobile navigation, local
-  drafts, scripted AI, settings, and shared session state.
-- Desktop/mobile raster previews are regenerated under ignored `build/previews/`.
-- Windows x64 Release bundle built successfully through the compatibility script
-  with MSVC 19.52 and the installed Windows SDK. Native launch/device smoke testing,
-  other platform builds, store signing, and deployment are not claimed by these checks.
-
-## Mock-mode boundary
-
-Every screen displays a demo notice. All names, properties, reservations, values,
-messages, chart values, task assignments, and notifications are synthetic.
-The illustrative workspace date is 11 November 2026. Occupied-unit totals and
-the reservation list are separate sample datasets, not a reconciliation report.
-
-- Reservations: search, status filters and read-only detail previews.
-- Reception: select conversations and save drafts in memory; no send operation.
-- Properties: illustrative readiness/occupancy and read-only previews.
-- Operations: local task completion, shared with the dashboard.
-- AI: explicitly scripted mock answers; no model, tools, or autonomous actions.
-- Settings: in-memory preview preferences; no authentication or real delivery.
-
-The app does not open backend files, read SQLite, contact the FastAPI server,
-invoke integrations, send guest messages, or persist guest information. Drafts,
-task completion and preferences reset on restart. There is no hidden live-mode
-flag. No API client is instantiated by the mock app.
-
-## Structure
-
-```text
-lib/
-  app/                  composition, controller, navigation and theme
-  core/network/         injectable native HTTP transport and safe API errors
-  domain/               immutable models and repository interface
-  data/                 synthetic repository implementation
-  features/             dashboard, reservations, reception, properties,
-                        operations, AI and settings screens
-  shared/               responsive shell and reusable visual components
-test/                   responsive/widget, local-state and API-contract tests
-windows/ android/ ios/ macos/   native platform runners
-```
-
-`BusinessRepository` isolates presentation from data access. `BusinessController`
-owns session-only UI state with Flutter's ChangeNotifier, without a third-party
-state-management dependency. Desktop uses a sidebar, medium windows a navigation
-rail, and mobile a drawer plus bottom navigation. Theme tokens live in one file.
-
-`ApiClient` accepts an injected transport and future session-header provider.
-It handles JSON collections/maps, request timeouts and sanitized errors, requires
-HTTPS by default, and rejects cross-origin request paths. HTTP loopback is an
-explicit development-only opt-in. API tests use fake transports, never sockets.
-
-Before connecting to FastAPI, implement a remote repository and documented DTO
-mapping, then design authentication/session storage and per-session CSRF handling.
-The preserved backend uses HttpOnly sessions and `X-Rosa-CSRF`; this foundation
-does not pretend a bearer-token login, secure credential storage, refresh flow,
-or production integration already exists. Do not put secrets in source or
-`--dart-define` values. Keep sensitive registration documents outside generic
-operational state. No backend modification is needed for this preview.
-
-## Product scope
-
-This is an initial working client, not a production PMS replacement. Browser
-camera/identity scanning, government reporting, invoicing, channel management,
-offline synchronization, real AI, account onboarding, and deployment remain
-backend/integration work. Native app icons and signing remain release work.
+New code lives in `lib/core/auth/` and `lib/features/workspace/`, with the shared
+HTTP transport in `lib/core/network/`. The original `BusinessController` and mock
+repository serve only demo mode. `WorkspaceRepository` maps allowlisted fields,
+`WorkspaceController` owns loading/property/navigation state, and the authenticated
+nested Navigator owns record routes. FastAPI owns all authorization and business
+state. The audit documents FEATURE_PARITY.md and FLUTTER_ROADMAP.md describe the
+pre-milestone baseline and longer migration plan; they are not current pass counts.

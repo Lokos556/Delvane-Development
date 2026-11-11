@@ -3,9 +3,10 @@ import 'dart:convert';
 import 'dart:io';
 
 class ApiResponse {
-  const ApiResponse(this.statusCode, this.body);
+  const ApiResponse(this.statusCode, this.body, {this.setCookies = const []});
   final int statusCode;
   final String body;
+  final List<String> setCookies;
 }
 
 abstract interface class ApiTransport {
@@ -29,14 +30,25 @@ class IoApiTransport implements ApiTransport {
     Object? body,
   ) async {
     final client = _client ??= HttpClient()
-      ..connectionTimeout = const Duration(seconds: 15);
+      ..connectionTimeout = const Duration(seconds: 15)
+      ..findProxy = (_) => 'DIRECT';
     final request = await client.openUrl(method, uri);
+    // Never forward a session or a password through an HTTP redirect.
+    request.followRedirects = false;
     headers.forEach(request.headers.set);
     if (body != null) request.write(jsonEncode(body));
     final response = await request.close();
+    final bytes = <int>[];
+    await for (final chunk in response) {
+      if (bytes.length + chunk.length > 8 * 1024 * 1024) {
+        throw const ApiException('The server response is too large.');
+      }
+      bytes.addAll(chunk);
+    }
     return ApiResponse(
       response.statusCode,
-      await utf8.decoder.bind(response).join(),
+      utf8.decode(bytes),
+      setCookies: response.headers[HttpHeaders.setCookieHeader] ?? const [],
     );
   }
 
@@ -55,9 +67,7 @@ class ApiException implements Exception {
   String toString() => 'ApiException: $message';
 }
 
-/// Future integration seam, deliberately unused by the mock application.
-/// Session/cookie and per-session CSRF headers must come from a future auth layer.
-/// Never embed credentials in source, URLs, or compile-time defines.
+/// One fixed origin per client. Credentials never appear in URLs or diagnostics.
 class ApiClient {
   ApiClient({
     required this.baseUrl,
@@ -83,12 +93,30 @@ class ApiClient {
   final ApiTransport _transport;
   final Map<String, String> Function()? sessionHeaders;
   final Duration timeout;
+  void Function()? onUnauthorized;
 
   Future<Object?> get(String path) => _request('GET', path);
   Future<Object?> post(String path, Object body) =>
       _request('POST', path, body);
+  Future<Object?> patch(String path, Object body) =>
+      _request('PATCH', path, body);
+  Future<Object?> put(String path, Object body) => _request('PUT', path, body);
+  Future<Object?> delete(String path) => _request('DELETE', path);
 
   Future<Object?> _request(String method, String path, [Object? body]) async {
+    final response = await exchange(method, path, body);
+    try {
+      return response.body.isEmpty ? null : jsonDecode(response.body);
+    } on FormatException {
+      throw const ApiException('The server returned an invalid response.');
+    }
+  }
+
+  Future<ApiResponse> exchange(
+    String method,
+    String path, [
+    Object? body,
+  ]) async {
     // Uri.parse normalizes dot segments; validate the original path first too.
     final segments = Uri.decodeComponent(path.split('?').first).split('/');
     final relative = Uri.parse(path);
@@ -109,15 +137,23 @@ class ApiClient {
           }, body)
           .timeout(timeout);
       if (response.statusCode < 200 || response.statusCode >= 300) {
+        if (response.statusCode == 401 && path != '/api/login') {
+          onUnauthorized?.call();
+        }
         throw ApiException(
           response.statusCode == 401
               ? 'Authentication required.'
+              : response.statusCode == 403
+              ? 'Access denied or security token expired. Sign in again if needed.'
+              : response.statusCode == 429
+              ? 'Too many attempts. Wait before trying again.'
               : 'The server could not complete the request.',
           statusCode: response.statusCode,
         );
       }
-      return response.body.isEmpty ? null : jsonDecode(response.body);
+      return response;
     } on TimeoutException {
+      _transport.close();
       throw const ApiException('The request timed out.');
     } on FormatException {
       throw const ApiException('The server returned an invalid response.');
