@@ -1,5 +1,51 @@
+# Local data (including SQLite sidecars)
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.db3
+*.db3-*
+
+# Secret configuration; keep the reviewed template
+.env
+.env.*
+!.env.example
+*.env
 .env.local
-rosa.db
+
+# Python environments and generated output
+.venv/
+venv/
+env/
 __pycache__/
+*.py[cod]
 .pytest_cache/
-*.pyc
+.mypy_cache/
+.ruff_cache/
+.coverage*
+htmlcov/
+coverage.xml
+*.egg-info/
+build/
+dist/
+*.log
+logs/
+
+# Local credentials and certificates
+.aws/
+.ssh/
+credentials/
+secrets/
+certs/
+certificates/
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.jks
+credentials.json
+service-account*.json
