@@ -5,7 +5,7 @@ import '../shared/app_shell.dart';
 import '../core/auth/auth_controller.dart';
 import '../core/auth/session_store.dart';
 import '../features/workspace/login_page.dart';
-import '../features/workspace/workspace_page.dart';
+import '../features/pms/pms_shell.dart';
 import 'controller.dart';
 import 'theme.dart';
 
@@ -15,10 +15,12 @@ class DelvaneBusinessApp extends StatefulWidget {
     this.repository,
     this.demoMode = false,
     this.auth,
+    this.workspaceBuilder,
   });
   final BusinessRepository? repository;
   final bool demoMode;
   final AuthController? auth;
+  final Widget Function(AuthController)? workspaceBuilder;
   @override
   State<DelvaneBusinessApp> createState() => _DelvaneBusinessAppState();
 }
@@ -117,7 +119,9 @@ class _DelvaneBusinessAppState extends State<DelvaneBusinessApp> {
                 child: Navigator(
                   key: workspaceNavigator,
                   onGenerateRoute: (_) => MaterialPageRoute<void>(
-                    builder: (_) => WorkspacePage(auth: auth!),
+                    builder: (_) =>
+                        widget.workspaceBuilder?.call(auth!) ??
+                        PmsShell(auth: auth!),
                   ),
                 ),
               );

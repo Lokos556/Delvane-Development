@@ -1,3 +1,14 @@
+# Web-fidelity port in progress
+
+The authenticated default now uses the source-shaped PMS shell. See [PORT_STATUS.md](PORT_STATUS.md) for implemented screens, substantial remaining gaps and visual differences. The Milestone 1 instructions below still describe the secure isolated launcher, but its UI inventory is historical. This build is not full web parity.
+
+Reservations, Reception, property rates, worker maintenance/cleaning, stock,
+team administration and Channex distribution now have real API workflows. The current
+validation is 110 Flutter tests and 48 selected isolated Python tests passing; see
+[PORT_STATUS.md](PORT_STATUS.md) for exact coverage, endpoints and remaining visual
+and functional gaps. The Milestone 1 test counts and read-only inventory below
+are historical, while its guarded launch/security instructions remain applicable.
+
 # Delvane Business
 
 Milestone 1 connects the native Flutter client to the existing FastAPI PMS using

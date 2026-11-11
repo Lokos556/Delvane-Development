@@ -12,11 +12,13 @@ class RecordPage extends StatefulWidget {
     required this.repository,
     required this.workspace,
     required this.ref,
+    this.openReservation,
   });
   final AuthController auth;
   final WorkspaceRepository repository;
   final OperationalWorkspace workspace;
   final RecordRef ref;
+  final ValueChanged<String>? openReservation;
   @override
   State<RecordPage> createState() => _RecordPageState();
 }
@@ -175,16 +177,21 @@ class _RecordPageState extends State<RecordPage> {
                           OutlinedButton.icon(
                             icon: const Icon(Icons.arrow_forward, size: 16),
                             label: Text(link.label),
-                            onPressed: () => Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => RecordPage(
-                                  auth: widget.auth,
-                                  repository: widget.repository,
-                                  workspace: widget.workspace,
-                                  ref: link.ref,
-                                ),
-                              ),
-                            ),
+                            onPressed:
+                                link.ref.kind == RecordKind.reservation &&
+                                    widget.openReservation != null
+                                ? () => widget.openReservation!(link.ref.id)
+                                : () => Navigator.of(context).push(
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => RecordPage(
+                                        auth: widget.auth,
+                                        repository: widget.repository,
+                                        workspace: widget.workspace,
+                                        ref: link.ref,
+                                        openReservation: widget.openReservation,
+                                      ),
+                                    ),
+                                  ),
                           ),
                       ],
                     ),

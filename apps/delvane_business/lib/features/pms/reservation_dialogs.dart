@@ -1,0 +1,1086 @@
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../workspace/workspace_models.dart';
+import 'pms_controller.dart';
+import 'pms_dialogs.dart';
+import 'pms_style.dart';
+import 'pms_workflows.dart';
+import 'guest_history_dialog.dart';
+
+List<String> reservationRequests(Object? value) {
+  final decoded = value is String
+      ? jsonDecode(value.isEmpty ? '[]' : value)
+      : value;
+  return decoded is List ? decoded.map((v) => v.toString()).toList() : [];
+}
+
+class ReservationEditor extends StatefulWidget {
+  const ReservationEditor({
+    super.key,
+    required this.api,
+    this.reservation,
+    this.initialDate,
+  });
+  final PmsWorkflows api;
+  final Json? reservation;
+  final String? initialDate;
+  @override
+  State<ReservationEditor> createState() => _ReservationEditorState();
+}
+
+class _ReservationEditorState extends State<ReservationEditor>
+    with PmsActions<ReservationEditor> {
+  final form = GlobalKey<FormState>();
+  final fields = <String, TextEditingController>{};
+  List<Json> properties = [], rooms = [];
+  String property = '', room = '', source = 'Direct';
+  bool loading = true, roomLoading = false;
+  int request = 0;
+  bool get editing => widget.reservation != null;
+  String t(String s) => widget.api.controller.t(s);
+  @override
+  void initState() {
+    super.initState();
+    final r = widget.reservation ?? {};
+    final start =
+        DateTime.tryParse(widget.initialDate ?? '') ??
+        DateTime.now().add(const Duration(days: 1));
+    for (final key in [
+      'guest_name',
+      'arrival_date',
+      'departure_date',
+      'guest_count',
+      'arrival_time',
+      'total_huf',
+      'external_ref',
+      'special_requests',
+    ]) {
+      fields[key] = TextEditingController(
+        text: key == 'special_requests'
+            ? reservationRequests(r[key]).join(', ')
+            : text(r, key),
+      );
+    }
+    if (!editing) {
+      fields['arrival_date']!.text = isoDate(start);
+      fields['departure_date']!.text = isoDate(
+        start.add(const Duration(days: 3)),
+      );
+      fields['guest_count']!.text = '2';
+    }
+    source = text(r, 'source', 'Direct');
+    property = text(r, 'property_id');
+    room = text(r, 'room_type_id');
+    load();
+  }
+
+  Future<void> load() async {
+    final ok = await perform(() async {
+      properties = await widget.api.rows('/api/properties');
+      if (property.isEmpty && properties.isNotEmpty) {
+        property = text(properties.first, 'id');
+      }
+      if (property.isNotEmpty) rooms = await widget.api.rooms(property);
+      if (!rooms.any((r) => r['id'] == room)) {
+        room = rooms.isEmpty ? '' : text(rooms.first, 'id');
+      }
+      loading = false;
+    });
+    if (!ok && mounted) setState(() => loading = true);
+  }
+
+  Future<void> changeProperty(String value) async {
+    final generation = ++request;
+    setState(() {
+      property = value;
+      roomLoading = true;
+      failure = null;
+      rooms = [];
+      room = '';
+    });
+    try {
+      final list = await widget.api.rooms(value);
+      if (!mounted || generation != request) return;
+      setState(() {
+        rooms = list;
+        room = list.isEmpty ? '' : text(list.first, 'id');
+        roomLoading = false;
+      });
+    } catch (e) {
+      if (mounted && generation == request) {
+        setState(() {
+          failure = workflowError(e);
+          roomLoading = true;
+        });
+      }
+    }
+  }
+
+  Future<void> save() async {
+    if (!form.currentState!.validate()) return;
+    final body = <String, dynamic>{
+      'property_id': property,
+      'room_type_id': room.isEmpty ? null : room,
+      'source': source,
+      'guest_name': fields['guest_name']!.text.trim(),
+      'arrival_date': fields['arrival_date']!.text,
+      'departure_date': fields['departure_date']!.text,
+      'guest_count': int.parse(fields['guest_count']!.text),
+      'arrival_time': fields['arrival_time']!.text.isEmpty
+          ? null
+          : fields['arrival_time']!.text,
+      'total_huf': fields['total_huf']!.text.isEmpty
+          ? null
+          : int.parse(fields['total_huf']!.text),
+      'external_ref': fields['external_ref']!.text.isEmpty
+          ? null
+          : fields['external_ref']!.text,
+      'special_requests': fields['special_requests']!.text
+          .split(',')
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty)
+          .toList(),
+    };
+    final ok = await perform(() async {
+      await widget.api.save(
+        body,
+        id: editing ? text(widget.reservation!, 'id') : null,
+      );
+    });
+    if (ok && mounted) Navigator.pop(context, true);
+  }
+
+  Future<void> cancel() async {
+    if (!await pmsConfirm(
+      context,
+      t('Cancel reservation'),
+      "Cancel ${text(widget.reservation!, 'guest_name')}'s reservation?",
+    )) {
+      return;
+    }
+    final ok = await perform(() async {
+      await widget.api.cancel(text(widget.reservation!, 'id'));
+    });
+    if (ok && mounted) Navigator.pop(context, true);
+  }
+
+  @override
+  void dispose() {
+    ++request;
+    for (final f in fields.values) {
+      f.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final start = DateTime.tryParse(fields['arrival_date']!.text),
+        end = DateTime.tryParse(fields['departure_date']!.text);
+    final nights = start == null || end == null
+        ? 0
+        : end.difference(start).inDays;
+    final selected = rooms.where((r) => r['id'] == room).firstOrNull;
+    return PopScope(
+      canPop: !busy,
+      child: PmsModal(
+        title: editing
+            ? text(widget.reservation!, 'guest_name')
+            : t('Add a stay'),
+        eyebrow: editing ? 'RESERVATION' : 'NEW RESERVATION',
+        width: 760,
+        canClose: !busy,
+        actions: [
+          if (editing && widget.reservation!['status'] == 'inquiry')
+            PmsButton(
+              t('Confirm booking'),
+              onPressed: busy
+                  ? null
+                  : () async {
+                      final ok = await perform(() async {
+                        await widget.api.confirm(
+                          text(widget.reservation!, 'id'),
+                        );
+                      });
+                      if (ok && context.mounted) Navigator.pop(context, true);
+                    },
+            ),
+          if (editing)
+            PmsButton(
+              t('Cancel reservation'),
+              danger: true,
+              onPressed: busy ? null : cancel,
+            ),
+          PmsButton(
+            t('Close'),
+            onPressed: busy ? null : () => Navigator.pop(context),
+          ),
+          PmsButton(
+            t(editing ? 'Save changes' : 'Create reservation'),
+            primary: true,
+            onPressed: busy || loading || roomLoading || property.isEmpty
+                ? null
+                : save,
+          ),
+        ],
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            errors(),
+            if (loading) ...[
+              if (!busy) PmsButton('Retry', onPressed: load),
+            ] else
+              AbsorbPointer(
+                absorbing: busy,
+                child: Form(
+                  key: form,
+                  child: Column(
+                    children: [
+                      PmsColumns([
+                        PmsSelect(
+                          t('Property'),
+                          value: property,
+                          items: {
+                            for (final p in properties)
+                              text(p, 'id'): text(p, 'name'),
+                          },
+                          onChanged: changeProperty,
+                        ),
+                        PmsSelect(
+                          t('Room type'),
+                          value: room,
+                          items: {
+                            for (final r in rooms)
+                              text(
+                                r,
+                                'id',
+                              ): '${text(r, 'name')} · inventory ${r['inventory_count']} units',
+                          },
+                          onChanged: roomLoading
+                              ? null
+                              : (v) => setState(() => room = v),
+                        ),
+                      ], columns: 2),
+                      if (roomLoading)
+                        PmsButton(
+                          'Retry room types',
+                          onPressed: () => changeProperty(property),
+                        ),
+                      PmsSelect(
+                        t('Source'),
+                        value: source,
+                        items: {
+                          for (final v in {
+                            'Direct',
+                            'Booking.com',
+                            'Szallas.hu',
+                            source,
+                          })
+                            v: v,
+                        },
+                        onChanged: (v) => setState(() => source = v),
+                      ),
+                      PmsField(
+                        t('Guest name'),
+                        controller: fields['guest_name']!,
+                        required: true,
+                      ),
+                      PmsColumns([
+                        PmsDateField(
+                          t('Arrival'),
+                          controller: fields['arrival_date']!,
+                          onChanged: (_) => setState(() {}),
+                        ),
+                        PmsDateField(
+                          t('Departure / checkout'),
+                          controller: fields['departure_date']!,
+                          onChanged: (_) => setState(() {}),
+                        ),
+                      ], columns: 2),
+                      PmsCard(
+                        child: Text(
+                          nights > 0
+                              ? '$nights night${nights == 1 ? '' : 's'}. Occupied nights: ${fields['arrival_date']!.text} through ${isoDate(end!.subtract(const Duration(days: 1)))}. Checkout: ${fields['departure_date']!.text}; that night remains available.'
+                              : 'Choose a valid stay. Departure must be after arrival.',
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      PmsColumns([
+                        PmsField(
+                          t('Guests'),
+                          controller: fields['guest_count']!,
+                          keyboard: TextInputType.number,
+                          validator: (v) =>
+                              int.tryParse(v ?? '') != null &&
+                                  int.parse(v!) >= 1
+                              ? null
+                              : 'Enter a positive whole guest count.',
+                        ),
+                        PmsField(
+                          t('Guest arrival time'),
+                          controller: fields['arrival_time']!,
+                          hint: 'HH:MM',
+                          validator: optionalTime,
+                        ),
+                        PmsField(
+                          t('Total reservation value (HUF)'),
+                          controller: fields['total_huf']!,
+                          hint: 'Optional — not the nightly rate',
+                          keyboard: TextInputType.number,
+                          validator: (v) =>
+                              v == null ||
+                                  v.isEmpty ||
+                                  (int.tryParse(v) != null && int.parse(v) >= 0)
+                              ? null
+                              : 'Enter a non-negative whole HUF amount.',
+                        ),
+                        PmsField(
+                          t('Reference'),
+                          controller: fields['external_ref']!,
+                          hint: 'Optional',
+                        ),
+                      ], columns: 2),
+                      PmsField(
+                        t('Special preparation'),
+                        controller: fields['special_requests']!,
+                        hint: 'High chair, baby cot, extra towels',
+                      ),
+                      if (selected != null)
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Room capacity: ${selected['max_guests']}. Rate plans are informational; reservation value is entered above.',
+                          ),
+                        ),
+                      if (selected != null)
+                        for (final plan in optionalRows(selected['rate_plans']))
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(text(plan, 'name')),
+                            subtitle: Text(
+                              'Base rate: ${text(plan, 'base_rate_huf', 'Not configured')} HUF · ${text(plan, 'cancellation_policy')}',
+                            ),
+                          ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class ReservationWorkspace extends StatefulWidget {
+  const ReservationWorkspace({
+    super.key,
+    required this.api,
+    required this.id,
+    required this.openReception,
+    this.openTask,
+  });
+  final PmsWorkflows api;
+  final String id;
+  final VoidCallback openReception;
+  final ValueChanged<String>? openTask;
+  @override
+  State<ReservationWorkspace> createState() => _ReservationWorkspaceState();
+}
+
+class _ReservationWorkspaceState extends State<ReservationWorkspace>
+    with PmsActions<ReservationWorkspace> {
+  Json? data, delivery;
+  String? deliveryError;
+  int tab = 0;
+  bool changed = false;
+  final arrival = TextEditingController(), note = TextEditingController();
+  String payment = 'unknown', registration = 'incomplete';
+  String get path => '/api/reservations/${idPath(widget.id)}';
+  String t(String s) => widget.api.controller.t(s);
+  @override
+  void initState() {
+    super.initState();
+    load();
+  }
+
+  Future<void> load() async {
+    await perform(() async {
+      final result = await widget.api.detail(widget.id);
+      final r = jsonObject(result['reservation']);
+      if (!mounted) return;
+      setState(() {
+        data = result;
+        arrival.text = text(r, 'arrival_time');
+        payment = text(r, 'payment_status', 'unknown');
+        registration = text(r, 'registration_status', 'incomplete');
+      });
+    });
+    await loadDelivery();
+  }
+
+  Future<void> loadDelivery() async {
+    try {
+      final result = await widget.api.object(
+        '$path/channex-availability-delivery',
+      );
+      if (mounted) {
+        setState(() {
+          delivery = result;
+          deliveryError = null;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => deliveryError = workflowError(e));
+    }
+  }
+
+  Future<void> mutate(Future<void> Function() action) async {
+    if (await perform(action)) {
+      changed = true;
+      await load();
+    }
+  }
+
+  Future<void> saveOperations() async {
+    final invalid = optionalTime(arrival.text);
+    if (invalid != null) {
+      setState(() => failure = invalid);
+      return;
+    }
+    await mutate(() async {
+      await widget.api.operations(widget.id, {
+        'arrival_time': arrival.text,
+        'payment_status': payment,
+        'registration_status': registration,
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    arrival.dispose();
+    note.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final r = data == null
+        ? <String, dynamic>{}
+        : jsonObject(data!['reservation']);
+    final reg = optionalRows(data?['registration']);
+    return PopScope(
+      canPop: !busy,
+      child: PmsModal(
+        title: text(r, 'guest_name', 'Reservation'),
+        eyebrow: text(r, 'source'),
+        canClose: !busy,
+        width: 1040,
+        headerActions: [
+          if (data != null)
+            PmsButton(
+              t('Edit booking'),
+              onPressed: busy
+                  ? null
+                  : () async {
+                      final result = await showDialog<bool>(
+                        useRootNavigator: false,
+                        context: context,
+                        barrierDismissible: false,
+                        builder: (_) =>
+                            ReservationEditor(api: widget.api, reservation: r),
+                      );
+                      if (result == true) {
+                        changed = true;
+                        await load();
+                      }
+                    },
+            ),
+        ],
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            errors(),
+            if (data == null && !busy) PmsButton('Retry', onPressed: load),
+            if (data != null) ...[
+              Text(
+                '${text(r, 'property_name')} · ${displayDate(r['arrival_date'] as String?)} → ${displayDate(r['departure_date'] as String?)}',
+              ),
+              const SizedBox(height: 16),
+              PmsColumns(
+                [
+                  stat('Payment', payment, '${text(r, 'total_huf', '—')} Ft'),
+                  stat(
+                    'Registration',
+                    registration,
+                    '${reg.isEmpty && registration == 'complete' ? r['guest_count'] : reg.where((g) => g['completeness'] == 'complete').length}/${reg.length > (r['guest_count'] as int? ?? 0) ? reg.length : r['guest_count']}',
+                  ),
+                  stat(
+                    'Arrival time',
+                    text(r, 'arrival_time', text(r, 'checkin_time')),
+                    text(r, 'property_name'),
+                  ),
+                  stat('Guest', text(r, 'guest_count'), ''),
+                ],
+                columns: 4,
+                mobileColumns: 2,
+              ),
+              const SizedBox(height: 16),
+              PmsTabs(
+                labels: [
+                  t('Stay overview'),
+                  t('Preparation'),
+                  t('Communication'),
+                  t('Activity'),
+                ],
+                selected: tab,
+                onChanged: busy ? (_) {} : (v) => setState(() => tab = v),
+              ),
+              const SizedBox(height: 18),
+              if (tab == 0) overview(r),
+              if (tab == 1) preparation(r, reg),
+              if (tab == 2) communications(),
+              if (tab == 3) activity(),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget stat(String title, String value, String small) => PmsCard(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          t(title),
+          style: const TextStyle(fontSize: 11, color: PmsStyle.muted),
+        ),
+        Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
+        Text(small, style: const TextStyle(fontSize: 11)),
+      ],
+    ),
+  );
+  Widget overview(Json r) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      PmsColumns([
+        PmsCard(
+          child: PmsKeyValues({
+            'Property': text(r, 'property_name'),
+            'Address': text(r, 'address'),
+            'Check-in': text(r, 'checkin_time'),
+            'Checkout': text(r, 'checkout_time'),
+            'Special requests': reservationRequests(
+              r['special_requests'],
+            ).join(' · '),
+          }),
+        ),
+        guestContext(),
+        PmsCard(
+          child: Column(
+            children: [
+              PmsEyebrow(t('Preparation')),
+              PmsField(t('Arrival time'), controller: arrival, hint: 'HH:MM'),
+              PmsSelect(
+                t('Payment'),
+                value: payment,
+                items: {
+                  for (final v in [
+                    'unknown',
+                    'unpaid',
+                    'partial',
+                    'paid',
+                    'refunded',
+                  ])
+                    v: t(v),
+                },
+                onChanged: busy ? null : (v) => setState(() => payment = v),
+              ),
+              PmsSelect(
+                t('Registration'),
+                value: registration,
+                items: {
+                  for (final v in {
+                    'incomplete',
+                    'pending',
+                    'complete',
+                    registration,
+                  })
+                    v: t(v),
+                },
+                onChanged: busy
+                    ? null
+                    : (v) => setState(() => registration = v),
+              ),
+              PmsButton(
+                t('Save'),
+                primary: true,
+                onPressed: busy ? null : saveOperations,
+              ),
+            ],
+          ),
+        ),
+      ]),
+      const SizedBox(height: 18),
+      distribution(),
+    ],
+  );
+  Widget guestContext() {
+    final gp = data?['guest_profile'];
+    if (gp is! Json) {
+      return const PmsCard(
+        child: Column(
+          children: [PmsEyebrow('GUEST CONTEXT'), PmsEmpty('\u2014')],
+        ),
+      );
+    }
+    return PmsCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const PmsEyebrow('GUEST CONTEXT'),
+          Text(
+            text(gp, 'full_name'),
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+          Text(
+            '${gp['stay_count']} stays · ${text(gp, 'preferred_language', '—')}',
+          ),
+          for (final pref in optionalRows(gp['preferences']).take(4))
+            Text(
+              '${text(pref, 'preference_key')} · ${text(pref, 'preference_value')}',
+            ),
+          PmsButton(
+            t('View guest history'),
+            onPressed: () => guestHistory(text(gp, 'id')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> guestHistory(String id) async {
+    await showDialog<void>(
+      useRootNavigator: false,
+      context: context,
+      builder: (_) => GuestHistoryDialog(api: widget.api, id: id),
+    );
+  }
+
+  Widget distribution() {
+    final delivered = optionalRows(delivery?['delivered']);
+    final ids = delivered
+        .expand(
+          (d) => (d['task_ids'] as List? ?? []).map((id) => id.toString()),
+        )
+        .toList();
+    return PmsCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const PmsEyebrow('CHANNEL DISTRIBUTION'),
+          const Text('Availability update'),
+          if (deliveryError != null) ...[
+            Text(deliveryError!),
+            PmsButton('Retry status', onPressed: busy ? null : loadDelivery),
+          ] else if (delivery == null)
+            const Text('Checking Channex delivery…')
+          else if (ids.isNotEmpty) ...[
+            const Text('Delivered to Channex'),
+            Text('Task IDs: ${ids.join(', ')}'),
+            const Text(
+              'Submission evidence does not prove final OTA acceptance.',
+            ),
+          ] else
+            Text(
+              optionalRows(delivery?['pending']).isNotEmpty
+                  ? 'Queued for Channex'
+                  : 'No delivery recorded for this reservation',
+            ),
+          if (delivery != null && ids.isEmpty)
+            PmsButton(
+              optionalRows(delivery?['pending']).isEmpty
+                  ? 'Send current availability to Channex'
+                  : 'Send to Channex now',
+              onPressed: busy
+                  ? null
+                  : () async {
+                      await perform(() async {
+                        final response = jsonObject(
+                          await widget.api.change(
+                            'POST',
+                            '$path/channex-availability-delivery/retry',
+                          ),
+                        );
+                        if (optionalRows(response['failed']).isNotEmpty) {
+                          throw const FormatException('Dispatch failed');
+                        }
+                      });
+                      await loadDelivery();
+                    },
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget preparation(Json r, List<Json> reg) => PmsColumns([
+    PmsCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const PmsEyebrow('GUEST REGISTRATION'),
+          PmsBadge(
+            registration == 'complete'
+                ? 'Registration ready'
+                : 'Registration waiting',
+            tone: registration == 'complete' ? 'ready' : 'attention',
+          ),
+          for (final g in reg)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(text(g, 'full_name')),
+              subtitle: Text(
+                '${text(g, 'nationality', '—')} · ${text(g, 'completeness')}',
+              ),
+            ),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (registration != 'complete') ...[
+                PmsButton(
+                  'Send guest check-in link',
+                  onPressed: busy ? null : links,
+                ),
+                PmsButton(
+                  t('Prepare reminder'),
+                  onPressed: busy
+                      ? null
+                      : () => mutate(() async {
+                          await widget.api.change(
+                            'POST',
+                            '$path/registration-reminder',
+                          );
+                        }),
+                ),
+                PmsButton(
+                  t('Open reception'),
+                  onPressed: busy
+                      ? null
+                      : () {
+                          Navigator.pop(context, changed);
+                          widget.openReception();
+                        },
+                ),
+              ],
+              PmsButton(
+                'Review identity verification',
+                onPressed: busy ? null : verify,
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+    PmsCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          PmsEyebrow(t('Cleaning checklist')),
+          for (final task in optionalRows(data?['cleaning']))
+            ListTile(
+              onTap: widget.openTask == null
+                  ? null
+                  : () => widget.openTask!(text(task, 'id')),
+              contentPadding: EdgeInsets.zero,
+              title: Text(text(task, 'title', 'Cleaning')),
+              subtitle: Text(
+                '${text(task, 'scheduled_date')} · ${text(task, 'assigned_name', 'Unassigned')}',
+              ),
+              trailing: PmsBadge(
+                text(task, 'status'),
+                tone: text(task, 'status'),
+              ),
+            ),
+          if (optionalRows(data?['cleaning']).isEmpty) const PmsEmpty('\u2014'),
+          if (optionalRows(data?['maintenance']).isNotEmpty) ...[
+            Text(t('Open maintenance')),
+            for (final m in optionalRows(data?['maintenance']))
+              Text(text(m, 'title')),
+          ],
+        ],
+      ),
+    ),
+  ], columns: 2);
+  Future<void> links() async {
+    Json? response;
+    if (!await perform(() async {
+      response = await widget.api.object('$path/guest-checkin-links');
+    })) {
+      return;
+    }
+    if (!mounted) return;
+    await showDialog<void>(
+      useRootNavigator: false,
+      context: context,
+      builder: (_) => PmsModal(
+        title: 'Secure guest links',
+        eyebrow: 'GUEST PRE-CHECK-IN',
+        width: 600,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Send each guest their own link. Generating/copying a link does not send a message.',
+            ),
+            for (final link in optionalRows(response?['links']))
+              PmsCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(text(link, 'guest_name')),
+                    Text(text(link, 'completeness')),
+                    SelectableText(text(link, 'url')),
+                    PmsButton(
+                      'Copy link',
+                      onPressed: () => Clipboard.setData(
+                        ClipboardData(text: text(link, 'url')),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> verify() async {
+    await showDialog<void>(
+      useRootNavigator: false,
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => IdentityReview(api: widget.api, id: widget.id),
+    );
+    if (mounted) {
+      changed = true;
+      await load();
+    }
+  }
+
+  Widget communications() => PmsColumns([
+    PmsCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          PmsEyebrow(t('Messages')),
+          for (final m in optionalRows(data?['messages']))
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(text(m, 'sender_name', text(m, 'subject'))),
+              subtitle: Text(
+                '${text(m, 'source')} · ${text(m, 'received_at')}\n${text(m, 'body')}',
+              ),
+            ),
+          if (optionalRows(data?['messages']).isEmpty)
+            PmsEmpty(t('No messages linked to this stay.')),
+        ],
+      ),
+    ),
+    PmsCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          PmsField(
+            t('Add note'),
+            controller: note,
+            lines: 4,
+            hint: t('Add an internal note…'),
+          ),
+          PmsButton(
+            t('Add note'),
+            primary: true,
+            onPressed: busy
+                ? null
+                : () => mutate(() async {
+                    if (note.text.trim().isEmpty) return;
+                    await widget.api.note(widget.id, note.text.trim());
+                    note.clear();
+                  }),
+          ),
+          for (final n in optionalRows(data?['notes']))
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(text(n, 'author_name', 'Delvane')),
+              subtitle: Text('${text(n, 'created_at')}\n${text(n, 'body')}'),
+            ),
+          if (optionalRows(data?['notes']).isEmpty)
+            PmsEmpty(t('No internal notes yet.')),
+        ],
+      ),
+    ),
+  ], columns: 2);
+  Widget activity() => PmsCard(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        PmsEyebrow(t('Activity')),
+        for (final event in optionalRows(data?['events']))
+          ListTile(
+            title: Text(text(event, 'summary')),
+            subtitle: Text(
+              '${text(event, 'created_at')} · ${text(event, 'event_type')}',
+            ),
+          ),
+        if (optionalRows(data?['events']).isEmpty)
+          PmsEmpty(t('No reservation activity yet.')),
+      ],
+    ),
+  );
+}
+
+class IdentityReview extends StatefulWidget {
+  const IdentityReview({super.key, required this.api, required this.id});
+  final PmsWorkflows api;
+  final String id;
+  @override
+  State<IdentityReview> createState() => _IdentityReviewState();
+}
+
+class _IdentityReviewState extends State<IdentityReview>
+    with PmsActions<IdentityReview> {
+  List<Json>? guests;
+  final notes = <String, TextEditingController>{};
+  final methods = <String, String>{};
+  @override
+  void initState() {
+    super.initState();
+    load();
+  }
+
+  Future<void> load() async {
+    await perform(() async {
+      final data = await widget.api.object(
+        '/api/reservations/${idPath(widget.id)}/guest-checkin-status',
+      );
+      guests = optionalRows(data['guests']);
+    });
+  }
+
+  Future<void> decide(Json guest, String decision) async {
+    final id = text(guest, 'id');
+    final ok = await perform(() async {
+      await widget.api.change(
+        'POST',
+        '/api/reservations/${idPath(widget.id)}/guests/${idPath(id)}/verify',
+        {
+          'decision': decision,
+          'verification_method': methods[id] ?? 'in_person',
+          'review_note': notes[id]?.text ?? '',
+        },
+      );
+    });
+    if (ok) await load();
+  }
+
+  @override
+  void dispose() {
+    for (final note in notes.values) {
+      note.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => PopScope(
+    canPop: !busy,
+    child: PmsModal(
+      title: 'Identity verification',
+      eyebrow: 'GUEST PRE-CHECK-IN',
+      width: 650,
+      canClose: !busy,
+      actions: [
+        PmsButton(
+          'Done',
+          onPressed: busy ? null : () => Navigator.pop(context),
+        ),
+      ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            "Guest-submitted details are not verified automatically. Check the guest's identity and data before approving registration for VIZA. Delvane does not store document images.",
+          ),
+          errors(),
+          if (guests == null && !busy) PmsButton('Retry', onPressed: load),
+          for (final guest in guests ?? <Json>[])
+            PmsCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(text(guest, 'full_name')),
+                  PmsBadge(
+                    text(guest, 'verification_status', 'not_submitted'),
+                    tone: text(guest, 'verification_status'),
+                  ),
+                  Text('Registration data: ${text(guest, 'completeness')}'),
+                  if (guest['verified_at'] != null)
+                    Text('Verified ${text(guest, 'verified_at')}'),
+                  if (text(guest, 'review_note').isNotEmpty)
+                    Text(text(guest, 'review_note')),
+                  if (guest['completeness'] == 'complete' &&
+                      guest['verification_status'] != 'verified') ...[
+                    PmsSelect(
+                      'Verification method',
+                      value: methods[text(guest, 'id')] ?? 'in_person',
+                      items: const {
+                        'in_person': 'Checked in person',
+                        'video_call': 'Verified by video call',
+                        'identity_image': 'Reviewed identity image',
+                        'manual_review': 'Manual review',
+                      },
+                      onChanged: busy
+                          ? null
+                          : (v) =>
+                                setState(() => methods[text(guest, 'id')] = v),
+                    ),
+                    PmsField(
+                      'Review note',
+                      controller: notes.putIfAbsent(
+                        text(guest, 'id'),
+                        () => TextEditingController(),
+                      ),
+                      hint: 'Optional note',
+                    ),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        PmsButton(
+                          'Verify identity',
+                          primary: true,
+                          onPressed: busy
+                              ? null
+                              : () => decide(guest, 'verify'),
+                        ),
+                        PmsButton(
+                          'Needs correction',
+                          onPressed: busy
+                              ? null
+                              : () => decide(guest, 'reject'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+        ],
+      ),
+    ),
+  );
+}

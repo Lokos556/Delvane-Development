@@ -1,3 +1,4 @@
+import 'package:delvane_business/features/workspace/workspace_page.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -219,7 +220,11 @@ void main() {
         final pms = FakePms()..role = role;
         final auth = await signedIn(pms);
         await tester.pumpWidget(
-          DelvaneBusinessApp(key: ValueKey(role), auth: auth),
+          DelvaneBusinessApp(
+            key: ValueKey(role),
+            auth: auth,
+            workspaceBuilder: (auth) => WorkspacePage(auth: auth),
+          ),
         );
         await tester.pumpAndSettle();
         expect(
@@ -270,7 +275,12 @@ void main() {
       final pms = FakePms();
       final auth = makeAuth(pms);
       addTearDown(auth.dispose);
-      await tester.pumpWidget(DelvaneBusinessApp(auth: auth));
+      await tester.pumpWidget(
+        DelvaneBusinessApp(
+          auth: auth,
+          workspaceBuilder: (auth) => WorkspacePage(auth: auth),
+        ),
+      );
       await tester.pumpAndSettle();
       await tester.enterText(
         find.byKey(const ValueKey('login-email')),
@@ -303,7 +313,12 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
       final pms = FakePms();
       final auth = await signedIn(pms);
-      await tester.pumpWidget(DelvaneBusinessApp(auth: auth));
+      await tester.pumpWidget(
+        DelvaneBusinessApp(
+          auth: auth,
+          workspaceBuilder: (auth) => WorkspacePage(auth: auth),
+        ),
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.text('All accessible properties'));
       await tester.pumpAndSettle();
@@ -348,7 +363,12 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     final pms = FakePms();
     final auth = await signedIn(pms);
-    await tester.pumpWidget(DelvaneBusinessApp(auth: auth));
+    await tester.pumpWidget(
+      DelvaneBusinessApp(
+        auth: auth,
+        workspaceBuilder: (auth) => WorkspacePage(auth: auth),
+      ),
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('live-nav-reservations')));
     await tester.pumpAndSettle();
@@ -368,7 +388,12 @@ void main() {
       final auth = await signedIn(pms);
       final pending = Completer<ApiResponse>();
       pms.delayedCommand = pending.future;
-      await tester.pumpWidget(DelvaneBusinessApp(auth: auth));
+      await tester.pumpWidget(
+        DelvaneBusinessApp(
+          auth: auth,
+          workspaceBuilder: (auth) => WorkspacePage(auth: auth),
+        ),
+      );
       await tester.pump();
       expect(find.text('Loading operational workspace…'), findsOneWidget);
       pending.complete(const ApiResponse(503, 'private-response'));
@@ -391,7 +416,12 @@ void main() {
   ) async {
     final auth = await signedIn(FakePms());
     addTearDown(auth.dispose);
-    await tester.pumpWidget(DelvaneBusinessApp(auth: auth));
+    await tester.pumpWidget(
+      DelvaneBusinessApp(
+        auth: auth,
+        workspaceBuilder: (auth) => WorkspacePage(auth: auth),
+      ),
+    );
     await tester.pumpAndSettle();
     await tester.pump(const Duration(days: 8));
     await tester.pumpAndSettle();
@@ -403,7 +433,12 @@ void main() {
     (tester) async {
       final auth = makeAuth(FakePms());
       addTearDown(auth.dispose);
-      await tester.pumpWidget(DelvaneBusinessApp(auth: auth));
+      await tester.pumpWidget(
+        DelvaneBusinessApp(
+          auth: auth,
+          workspaceBuilder: (auth) => WorkspacePage(auth: auth),
+        ),
+      );
       await tester.pumpAndSettle();
       expect(find.textContaining('Mock data only'), findsNothing);
       await tester.ensureVisible(find.text('Explore offline demo'));
