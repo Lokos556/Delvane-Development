@@ -1,0 +1,516 @@
+{
+  "title": "Rosa synthetic MRZ OCR strategy comparison",
+  "privacy": "Synthetic specimen data only; no real identity data.",
+  "scope_note": "Text-strip OCR benchmark only; does not validate real card designs or browser Tesseract.js behavior.",
+  "cases": 18,
+  "baseline_exact": 0,
+  "baseline_mean_cer": 0.1034,
+  "mrz_tuned_exact": 0,
+  "mrz_tuned_mean_cer": 0.0837,
+  "results": [
+    {
+      "image": "td1_blur.png",
+      "format": "TD1",
+      "scenario": "blur",
+      "truth": [
+        "I<UTOD231458907<<<<<<<<<<<<<<<",
+        "7408122F1204159UTO<<<<<<<<<<<6",
+        "ERIKSSON<<ANNA<MARIA<<<<<<<<<<"
+      ],
+      "baseline": {
+        "ocr_lines": [
+          "I<UT0D231458907<<<<<<<<<<<<<<<",
+          "7408122F1204159UT0<<<<<<<<<<<6",
+          "ERIKSSON<<ANNA<MARIA<<<<<<<<<<"
+        ],
+        "exact_line_match": false,
+        "cer": 0.0222,
+        "exit_code": 0
+      },
+      "mrz_tuned": {
+        "ocr_lines": [
+          "I<UT0D231458907<<<<<<<<<<<<<<<",
+          "7408122F1204159UT0<<<<<<<<<<<6",
+          "ERIKSSON<<ANNA<MARIA<<<<<<<<<<"
+        ],
+        "exact_line_match": false,
+        "cer": 0.0222,
+        "exit_code": 0
+      }
+    },
+    {
+      "image": "td1_clean.png",
+      "format": "TD1",
+      "scenario": "clean",
+      "truth": [
+        "I<UTOD231458907<<<<<<<<<<<<<<<",
+        "7408122F1204159UTO<<<<<<<<<<<6",
+        "ERIKSSON<<ANNA<MARIA<<<<<<<<<<"
+      ],
+      "baseline": {
+        "ocr_lines": [
+          "I<UT0D23145890<<<<<<<<<<<<<<<",
+          "7408122F1204159UT0<<<<<<<<<<<6",
+          "ERIKSSON<<ANNA<MARIA<<<<<<<<<<"
+        ],
+        "exact_line_match": false,
+        "cer": 0.0333,
+        "exit_code": 0
+      },
+      "mrz_tuned": {
+        "ocr_lines": [
+          "I<UT0D231458907<<<<<<<<<<<<<<<",
+          "7408122F1204159UT0<<<<<<<<<<<6",
+          "ERIKSSON<<ANNA<MARIA<<<<<<<<<<"
+        ],
+        "exact_line_match": false,
+        "cer": 0.0222,
+        "exit_code": 0
+      }
+    },
+    {
+      "image": "td1_glare.png",
+      "format": "TD1",
+      "scenario": "glare",
+      "truth": [
+        "I<UTOD231458907<<<<<<<<<<<<<<<",
+        "7408122F1204159UTO<<<<<<<<<<<6",
+        "ERIKSSON<<ANNA<MARIA<<<<<<<<<<"
+      ],
+      "baseline": {
+        "ocr_lines": [
+          "I<UT0D231458907<<<<<<<<<<<",
+          "7408122F1204159UT0<<<<<<<<<<",
+          "ERIKSSON<<ANNA<MARIA<<<<<<<<<<"
+        ],
+        "exact_line_match": false,
+        "cer": 0.0889,
+        "exit_code": 0
+      },
+      "mrz_tuned": {
+        "ocr_lines": [
+          "I<UT0D231458907<<<<<<<<<<<",
+          "7408122F1204159UT0<<<<<<<<<<",
+          "ERIKSSON<<ANNA<MARIA<<<<<<<<<<"
+        ],
+        "exact_line_match": false,
+        "cer": 0.0889,
+        "exit_code": 0
+      }
+    },
+    {
+      "image": "td1_low_contrast.png",
+      "format": "TD1",
+      "scenario": "low_contrast",
+      "truth": [
+        "I<UTOD231458907<<<<<<<<<<<<<<<",
+        "7408122F1204159UTO<<<<<<<<<<<6",
+        "ERIKSSON<<ANNA<MARIA<<<<<<<<<<"
+      ],
+      "baseline": {
+        "ocr_lines": [
+          "I<UT0D23145890<<<<<<<<<<<<<<<",
+          "7408122F1204159UT0<<<<<<<<<<<6",
+          "ERIKSSON<<ANNA<MARIA<<<<<<<<<<"
+        ],
+        "exact_line_match": false,
+        "cer": 0.0333,
+        "exit_code": 0
+      },
+      "mrz_tuned": {
+        "ocr_lines": [
+          "I<UT0D231458907<<<<<<<<<<<<<<<",
+          "7408122F1204159UT0<<<<<<<<<<<6",
+          "ERIKSSON<<ANNA<MARIA<<<<<<<<<<"
+        ],
+        "exact_line_match": false,
+        "cer": 0.0222,
+        "exit_code": 0
+      }
+    },
+    {
+      "image": "td1_skew.png",
+      "format": "TD1",
+      "scenario": "skew",
+      "truth": [
+        "I<UTOD231458907<<<<<<<<<<<<<<<",
+        "7408122F1204159UTO<<<<<<<<<<<6",
+        "ERIKSSON<<ANNA<MARIA<<<<<<<<<<"
+      ],
+      "baseline": {
+        "ocr_lines": [
+          "<UTOD231458907<<<<<5<<5S<<SSF",
+          "7408122F1904159UTO<<<<<<<<<<<6",
+          "URIKSSON<<ANNA<MARIA<<<<<<<<55"
+        ],
+        "exact_line_match": false,
+        "cer": 0.1222,
+        "exit_code": 0
+      },
+      "mrz_tuned": {
+        "ocr_lines": [
+          "T<UTOD231458907<<<<<5<<5S<<SSF",
+          "7408122F1904159UTO<<<<<<<<<<<6",
+          "URIKSSON<<ANNA<MARIA<<<<<<<<55"
+        ],
+        "exact_line_match": false,
+        "cer": 0.1222,
+        "exit_code": 0
+      }
+    },
+    {
+      "image": "td1_small.png",
+      "format": "TD1",
+      "scenario": "small",
+      "truth": [
+        "I<UTOD231458907<<<<<<<<<<<<<<<",
+        "7408122F1204159UTO<<<<<<<<<<<6",
+        "ERIKSSON<<ANNA<MARIA<<<<<<<<<<"
+      ],
+      "baseline": {
+        "ocr_lines": [
+          "I<UT0D231458907<<<CCCCCCCCC<<",
+          "7408122F1204159UT0<<<<<<C<<<<6",
+          "ERTKSSON<<ANNA<MARIA<<<<CC<<<<"
+        ],
+        "exact_line_match": false,
+        "cer": 0.1778,
+        "exit_code": 0
+      },
+      "mrz_tuned": {
+        "ocr_lines": [
+          "I<UT0D231458907<<<<<<<<",
+          "7408122F1204159UT0<<<<<<<<<<6",
+          "ERTKSSON<<ANNA<MARIA<<<<<<<<<<"
+        ],
+        "exact_line_match": false,
+        "cer": 0.1222,
+        "exit_code": 0
+      }
+    },
+    {
+      "image": "td2_blur.png",
+      "format": "TD2",
+      "scenario": "blur",
+      "truth": [
+        "I<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<",
+        "D231458907UTO7408122F1204159<<<<<<<6"
+      ],
+      "baseline": {
+        "ocr_lines": [
+          "I<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<",
+          "D231458907UT07408122F1204159<<<<<<<6"
+        ],
+        "exact_line_match": false,
+        "cer": 0.0139,
+        "exit_code": 0
+      },
+      "mrz_tuned": {
+        "ocr_lines": [
+          "I<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<",
+          "D231458907UT07408122F1204159<<<<<<<6"
+        ],
+        "exact_line_match": false,
+        "cer": 0.0139,
+        "exit_code": 0
+      }
+    },
+    {
+      "image": "td2_clean.png",
+      "format": "TD2",
+      "scenario": "clean",
+      "truth": [
+        "I<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<",
+        "D231458907UTO7408122F1204159<<<<<<<6"
+      ],
+      "baseline": {
+        "ocr_lines": [
+          "I<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<",
+          "D231458907UT07408122F1204159<<<<<<<6"
+        ],
+        "exact_line_match": false,
+        "cer": 0.0139,
+        "exit_code": 0
+      },
+      "mrz_tuned": {
+        "ocr_lines": [
+          "I<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<",
+          "D231458907UT07408122F1204159<<<<<<<6"
+        ],
+        "exact_line_match": false,
+        "cer": 0.0139,
+        "exit_code": 0
+      }
+    },
+    {
+      "image": "td2_glare.png",
+      "format": "TD2",
+      "scenario": "glare",
+      "truth": [
+        "I<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<",
+        "D231458907UTO7408122F1204159<<<<<<<6"
+      ],
+      "baseline": {
+        "ocr_lines": [
+          "I<UTOERIKSSON<<ANNA<MARIA<",
+          "D231458907UT07408122F1204159<<"
+        ],
+        "exact_line_match": false,
+        "cer": 0.2361,
+        "exit_code": 0
+      },
+      "mrz_tuned": {
+        "ocr_lines": [
+          "I<UTOERIKSSON<<ANNA<MARIA<",
+          "D231458907UT07408122F1204159<<<"
+        ],
+        "exact_line_match": false,
+        "cer": 0.2222,
+        "exit_code": 0
+      }
+    },
+    {
+      "image": "td2_low_contrast.png",
+      "format": "TD2",
+      "scenario": "low_contrast",
+      "truth": [
+        "I<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<",
+        "D231458907UTO7408122F1204159<<<<<<<6"
+      ],
+      "baseline": {
+        "ocr_lines": [
+          "I<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<",
+          "D231458907UT07408122F1204159<<<<<<<6"
+        ],
+        "exact_line_match": false,
+        "cer": 0.0139,
+        "exit_code": 0
+      },
+      "mrz_tuned": {
+        "ocr_lines": [
+          "I<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<",
+          "D231458907UT07408122F1204159<<<<<<<6"
+        ],
+        "exact_line_match": false,
+        "cer": 0.0139,
+        "exit_code": 0
+      }
+    },
+    {
+      "image": "td2_skew.png",
+      "format": "TD2",
+      "scenario": "skew",
+      "truth": [
+        "I<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<",
+        "D231458907UTO7408122F1204159<<<<<<<6"
+      ],
+      "baseline": {
+        "ocr_lines": [
+          "T<UTOERTKSSON<<ANNA<MARTAEECC<<<<<<<",
+          "D231458907UT07408122F1204159<<<<<<<6"
+        ],
+        "exact_line_match": false,
+        "cer": 0.1111,
+        "exit_code": 0
+      },
+      "mrz_tuned": {
+        "ocr_lines": [
+          "T<UTOERTKSSON<<ANNA<MARTA<<<<<<<<",
+          "D231458907UT07408122F1204159<<<<<<<6"
+        ],
+        "exact_line_match": false,
+        "cer": 0.0972,
+        "exit_code": 0
+      }
+    },
+    {
+      "image": "td2_small.png",
+      "format": "TD2",
+      "scenario": "small",
+      "truth": [
+        "I<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<",
+        "D231458907UTO7408122F1204159<<<<<<<6"
+      ],
+      "baseline": {
+        "ocr_lines": [
+          "I<UTOERTKSSON<<ANNA<MARIACC<<CCC<<<<",
+          "D231458907UT07408122F1204159<<<<<<<6"
+        ],
+        "exact_line_match": false,
+        "cer": 0.0972,
+        "exit_code": 0
+      },
+      "mrz_tuned": {
+        "ocr_lines": [
+          "I<UTOERTKSSON<<ANNA<MARIA<<<<<<<<<<",
+          "D231458907UT07408122F1204159<<<<<<<6"
+        ],
+        "exact_line_match": false,
+        "cer": 0.0417,
+        "exit_code": 0
+      }
+    },
+    {
+      "image": "td3_blur.png",
+      "format": "TD3",
+      "scenario": "blur",
+      "truth": [
+        "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<",
+        "L898902C36UTO7408122F1204159ZE184226B16<<<<<"
+      ],
+      "baseline": {
+        "ocr_lines": [
+          "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<CC<<<",
+          "L898902C36UT07408122F1204159ZE184226B16<<<<<"
+        ],
+        "exact_line_match": false,
+        "cer": 0.0341,
+        "exit_code": 0
+      },
+      "mrz_tuned": {
+        "ocr_lines": [
+          "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<",
+          "L898902C36UT07408122F1204159ZE184226B16<<<<<"
+        ],
+        "exact_line_match": false,
+        "cer": 0.0114,
+        "exit_code": 0
+      }
+    },
+    {
+      "image": "td3_clean.png",
+      "format": "TD3",
+      "scenario": "clean",
+      "truth": [
+        "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<",
+        "L898902C36UTO7408122F1204159ZE184226B16<<<<<"
+      ],
+      "baseline": {
+        "ocr_lines": [
+          "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<C<<<",
+          "L898902C36UT07408122F1204159ZE184226B16<<<<<"
+        ],
+        "exact_line_match": false,
+        "cer": 0.0227,
+        "exit_code": 0
+      },
+      "mrz_tuned": {
+        "ocr_lines": [
+          "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<",
+          "L898902C36UT07408122F1204159ZE184226B16<<<<<"
+        ],
+        "exact_line_match": false,
+        "cer": 0.0114,
+        "exit_code": 0
+      }
+    },
+    {
+      "image": "td3_glare.png",
+      "format": "TD3",
+      "scenario": "glare",
+      "truth": [
+        "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<",
+        "L898902C36UTO7408122F1204159ZE184226B16<<<<<"
+      ],
+      "baseline": {
+        "ocr_lines": [
+          "P<UTOERIKSSON<<ANNA<MARTIA<",
+          "L898902C36UT07408122F1204159Z74"
+        ],
+        "exact_line_match": false,
+        "cer": 0.3864,
+        "exit_code": 0
+      },
+      "mrz_tuned": {
+        "ocr_lines": [
+          "P<UTOERIKSSON<<ANNA<MARTIA<",
+          "L898902C36UT07408122F1204159274"
+        ],
+        "exact_line_match": false,
+        "cer": 0.3977,
+        "exit_code": 0
+      }
+    },
+    {
+      "image": "td3_low_contrast.png",
+      "format": "TD3",
+      "scenario": "low_contrast",
+      "truth": [
+        "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<",
+        "L898902C36UTO7408122F1204159ZE184226B16<<<<<"
+      ],
+      "baseline": {
+        "ocr_lines": [
+          "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<",
+          "L898902C36UT07408122F1204159ZE184226B16<<<<<"
+        ],
+        "exact_line_match": false,
+        "cer": 0.0114,
+        "exit_code": 0
+      },
+      "mrz_tuned": {
+        "ocr_lines": [
+          "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<",
+          "L898902C36UT07408122F1204159ZE184226B16<<<<<"
+        ],
+        "exact_line_match": false,
+        "cer": 0.0114,
+        "exit_code": 0
+      }
+    },
+    {
+      "image": "td3_skew.png",
+      "format": "TD3",
+      "scenario": "skew",
+      "truth": [
+        "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<",
+        "L898902C36UTO7408122F1204159ZE184226B16<<<<<"
+      ],
+      "baseline": {
+        "ocr_lines": [
+          "PCUTOERIKSSON<<ANNA<MARTPCCCCCCCCCCSCSSSESSF",
+          "L898902C36UT07408122F1204159ZE184226B16<<<<<"
+        ],
+        "exact_line_match": false,
+        "cer": 0.2614,
+        "exit_code": 0
+      },
+      "mrz_tuned": {
+        "ocr_lines": [
+          "P<UTOERIKSSON<<ANNA<MART<<<SSF",
+          "L898902C36UT07408122F1204159ZE184226B16<<<<<"
+        ],
+        "exact_line_match": false,
+        "cer": 0.2159,
+        "exit_code": 0
+      }
+    },
+    {
+      "image": "td3_small.png",
+      "format": "TD3",
+      "scenario": "small",
+      "truth": [
+        "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<",
+        "L898902C36UTO7408122F1204159ZE184226B16<<<<<"
+      ],
+      "baseline": {
+        "ocr_lines": [
+          "P<UTOERIKSSON<<ANNA<MARIAC<<CCCCCCCCCCCCCC<<",
+          "L898902C36UT07408122F1204159ZE184226B16<<<<<"
+        ],
+        "exact_line_match": false,
+        "cer": 0.1818,
+        "exit_code": 0
+      },
+      "mrz_tuned": {
+        "ocr_lines": [
+          "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<",
+          "L898902C36UT07408122F1204159ZE184226B16<<<<<"
+        ],
+        "exact_line_match": false,
+        "cer": 0.0568,
+        "exit_code": 0
+      }
+    }
+  ]
+}

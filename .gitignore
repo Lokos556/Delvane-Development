@@ -1,0 +1,5 @@
+.env.local
+rosa.db
+__pycache__/
+.pytest_cache/
+*.pyc

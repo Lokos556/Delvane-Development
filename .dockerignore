@@ -1,0 +1,8 @@
+rosa.db
+__pycache__/
+.pytest_cache/
+*.pyc
+.git/
+.env
+*.zip
+_preview.html
