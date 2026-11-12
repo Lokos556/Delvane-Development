@@ -1,3 +1,4 @@
+import 'package:delvane_business/core/localization/web_strings.dart';
 import 'package:flutter/material.dart';
 import '../workspace/workspace_models.dart';
 import 'pms_controller.dart';
@@ -57,64 +58,65 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            height: mobile ? 60 : 70,
-            padding: EdgeInsets.symmetric(horizontal: mobile ? 12 : 20),
-            decoration: const BoxDecoration(
-              color: Color(0xA6FFFCF6),
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(24),
-                topRight: Radius.circular(24),
-              ),
-            ),
-            child: Row(
-              children: [
-                Image.asset(PmsStyle.logo, width: 44, height: 44),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Delvane AI',
-                        style: TextStyle(
-                          fontFamily: 'Georgia',
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      if (!mobile)
-                        Text(
-                          provider['external_fallback_configured'] == true
-                              ? 'Local-first · External AI ready'
-                              : 'Local-first · No external AI',
-                          style: const TextStyle(fontSize: 10),
-                        ),
-                    ],
-                  ),
+          if (!mobile)
+            Container(
+              height: 70,
+              padding: EdgeInsets.symmetric(horizontal: mobile ? 12 : 20),
+              decoration: const BoxDecoration(
+                color: Color(0xA6FFFCF6),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(24),
+                  topRight: Radius.circular(24),
                 ),
-                if (!mobile)
-                  PmsIconButton(
-                    '⌕',
-                    label: 'Search Delvane',
-                    size: 38,
-                    onPressed: widget.openSearch,
-                  ),
-                TextButton(
-                  onPressed: () => c.navigate(PmsPage.simulation),
-                  child: Text(
-                    c.mode.toUpperCase(),
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.black,
+              ),
+              child: Row(
+                children: [
+                  Image.asset(PmsStyle.logo, width: 44, height: 44),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          ui('Delvane AI'),
+                          style: TextStyle(
+                            fontFamily: 'Georgia',
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        if (!mobile)
+                          Text(
+                            provider['external_fallback_configured'] == true
+                                ? ui('Local-first · External AI ready')
+                                : ui('Local-first · No external AI'),
+                            style: const TextStyle(fontSize: 10),
+                          ),
+                      ],
                     ),
                   ),
-                ),
-              ],
+                  if (!mobile)
+                    PmsIconButton(
+                      '⌕',
+                      label: ui('Search Delvane'),
+                      size: 38,
+                      onPressed: widget.openSearch,
+                    ),
+                  TextButton(
+                    onPressed: () => c.navigate(PmsPage.simulation),
+                    child: Text(
+                      c.mode.toUpperCase(),
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
           Padding(
             padding: EdgeInsets.fromLTRB(
               mobile ? 8 : 32,
@@ -128,7 +130,7 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
                     child: Row(
                       children: metrics(
                         d,
-                      ).map((w) => SizedBox(width: 125, child: w)).toList(),
+                      ).map((w) => SizedBox(width: 160, child: w)).toList(),
                     ),
                   )
                 : Row(
@@ -142,8 +144,8 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
-                                  'LIVE BRIEFING',
+                                Text(
+                                  ui('LIVE BRIEFING'),
                                   style: TextStyle(
                                     fontSize: 10,
                                     fontWeight: FontWeight.w800,
@@ -185,8 +187,8 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
                           children: [
                             Image.asset(PmsStyle.logo, width: 72, height: 72),
                             const SizedBox(height: 24),
-                            const Text(
-                              'Start a conversation with Delvane',
+                            Text(
+                              ui('Start a conversation with Delvane'),
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 fontFamily: 'Georgia',
@@ -195,8 +197,10 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
                               ),
                             ),
                             const SizedBox(height: 24),
-                            const Text(
-                              'Answers use the current Delvane database. Writes still pass through authority rules.',
+                            Text(
+                              ui(
+                                'Answers use the current Delvane database. Writes still pass through authority rules.',
+                              ),
                               textAlign: TextAlign.center,
                               style: TextStyle(fontSize: 14),
                             ),
@@ -252,8 +256,8 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
                                       ])
                                         PmsButton(
                                           choice == 'approve'
-                                              ? 'Approve'
-                                              : 'Decline',
+                                              ? ui('Approve')
+                                              : ui('Decline'),
                                           onPressed: c.saving
                                               ? null
                                               : () => c.act(() async {
@@ -283,8 +287,8 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
                   child: Row(
                     children: [
                       if (!mobile)
-                        const Text(
-                          'TRY ASKING',
+                        Text(
+                          ui('TRY ASKING'),
                           style: TextStyle(fontSize: 9, letterSpacing: .5),
                         ),
                       for (final prompt in [
@@ -331,9 +335,10 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
                           textInputAction: TextInputAction.send,
                           onSubmitted: (_) => send(),
                           style: const TextStyle(fontSize: 14),
-                          decoration: const InputDecoration(
-                            hintText:
-                                'Ask Delvane anything about the operation',
+                          decoration: InputDecoration(
+                            hintText: ui(
+                              'Ask Delvane anything about the operation',
+                            ),
                             border: InputBorder.none,
                             enabledBorder: InputBorder.none,
                             focusedBorder: InputBorder.none,
@@ -347,17 +352,19 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
                       ),
                       PmsIconButton(
                         '➤',
-                        label: 'Send message',
+                        label: ui('Send message'),
                         onPressed: c.saving ? null : send,
                       ),
                     ],
                   ),
                 ),
                 if (!mobile)
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.only(top: 5),
                     child: Text(
-                      'Answers use the current Delvane database. Writes still pass through authority rules.',
+                      ui(
+                        'Answers use the current Delvane database. Writes still pass through authority rules.',
+                      ),
                       textAlign: TextAlign.center,
                       style: TextStyle(fontSize: 8),
                     ),
@@ -393,11 +400,24 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(entry.$1, style: const TextStyle(fontSize: 9)),
+              Text(
+                widget.c.t(entry.$1),
+                style: TextStyle(
+                  fontSize: MediaQuery.sizeOf(context).width <= 760 ? 13 : 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
               Row(
                 children: [
                   Expanded(
-                    child: Text(entry.$3, style: const TextStyle(fontSize: 8)),
+                    child: Text(
+                      widget.c.t(entry.$3),
+                      style: TextStyle(
+                        fontSize: MediaQuery.sizeOf(context).width <= 760
+                            ? 11
+                            : 10,
+                      ),
+                    ),
                   ),
                   Text(
                     '${entry.$2}',

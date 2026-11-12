@@ -10,6 +10,9 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_secure_storage: 9.2.4
+  flutter_localizations:
+    sdk: flutter
+  intl: 0.20.2
 
 dev_dependencies:
   flutter_test:
@@ -21,3 +24,4 @@ flutter:
   assets:
     - assets/delvane-icon.png
     - assets/web-locales.json
+    - assets/native-hu.json

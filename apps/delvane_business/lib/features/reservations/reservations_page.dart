@@ -1,3 +1,4 @@
+import 'package:delvane_business/core/localization/web_strings.dart';
 import 'package:flutter/material.dart';
 import '../../app/controller.dart';
 import '../../domain/models.dart';
@@ -19,9 +20,9 @@ class ReservationsPage extends StatelessWidget {
         TextFormField(
           key: const ValueKey('reservation-search'),
           initialValue: controller.search,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             prefixIcon: Icon(Icons.search_rounded),
-            hintText: 'Search guest, property, or reference',
+            hintText: ui('Search guest, property, or reference'),
           ),
           onChanged: controller.filterSearch,
         ),
@@ -31,7 +32,7 @@ class ReservationsPage extends StatelessWidget {
           runSpacing: 8,
           children: [
             ChoiceChip(
-              label: const Text('All stays'),
+              label: Text(ui('All stays')),
               selected: controller.status == null,
               onSelected: (_) => controller.filterStatus(null),
             ),
@@ -50,7 +51,9 @@ class ReservationsPage extends StatelessWidget {
         ),
         const Divider(height: 30),
         Text(
-          '${controller.filteredStays.length} demo reservations · All amounts in HUF',
+          ui(
+            '${controller.filteredStays.length} demo reservations · All amounts in HUF',
+          ),
         ),
       ],
     ),

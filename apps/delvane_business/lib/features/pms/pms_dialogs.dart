@@ -1,3 +1,4 @@
+import 'package:delvane_business/core/localization/web_strings.dart';
 import 'package:flutter/material.dart';
 import 'pms_controller.dart';
 import 'pms_style.dart';
@@ -55,9 +56,12 @@ Future<bool> pmsConfirm(
         title: title,
         width: 520,
         actions: [
-          PmsButton('Close', onPressed: () => Navigator.pop(context, false)),
           PmsButton(
-            'Confirm',
+            ui('Close'),
+            onPressed: () => Navigator.pop(context, false),
+          ),
+          PmsButton(
+            ui('Confirm'),
             primary: true,
             onPressed: () => Navigator.pop(context, true),
           ),
@@ -155,7 +159,7 @@ class PmsDateField extends StatelessWidget {
     label,
     controller: controller,
     required: true,
-    hint: 'YYYY-MM-DD',
+    hint: ui('YYYY-MM-DD'),
     suffix: IconButton(
       tooltip: 'Choose $label',
       icon: const Icon(Icons.calendar_today_outlined, size: 18),
@@ -234,7 +238,7 @@ class _PmsDatePickerState extends State<PmsDatePicker> {
                       ),
               ),
               PmsButton(
-                'Today',
+                ui('Today'),
                 small: true,
                 onPressed: () => setState(
                   () => month = DateTime(

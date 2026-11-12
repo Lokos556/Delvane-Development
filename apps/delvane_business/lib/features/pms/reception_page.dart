@@ -1,3 +1,4 @@
+import 'package:delvane_business/core/localization/web_strings.dart';
 import 'package:flutter/material.dart';
 import '../workspace/workspace_models.dart';
 import 'pms_controller.dart';
@@ -97,8 +98,8 @@ class _ReceptionPageState extends State<ReceptionPage>
         widget.controller.receptionDrafts.containsKey(key)) {
       if (!await pmsConfirm(
         context,
-        'Generate smart reply',
-        'Replace your unsaved draft with a generated reply?',
+        ui('Generate smart reply'),
+        ui('Replace your unsaved draft with a generated reply?'),
       )) {
         return;
       }
@@ -217,12 +218,14 @@ class _ReceptionPageState extends State<ReceptionPage>
         const SizedBox(height: 16),
         errors(),
         if (stale)
-          const Text(
-            'The server accepted the action. Refresh data before making another change.',
+          Text(
+            ui(
+              'The server accepted the action. Refresh data before making another change.',
+            ),
           ),
         if (failure != null)
           PmsButton(
-            'Refresh data',
+            ui('Refresh data'),
             onPressed: busy
                 ? null
                 : () => perform(() async {
@@ -256,14 +259,14 @@ class _ReceptionPageState extends State<ReceptionPage>
         children: [
           TextField(
             controller: search,
-            decoration: const InputDecoration(hintText: 'Search in mail'),
+            decoration: InputDecoration(hintText: ui('Search in mail')),
             onChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: 12),
-          const PmsEyebrow('All inboxes'),
+          PmsEyebrow(ui('All inboxes')),
           if (filtered.isEmpty)
-            const PmsEmpty(
-              'Your inbox is clear. Guest messages will appear here.',
+            PmsEmpty(
+              ui('Your inbox is clear. Guest messages will appear here.'),
             ),
           for (final m in filtered)
             Container(
@@ -364,13 +367,13 @@ class _ReceptionPageState extends State<ReceptionPage>
                     ),
                   ),
                   child: active == null
-                      ? const PmsCard(
+                      ? PmsCard(
                           child: Padding(
                             padding: EdgeInsets.only(top: 112),
                             child: Align(
                               alignment: Alignment.topCenter,
                               child: Text(
-                                'Select a message to review it.',
+                                ui('Select a message to review it.'),
                                 style: TextStyle(
                                   fontFamily: 'Georgia',
                                   fontSize: 22,
@@ -404,7 +407,7 @@ class _ReceptionPageState extends State<ReceptionPage>
             Align(
               alignment: Alignment.centerLeft,
               child: PmsButton(
-                '‹ Back to inbox',
+                ui('‹ Back to inbox'),
                 small: true,
                 onPressed: () => setState(() {
                   selected = null;
@@ -425,12 +428,12 @@ class _ReceptionPageState extends State<ReceptionPage>
             children: [
               if (m['reservation_id'] != null)
                 PmsButton(
-                  'Open stay',
+                  ui('Open stay'),
                   small: true,
                   onPressed: () => widget.openStay(text(m, 'reservation_id')),
                 ),
               PmsButton(
-                'Archive',
+                ui('Archive'),
                 small: true,
                 onPressed: locked
                     ? null
@@ -446,13 +449,13 @@ class _ReceptionPageState extends State<ReceptionPage>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const PmsEyebrow('GUEST CONTEXT'),
-                  Text('${guest['stays']} stays'),
+                  PmsEyebrow(ui('GUEST CONTEXT')),
+                  Text(ui('${guest['stays']} stays')),
                   for (final pref in optionalRows(guest['preferences']))
                     Text(text(pref, 'preference_value')),
                   if (m['reservation_id'] != null)
                     PmsButton(
-                      'View guest history',
+                      ui('View guest history'),
                       onPressed: () => showDialog<void>(
                         useRootNavigator: false,
                         context: context,
@@ -477,12 +480,14 @@ class _ReceptionPageState extends State<ReceptionPage>
           ),
           if (!analyzed) ...[
             const SizedBox(height: 16),
-            const Text(
-              'Let Delvane understand this first.',
+            Text(
+              ui('Let Delvane understand this first.'),
               style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
             ),
-            const Text(
-              'Structured facts and actions stay deterministic. Luna is optional.',
+            Text(
+              ui(
+                'Structured facts and actions stay deterministic. Luna is optional.',
+              ),
             ),
             PmsButton(
               t('Analyze'),
@@ -491,11 +496,11 @@ class _ReceptionPageState extends State<ReceptionPage>
             ),
           ] else ...[
             const SizedBox(height: 16),
-            const PmsEyebrow('ROSA UNDERSTOOD'),
+            PmsEyebrow(ui('ROSA UNDERSTOOD')),
             if (a['extracted'] is Json)
               analysisChips(jsonObject(a['extracted'])),
             if ((a['unresolved'] as List? ?? []).isNotEmpty) ...[
-              const Text('Needs confirmation'),
+              Text(ui('Needs confirmation')),
               for (final issue in a['unresolved'] as List)
                 Text(issue.toString()),
             ],
@@ -504,8 +509,10 @@ class _ReceptionPageState extends State<ReceptionPage>
               m['draft_provider'] == 'openai' ? t('Luna') : t('Local'),
               style: const TextStyle(fontSize: 11),
             ),
-            const Text(
-              'Delvane is not connected to a live guest-messaging channel yet. Sending remains manual or simulated.',
+            Text(
+              ui(
+                'Delvane is not connected to a live guest-messaging channel yet. Sending remains manual or simulated.',
+              ),
             ),
             TextField(
               controller: editor,
@@ -555,9 +562,9 @@ class _ReceptionPageState extends State<ReceptionPage>
       if (extracted['property_name'] != null)
         PmsBadge(text(extracted, 'property_name')),
       if (extracted['arrival_time'] != null)
-        PmsBadge('Arrival ${text(extracted, 'arrival_time')}'),
+        PmsBadge(ui('Arrival ${text(extracted, 'arrival_time')}')),
       if (extracted['guest_count'] != null)
-        PmsBadge('${extracted['guest_count']} guests'),
+        PmsBadge(ui('${extracted['guest_count']} guests')),
       for (final request in extracted['special_requests'] as List? ?? [])
         PmsBadge(request.toString()),
     ],
@@ -576,8 +583,10 @@ class _ReceptionPageState extends State<ReceptionPage>
                 t('Communication sandbox'),
                 style: const TextStyle(fontWeight: FontWeight.w700),
               ),
-              const Text(
-                'Delvane is not connected to a live guest-messaging channel yet. Sending remains manual or simulated.',
+              Text(
+                ui(
+                  'Delvane is not connected to a live guest-messaging channel yet. Sending remains manual or simulated.',
+                ),
               ),
             ],
           ),
@@ -617,10 +626,12 @@ class _ReceptionPageState extends State<ReceptionPage>
             maxLines: 4,
             onChanged: (v) => widget.controller.receptionDrafts[key] = v,
           ),
-          const Text('No live external send', style: TextStyle(fontSize: 12)),
+          Text(ui('No live external send'), style: TextStyle(fontSize: 12)),
           if (widget.controller.receptionDrafts.containsKey(key))
-            const Text(
-              'Unsaved draft. Save before approving or simulating this text.',
+            Text(
+              ui(
+                'Unsaved draft. Save before approving or simulating this text.',
+              ),
             ),
           Wrap(
             spacing: 8,
@@ -691,13 +702,15 @@ class _ReceptionPageState extends State<ReceptionPage>
   Widget automations() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      const PmsEyebrow('GUEST JOURNEY AUTOMATION'),
-      const Text(
-        'Delvane prepares the next touchpoint before you think about it.',
+      PmsEyebrow(ui('GUEST JOURNEY AUTOMATION')),
+      Text(
+        ui('Delvane prepares the next touchpoint before you think about it.'),
         style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
       ),
-      const Text(
-        'Rules create drafts only. OBSERVE previews, ASSIST requests approval, and AUTONOMOUS can prepare approved items. No external channel is connected yet.',
+      Text(
+        ui(
+          'Rules create drafts only. OBSERVE previews, ASSIST requests approval, and AUTONOMOUS can prepare approved items. No external channel is connected yet.',
+        ),
       ),
       Align(
         alignment: Alignment.centerLeft,
@@ -748,10 +761,10 @@ class _ReceptionPageState extends State<ReceptionPage>
                 PmsSelect(
                   t('Authority'),
                   value: text(rule, 'authority_mode'),
-                  items: const {
-                    'ask': 'Ask owner',
-                    'auto': 'Automatic',
-                    'never': 'Never',
+                  items: {
+                    'ask': ui('Ask owner'),
+                    'auto': ui('Automatic'),
+                    'never': ui('Never'),
                   },
                   onChanged: locked
                       ? null
@@ -763,7 +776,7 @@ class _ReceptionPageState extends State<ReceptionPage>
                           );
                         }),
                 ),
-                Text('${rule['run_count']} evaluations'),
+                Text(ui('${rule['run_count']} evaluations')),
               ],
             ),
           ),
@@ -813,17 +826,17 @@ class _NewInboxMessageState extends State<NewInboxMessage>
   Widget build(BuildContext context) => PopScope(
     canPop: !busy,
     child: PmsModal(
-      title: 'Paste a guest message',
-      eyebrow: 'NEW INBOX ITEM',
+      title: ui('Paste a guest message'),
+      eyebrow: ui('NEW INBOX ITEM'),
       canClose: !busy,
       width: 760,
       actions: [
         PmsButton(
-          'Cancel',
+          ui('Cancel'),
           onPressed: busy ? null : () => Navigator.pop(context),
         ),
         PmsButton(
-          'Add to Inbox',
+          ui('Add to Inbox'),
           primary: true,
           onPressed: busy || properties == null || reservations == null
               ? null
@@ -853,11 +866,11 @@ class _NewInboxMessageState extends State<NewInboxMessage>
           children: [
             errors(),
             if ((properties == null || reservations == null) && !busy)
-              PmsButton('Retry', onPressed: load),
+              PmsButton(ui('Retry'), onPressed: load),
             if (properties != null) ...[
               PmsColumns([
                 PmsSelect(
-                  'Source',
+                  ui('Source'),
                   value: source,
                   items: {
                     for (final v in [
@@ -871,30 +884,30 @@ class _NewInboxMessageState extends State<NewInboxMessage>
                   onChanged: busy ? null : (v) => setState(() => source = v),
                 ),
                 PmsSelect(
-                  'Property',
+                  ui('Property'),
                   value: property,
                   items: {
-                    '': 'Let Delvane detect it',
+                    '': ui('Let Delvane detect it'),
                     for (final p in properties!) text(p, 'id'): text(p, 'name'),
                   },
                   onChanged: busy ? null : (v) => setState(() => property = v),
                 ),
                 PmsField(
-                  'Sender name',
+                  ui('Sender name'),
                   controller: fields['sender_name']!,
-                  hint: 'Guest name',
+                  hint: ui('Guest name'),
                 ),
                 PmsField(
-                  'Contact',
+                  ui('Contact'),
                   controller: fields['sender_contact']!,
-                  hint: 'Email or phone, optional',
+                  hint: ui('Email or phone, optional'),
                 ),
               ], columns: 2),
               PmsSelect(
-                'Link to existing reservation',
+                ui('Link to existing reservation'),
                 value: reservation,
                 items: {
-                  '': 'New inquiry / not linked',
+                  '': ui('New inquiry / not linked'),
                   for (final r in reservations ?? <Json>[])
                     if (r['status'] == 'confirmed')
                       text(
@@ -905,16 +918,16 @@ class _NewInboxMessageState extends State<NewInboxMessage>
                 onChanged: busy ? null : (v) => setState(() => reservation = v),
               ),
               PmsField(
-                'Subject',
+                ui('Subject'),
                 controller: fields['subject']!,
-                hint: 'Optional',
+                hint: ui('Optional'),
               ),
               PmsField(
-                'Message',
+                ui('Message'),
                 controller: fields['body']!,
                 lines: 5,
                 required: true,
-                hint: "Paste the guest's message here…",
+                hint: ui("Paste the guest's message here…"),
               ),
             ],
           ],

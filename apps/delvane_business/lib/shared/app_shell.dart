@@ -1,3 +1,4 @@
+import 'package:delvane_business/core/localization/web_strings.dart';
 import 'package:flutter/material.dart';
 import '../app/controller.dart';
 import '../app/destination.dart';
@@ -115,7 +116,7 @@ class AppShell extends StatelessWidget {
                                         Text(controller.loadError!),
                                         TextButton(
                                           onPressed: controller.load,
-                                          child: const Text('Retry'),
+                                          child: Text(ui('Retry')),
                                         ),
                                       ],
                                     ),
@@ -136,7 +137,7 @@ class AppShell extends StatelessWidget {
                                       Text(
                                         controller.destination ==
                                                 Destination.dashboard
-                                            ? 'Good morning, Alex.'
+                                            ? ui('Good morning, Alex.')
                                             : controller.destination.label,
                                         style: Theme.of(
                                           context,
@@ -177,8 +178,10 @@ class AppShell extends StatelessWidget {
                                         ),
                                       },
                                       const SizedBox(height: 30),
-                                      const Text(
-                                        'DELVANE BUSINESS  /  EARLY PREVIEW',
+                                      Text(
+                                        ui(
+                                          'DELVANE BUSINESS  /  EARLY PREVIEW',
+                                        ),
                                         style: TextStyle(
                                           fontSize: 9,
                                           letterSpacing: 2,
@@ -209,7 +212,7 @@ class AppShell extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
+        Padding(
           padding: EdgeInsets.fromLTRB(24, 32, 24, 34),
           child: Row(
             children: [
@@ -223,7 +226,7 @@ class AppShell extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'delvane',
+                        ui('delvane'),
                         style: TextStyle(
                           fontSize: 26,
                           fontWeight: FontWeight.w800,
@@ -245,10 +248,10 @@ class AppShell extends StatelessWidget {
             ],
           ),
         ),
-        const Padding(
+        Padding(
           padding: EdgeInsets.symmetric(horizontal: 26),
           child: Text(
-            'YOUR WORKSPACE',
+            ui('YOUR WORKSPACE'),
             style: TextStyle(
               fontSize: 9,
               letterSpacing: 1.6,
@@ -330,11 +333,11 @@ class AppShell extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Alex Morgan',
+                            ui('Alex Morgan'),
                             style: Theme.of(context).textTheme.labelLarge,
                           ),
-                          const Text(
-                            'Demo administrator',
+                          Text(
+                            ui('Demo administrator'),
                             style: TextStyle(
                               fontSize: 10,
                               color: DelvaneColors.muted,
@@ -383,9 +386,9 @@ class AppShell extends StatelessWidget {
                 context,
               ).textTheme.bodyMedium!.copyWith(fontSize: 12),
               items: [
-                const DropdownMenuItem(
+                DropdownMenuItem(
                   value: 'all',
-                  child: Text('All demo properties'),
+                  child: Text(ui('All demo properties')),
                 ),
                 ...controller.snapshot!.properties.map(
                   (p) => DropdownMenuItem(value: p.id, child: Text(p.name)),
@@ -408,14 +411,16 @@ class AppShell extends StatelessWidget {
           onPressed: () => showDialog<void>(
             context: context,
             builder: (context) => AlertDialog(
-              title: const Text('Your demo briefing'),
-              content: const Text(
-                '2 synthetic arrivals and 2 priority tasks. These are sample notifications, not live events.',
+              title: Text(ui('Your demo briefing')),
+              content: Text(
+                ui(
+                  '2 synthetic arrivals and 2 priority tasks. These are sample notifications, not live events.',
+                ),
               ),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Got it'),
+                  child: Text(ui('Got it')),
                 ),
               ],
             ),

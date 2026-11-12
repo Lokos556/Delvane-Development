@@ -1,3 +1,4 @@
+import 'package:delvane_business/core/localization/web_strings.dart';
 import 'package:flutter/material.dart';
 import '../../app/theme.dart';
 import '../../core/auth/auth_controller.dart';
@@ -45,19 +46,23 @@ class _LoginPageState extends State<LoginPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Icon(
-                      Icons.bolt_rounded,
-                      color: DelvaneColors.ink,
-                      size: 36,
+                    Image.asset(
+                      'assets/delvane-icon.png',
+                      width: 72,
+                      height: 72,
+                      fit: BoxFit.contain,
+                      semanticLabel: 'Delvane',
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'Delvane Business',
+                      ui('Delvane Business'),
                       style: Theme.of(context).textTheme.headlineMedium,
                     ),
                     const SizedBox(height: 8),
-                    const Text(
-                      'Sign in to your isolated operational workspace. Your backend remains the source of truth.',
+                    Text(
+                      ui(
+                        'Sign in to your isolated operational workspace. Your backend remains the source of truth.',
+                      ),
                     ),
                     const SizedBox(height: 12),
                     Text(
@@ -70,8 +75,8 @@ class _LoginPageState extends State<LoginPage> {
                       const SizedBox(height: 12),
                       Text(
                         widget.auth.phase == AuthPhase.restoring
-                            ? 'Checking development connection and session…'
-                            : 'Signing in…',
+                            ? ui('Checking development connection and session…')
+                            : ui('Signing in…'),
                       ),
                     ],
                     if (widget.auth.error != null) ...[
@@ -127,20 +132,22 @@ class _LoginPageState extends State<LoginPage> {
                     FilledButton(
                       key: const ValueKey('sign-in'),
                       onPressed: widget.auth.busy ? null : _signIn,
-                      child: const Text('Sign in'),
+                      child: Text(ui('Sign in')),
                     ),
                     TextButton(
                       onPressed: widget.auth.busy ? null : widget.auth.restore,
-                      child: const Text('Reconnect / restore session'),
+                      child: Text(ui('Reconnect / restore session')),
                     ),
                     const Divider(height: 28),
                     OutlinedButton(
                       onPressed: widget.auth.busy ? null : widget.onDemo,
-                      child: const Text('Explore offline demo'),
+                      child: Text(ui('Explore offline demo')),
                     ),
                     const SizedBox(height: 12),
-                    const Text(
-                      'Demo mode is separate and never substitutes for a failed API request. Passwords are never saved.',
+                    Text(
+                      ui(
+                        'Demo mode is separate and never substitutes for a failed API request. Passwords are never saved.',
+                      ),
                       style: TextStyle(
                         color: DelvaneColors.muted,
                         fontSize: 12,

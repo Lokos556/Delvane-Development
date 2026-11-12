@@ -1,3 +1,4 @@
+import 'package:delvane_business/core/localization/web_strings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../workspace/workspace_models.dart';
@@ -38,20 +39,25 @@ class _TeamPageState extends State<TeamPage> {
     final d = c.object('team'),
         stats = optionalObject(d['stats']),
         members = optionalRows(d['members']);
-    if (!c.user.isOperator) return const PmsEmpty('No access');
+    if (!c.user.isOperator) return PmsEmpty(ui('No access'));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         PmsPageHeader(
-          eyebrow: 'TEAM & ACCESS',
-          title: 'Your people, their work, and exactly what they can see.',
-          description:
-              'Add cleaners, maintenance workers and managers, review access, suspend accounts and understand workload without mixing it into the day-to-day task screens.',
+          eyebrow: ui('TEAM & ACCESS'),
+          title: ui('Your people, their work, and exactly what they can see.'),
+          description: ui(
+            'Add cleaners, maintenance workers and managers, review access, suspend accounts and understand workload without mixing it into the day-to-day task screens.',
+          ),
           actions: [
             canManage
-                ? PmsButton('+ Add team member', primary: true, onPressed: edit)
-                : const Text(
-                    'Manager view - owner controls accounts',
+                ? PmsButton(
+                    ui('+ Add team member'),
+                    primary: true,
+                    onPressed: edit,
+                  )
+                : Text(
+                    ui('Manager view - owner controls accounts'),
                     style: TextStyle(fontSize: 12),
                   ),
           ],
@@ -93,17 +99,17 @@ class _TeamPageState extends State<TeamPage> {
         const SizedBox(height: 24),
         if (tab == 0)
           PmsColumns([for (final m in members) person(m)], columns: 2),
-        if (tab == 0 && members.isEmpty) const PmsEmpty('No team members.'),
+        if (tab == 0 && members.isEmpty) PmsEmpty(ui('No team members.')),
         if (tab == 1) ...[
-          const PmsEyebrow('ACCESS MODEL'),
-          const Text(
-            'People see only what their job requires.',
+          PmsEyebrow(ui('ACCESS MODEL')),
+          Text(
+            ui('People see only what their job requires.'),
             style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
           ),
           Align(
             alignment: Alignment.centerRight,
             child: PmsButton(
-              'Open Security Center',
+              ui('Open Security Center'),
               onPressed: () => c.navigate(PmsPage.security),
             ),
           ),
@@ -129,18 +135,22 @@ class _TeamPageState extends State<TeamPage> {
               ),
           ], columns: 2),
           const SizedBox(height: 24),
-          const PmsEyebrow('ACCOUNT POSTURE'),
+          PmsEyebrow(ui('ACCOUNT POSTURE')),
           Text(
-            '${stats['unverified'] ?? 0} unverified emails · ${stats['active_sessions'] ?? 0} active sessions · ${members.where((m) => m['mfa_enabled'] == 1).length} MFA enabled',
+            ui(
+              '${stats['unverified'] ?? 0} unverified emails · ${stats['active_sessions'] ?? 0} active sessions · ${members.where((m) => m['mfa_enabled'] == 1).length} MFA enabled',
+            ),
           ),
-          const Text(
-            'These are stored account indicators. Email delivery and MFA enrollment are not provided by this screen.',
+          Text(
+            ui(
+              'These are stored account indicators. Email delivery and MFA enrollment are not provided by this screen.',
+            ),
           ),
         ],
         if (tab == 2) ...[
-          const PmsEyebrow('NEXT 7 DAYS'),
-          const Text(
-            'Workload by person',
+          PmsEyebrow(ui('NEXT 7 DAYS')),
+          Text(
+            ui('Workload by person'),
             style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
           ),
           for (final m in members.where(
@@ -150,13 +160,15 @@ class _TeamPageState extends State<TeamPage> {
               contentPadding: EdgeInsets.zero,
               title: Text(text(m, 'full_name')),
               subtitle: Text(
-                '${m['upcoming_cleaning']} clean · ${m['open_maintenance']} maintenance',
+                ui(
+                  '${m['upcoming_cleaning']} clean · ${m['open_maintenance']} maintenance',
+                ),
               ),
             ),
           const SizedBox(height: 24),
-          const PmsEyebrow('ASSIGNMENTS'),
-          const Text(
-            'Upcoming work',
+          PmsEyebrow(ui('ASSIGNMENTS')),
+          Text(
+            ui('Upcoming work'),
             style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
           ),
           for (final w in optionalRows(d['workload']))
@@ -176,7 +188,7 @@ class _TeamPageState extends State<TeamPage> {
               ),
             ),
           if (optionalRows(d['workload']).isEmpty)
-            const PmsEmpty('No upcoming work.'),
+            PmsEmpty(ui('No upcoming work.')),
         ],
       ],
     );
@@ -224,7 +236,7 @@ class _TeamPageState extends State<TeamPage> {
                       children: [
                         PmsBadge(text(m, 'role').toUpperCase()),
                         if (m['active'] == 0)
-                          const PmsBadge('Suspended', tone: 'high'),
+                          PmsBadge(ui('Suspended'), tone: 'high'),
                       ],
                     ),
                     const SizedBox(height: 4),
@@ -245,7 +257,7 @@ class _TeamPageState extends State<TeamPage> {
                 ),
               ),
               if (canManage)
-                PmsButton('Manage', small: true, onPressed: () => edit(m)),
+                PmsButton(ui('Manage'), small: true, onPressed: () => edit(m)),
             ],
           ),
           const SizedBox(height: 16),
@@ -294,15 +306,15 @@ class _TeamPageState extends State<TeamPage> {
             children: [
               PmsBadge(
                 m['email_verified'] == 1
-                    ? 'Email verified'
-                    : '! Email unverified',
+                    ? ui('Email verified')
+                    : ui('! Email unverified'),
               ),
               Text(
-                m['mfa_enabled'] == 1 ? 'MFA' : 'MFA off',
+                m['mfa_enabled'] == 1 ? ui('MFA') : ui('MFA off'),
                 style: const TextStyle(fontSize: 11),
               ),
               Text(
-                '${m['active_sessions'] ?? 0} active sessions',
+                ui('${m['active_sessions'] ?? 0} active sessions'),
                 style: const TextStyle(fontSize: 11),
               ),
             ],
@@ -406,10 +418,12 @@ class _TeamMemberEditorState extends State<TeamMemberEditor>
   Future<void> access(bool reset) async {
     final confirm = await pmsConfirm(
       context,
-      reset ? 'Reset access?' : 'Revoke sessions?',
+      reset ? ui('Reset access?') : ui('Revoke sessions?'),
       reset
-          ? 'Generate a new setup password and revoke all previous sessions for ${name.text}?'
-          : 'Sign ${name.text} out of all Delvane sessions?',
+          ? ui(
+              'Generate a new setup password and revoke all previous sessions for ${name.text}?',
+            )
+          : ui('Sign ${name.text} out of all Delvane sessions?'),
     );
     if (!confirm || !mounted) return;
     final ok = await perform(() async {
@@ -423,19 +437,19 @@ class _TeamMemberEditorState extends State<TeamMemberEditor>
   @override
   Widget build(BuildContext context) {
     if (widget.c.user.role != 'owner') {
-      return const PmsModal(
-        title: 'No access',
-        child: Text('Owner access required.'),
+      return PmsModal(
+        title: ui('No access'),
+        child: Text(ui('Owner access required.')),
       );
     }
     if (credential != null) {
       return PmsModal(
-        title: 'Give these details to ${name.text}.',
-        eyebrow: editing ? 'ACCESS RESET' : 'ACCOUNT CREATED',
+        title: ui('Give these details to ${name.text}.'),
+        eyebrow: editing ? ui('ACCESS RESET') : ui('ACCOUNT CREATED'),
         width: 600,
         actions: [
           PmsButton(
-            'Copy setup details',
+            ui('Copy setup details'),
             onPressed: () async {
               try {
                 await Clipboard.setData(
@@ -456,7 +470,7 @@ class _TeamMemberEditorState extends State<TeamMemberEditor>
             },
           ),
           PmsButton(
-            'Done',
+            ui('Done'),
             primary: true,
             onPressed: () => Navigator.pop(context),
           ),
@@ -464,8 +478,10 @@ class _TeamMemberEditorState extends State<TeamMemberEditor>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-              'The setup password is shown once. Share it securely. No email has been sent.',
+            Text(
+              ui(
+                'The setup password is shown once. Share it securely. No email has been sent.',
+              ),
             ),
             const SizedBox(height: 20),
             Text(email.text),
@@ -479,17 +495,17 @@ class _TeamMemberEditorState extends State<TeamMemberEditor>
       );
     }
     return PmsModal(
-      title: editing ? name.text : 'Add someone to Rosa',
-      eyebrow: editing ? 'TEAM ACCOUNT' : 'NEW TEAM MEMBER',
+      title: editing ? name.text : ui('Add someone to Rosa'),
+      eyebrow: editing ? ui('TEAM ACCOUNT') : ui('NEW TEAM MEMBER'),
       width: 760,
       canClose: !busy,
       actions: [
         PmsButton(
-          'Cancel',
+          ui('Cancel'),
           onPressed: busy ? null : () => Navigator.pop(context),
         ),
         PmsButton(
-          editing ? 'Save changes' : 'Create account',
+          editing ? ui('Save changes') : ui('Create account'),
           primary: true,
           onPressed: busy || changed ? null : save,
         ),
@@ -501,23 +517,23 @@ class _TeamMemberEditorState extends State<TeamMemberEditor>
           children: [
             errors(),
             PmsColumns([
-              PmsField('Full name', controller: name, required: true),
+              PmsField(ui('Full name'), controller: name, required: true),
               PmsField(
-                'Email',
+                ui('Email'),
                 controller: email,
                 required: true,
                 keyboard: TextInputType.emailAddress,
               ),
-              PmsField('Phone (optional)', controller: phone),
-              PmsField('Job title (optional)', controller: title),
+              PmsField(ui('Phone (optional)'), controller: phone),
+              PmsField(ui('Job title (optional)'), controller: title),
               PmsSelect(
-                'Delvane role',
+                ui('Delvane role'),
                 value: role,
-                items: const {
-                  'cleaner': 'Cleaner',
-                  'maintenance': 'Maintenance',
-                  'manager': 'Manager',
-                  'owner': 'Owner',
+                items: {
+                  'cleaner': ui('Cleaner'),
+                  'maintenance': ui('Maintenance'),
+                  'manager': ui('Manager'),
+                  'owner': ui('Owner'),
                 },
                 onChanged: busy || self
                     ? null
@@ -525,9 +541,9 @@ class _TeamMemberEditorState extends State<TeamMemberEditor>
               ),
               if (editing)
                 PmsSelect(
-                  'Account status',
+                  ui('Account status'),
                   value: active ? 'active' : 'suspended',
-                  items: const {'active': 'Active', 'suspended': 'Suspended'},
+                  items: {'active': ui('Active'), 'suspended': ui('Suspended')},
                   onChanged: busy || self
                       ? null
                       : (v) => setState(() => active = v == 'active'),
@@ -543,25 +559,27 @@ class _TeamMemberEditorState extends State<TeamMemberEditor>
                   ).where((g) => g['enabled'] == true))
                     Text('✓ ${text(group, 'label')}'),
                   if (role == 'owner')
-                    const Text(
-                      'Owners can manage people, access, settings and security.',
+                    Text(
+                      ui(
+                        'Owners can manage people, access, settings and security.',
+                      ),
                     ),
                 ],
               ),
             ),
             if (editing && !self) ...[
               const SizedBox(height: 20),
-              const PmsEyebrow('ACCESS TOOLS'),
+              PmsEyebrow(ui('ACCESS TOOLS')),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 children: [
                   PmsButton(
-                    'Reset access',
+                    ui('Reset access'),
                     onPressed: busy || changed ? null : () => access(true),
                   ),
                   PmsButton(
-                    'Revoke sessions',
+                    ui('Revoke sessions'),
                     onPressed: busy || changed ? null : () => access(false),
                   ),
                 ],

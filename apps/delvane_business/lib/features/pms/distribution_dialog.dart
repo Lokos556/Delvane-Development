@@ -1,3 +1,4 @@
+import 'package:delvane_business/core/localization/web_strings.dart';
 import 'package:flutter/material.dart';
 import '../workspace/workspace_models.dart';
 import 'channel_api.dart';
@@ -175,15 +176,15 @@ class _DistributionDialogState extends State<DistributionDialog>
     final d = data ?? <String, dynamic>{}, outbox = optionalObject(d['outbox']);
     return PmsModal(
       title: widget.propertyName,
-      eyebrow: 'CHANNEL DISTRIBUTION · CHANNEX',
+      eyebrow: ui('CHANNEL DISTRIBUTION · CHANNEX'),
       canClose: !busy,
       actions: [
         PmsButton(
-          'Cancel',
+          ui('Cancel'),
           onPressed: busy ? null : () => Navigator.pop(context),
         ),
         PmsButton(
-          'Save & send',
+          ui('Save & send'),
           primary: true,
           onPressed: busy || data == null || changed ? null : () => saveRange(),
         ),
@@ -193,11 +194,13 @@ class _DistributionDialogState extends State<DistributionDialog>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-              'Change a date or range once. Delvane saves it locally and sends one batched update per Channex endpoint.',
+            Text(
+              ui(
+                'Change a date or range once. Delvane saves it locally and sends one batched update per Channex endpoint.',
+              ),
             ),
             errors(),
-            if (data == null && !busy) PmsButton('Retry', onPressed: load),
+            if (data == null && !busy) PmsButton(ui('Retry'), onPressed: load),
             if (data != null) ...[
               const SizedBox(height: 16),
               Wrap(
@@ -205,10 +208,16 @@ class _DistributionDialogState extends State<DistributionDialog>
                 runSpacing: 8,
                 children: [
                   Text(
-                    'OUTGOING QUEUE  ${(outbox['queued'] as num? ?? 0) + (outbox['retry'] as num? ?? 0) + (outbox['sending'] as num? ?? 0)}',
+                    ui(
+                      'OUTGOING QUEUE  ${(outbox['queued'] as num? ?? 0) + (outbox['retry'] as num? ?? 0) + (outbox['sending'] as num? ?? 0)}',
+                    ),
                   ),
-                  Text('CONFIGURED DAYS  ${optionalRows(d['values']).length}'),
-                  Text('LAST DELIVERED  ${text(d, 'last_sent_at', 'Never')}'),
+                  Text(
+                    ui('CONFIGURED DAYS  ${optionalRows(d['values']).length}'),
+                  ),
+                  Text(
+                    ui('LAST DELIVERED  ${text(d, 'last_sent_at', 'Never')}'),
+                  ),
                 ],
               ),
               const SizedBox(height: 24),
@@ -216,21 +225,23 @@ class _DistributionDialogState extends State<DistributionDialog>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const PmsEyebrow('DELIVERY DIAGNOSTICS'),
-                    const Text(
-                      'Channex delivery queue',
+                    PmsEyebrow(ui('DELIVERY DIAGNOSTICS')),
+                    Text(
+                      ui('Channex delivery queue'),
                       style: TextStyle(
                         fontSize: 23,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    const Text(
-                      'Pending requests, retry timing and last provider error. No credentials or payload data are shown.',
+                    Text(
+                      ui(
+                        'Pending requests, retry timing and last provider error. No credentials or payload data are shown.',
+                      ),
                     ),
-                    if (queue == null) const Text('Queue status unavailable.'),
+                    if (queue == null) Text(ui('Queue status unavailable.')),
                     if (queue != null && optionalRows(queue!['items']).isEmpty)
-                      const Text(
-                        'Queue is clear — no pending Channex ARI requests.',
+                      Text(
+                        ui('Queue is clear — no pending Channex ARI requests.'),
                       ),
                     for (final item in optionalRows(queue?['items']))
                       Padding(
@@ -239,12 +250,16 @@ class _DistributionDialogState extends State<DistributionDialog>
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              '${text(item, 'endpoint_label')} · ${text(item, 'status')} · attempt ${item['attempts'] ?? 0}',
+                              ui(
+                                '${text(item, 'endpoint_label')} · ${text(item, 'status')} · attempt ${item['attempts'] ?? 0}',
+                              ),
                             ),
                             Text(
                               item['retry_due'] == true
-                                  ? 'Eligible now'
-                                  : 'Retry in ${((item['seconds_until_retry'] as num? ?? 0) / 60).ceil()} min',
+                                  ? ui('Eligible now')
+                                  : ui(
+                                      'Retry in ${((item['seconds_until_retry'] as num? ?? 0) / 60).ceil()} min',
+                                    ),
                             ),
                             if (item['last_error'] != null)
                               Text(text(item, 'last_error')),
@@ -257,11 +272,11 @@ class _DistributionDialogState extends State<DistributionDialog>
                       runSpacing: 8,
                       children: [
                         PmsButton(
-                          'Refresh queue',
+                          ui('Refresh queue'),
                           onPressed: busy ? null : refreshQueue,
                         ),
                         PmsButton(
-                          'Retry pending now',
+                          ui('Retry pending now'),
                           primary: true,
                           onPressed: busy
                               ? null
@@ -285,16 +300,18 @@ class _DistributionDialogState extends State<DistributionDialog>
                 ),
               ),
               const SizedBox(height: 24),
-              const PmsEyebrow('DEFAULT CALENDAR PRICE'),
-              const Text(
-                'Base nightly price',
+              PmsEyebrow(ui('DEFAULT CALENDAR PRICE')),
+              Text(
+                ui('Base nightly price'),
                 style: TextStyle(fontSize: 23, fontWeight: FontWeight.w700),
               ),
-              const Text(
-                'Publish one normal price for the next 365 days. Existing date-specific prices remain overrides.',
+              Text(
+                ui(
+                  'Publish one normal price for the next 365 days. Existing date-specific prices remain overrides.',
+                ),
               ),
               PmsField(
-                '${text(d, 'currency', 'HUF')} per night',
+                ui('${text(d, 'currency', 'HUF')} per night'),
                 controller: base,
                 keyboard: TextInputType.number,
               ),
@@ -302,8 +319,8 @@ class _DistributionDialogState extends State<DistributionDialog>
                 alignment: Alignment.centerRight,
                 child: PmsButton(
                   d['base_rate'] == null
-                      ? 'Set & publish 365 days'
-                      : 'Update & republish',
+                      ? ui('Set & publish 365 days')
+                      : ui('Update & republish'),
                   primary: true,
                   onPressed: busy
                       ? null
@@ -324,39 +341,43 @@ class _DistributionDialogState extends State<DistributionDialog>
                 ),
               ),
               const SizedBox(height: 24),
-              const PmsEyebrow('CHANNEX CERTIFICATION'),
-              const Text(
-                '500-day full sync',
+              PmsEyebrow(ui('CHANNEX CERTIFICATION')),
+              Text(
+                ui('500-day full sync'),
                 style: TextStyle(fontSize: 23, fontWeight: FontWeight.w700),
               ),
-              const Text(
-                'Send the complete 500-day availability and rates/restrictions state. Task acceptance is not certification or final OTA confirmation.',
+              Text(
+                ui(
+                  'Send the complete 500-day availability and rates/restrictions state. Task acceptance is not certification or final OTA confirmation.',
+                ),
               ),
               Align(
                 alignment: Alignment.centerRight,
                 child: PmsButton(
-                  'Run 500-day full sync',
+                  ui('Run 500-day full sync'),
                   onPressed: busy ? null : () => send('full-sync', 'POST'),
                 ),
               ),
               const SizedBox(height: 24),
-              const PmsEyebrow('DATE-SPECIFIC OVERRIDES'),
+              PmsEyebrow(ui('DATE-SPECIFIC OVERRIDES')),
               fields(single),
               const SizedBox(height: 24),
               PmsCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const PmsEyebrow('RATE PLAN UPDATES'),
-                    const Text(
-                      'Bulk rate & restriction changes',
+                    PmsEyebrow(ui('RATE PLAN UPDATES')),
+                    Text(
+                      ui('Bulk rate & restriction changes'),
                       style: TextStyle(
                         fontSize: 23,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    const Text(
-                      'Only changed fields are sent. Keep current leaves that value untouched.',
+                    Text(
+                      ui(
+                        'Only changed fields are sent. Keep current leaves that value untouched.',
+                      ),
                     ),
                     for (final row in bulk) ...[
                       const Divider(),
@@ -365,7 +386,7 @@ class _DistributionDialogState extends State<DistributionDialog>
                         Align(
                           alignment: Alignment.centerRight,
                           child: PmsButton(
-                            'Remove rate plan',
+                            ui('Remove rate plan'),
                             onPressed: busy
                                 ? null
                                 : () => setState(() {
@@ -380,7 +401,7 @@ class _DistributionDialogState extends State<DistributionDialog>
                       runSpacing: 8,
                       children: [
                         PmsButton(
-                          '+ Add rate plan',
+                          ui('+ Add rate plan'),
                           onPressed: busy || mappings.isEmpty
                               ? null
                               : () => setState(
@@ -394,7 +415,7 @@ class _DistributionDialogState extends State<DistributionDialog>
                                 ),
                         ),
                         PmsButton(
-                          'Save & send bulk updates',
+                          ui('Save & send bulk updates'),
                           primary: true,
                           onPressed: busy || mappings.isEmpty
                               ? null
@@ -406,8 +427,10 @@ class _DistributionDialogState extends State<DistributionDialog>
                 ),
               ),
               const SizedBox(height: 20),
-              const Text(
-                'Durable delivery: saved changes remain queued for retry if Channex is unavailable. Shared credentials stay on the server.',
+              Text(
+                ui(
+                  'Durable delivery: saved changes remain queued for retry if Channex is unavailable. Shared credentials stay on the server.',
+                ),
               ),
             ],
           ],
@@ -419,15 +442,15 @@ class _DistributionDialogState extends State<DistributionDialog>
   Widget fields(AriInput input, {bool bulkRow = false}) => Column(
     children: [
       PmsColumns([
-        PmsDateField('From', controller: input.fields['date_from']!),
-        PmsDateField('To', controller: input.fields['date_to']!),
+        PmsDateField(ui('From'), controller: input.fields['date_from']!),
+        PmsDateField(ui('To'), controller: input.fields['date_to']!),
         if (!bulkRow)
           PmsSelect(
-            'Room type',
+            ui('Room type'),
             value: input.room,
             items: {
-              '': 'Default room type',
-              '__all__': 'All mapped room types',
+              '': ui('Default room type'),
+              '__all__': ui('All mapped room types'),
               for (final r in optionalRows(data?['room_types']))
                 text(r, 'id'):
                     '${text(r, 'name')} · ${r['inventory_count']} units',
@@ -435,7 +458,7 @@ class _DistributionDialogState extends State<DistributionDialog>
             onChanged: busy ? null : (v) => setState(() => input.room = v),
           ),
         PmsSelect(
-          'Rate plan',
+          ui('Rate plan'),
           value: input.plan,
           items: {
             for (final m in mappings)
@@ -447,9 +470,9 @@ class _DistributionDialogState extends State<DistributionDialog>
           onChanged: busy ? null : (v) => setState(() => input.plan = v),
         ),
         PmsField(
-          'Nightly price · ${text(data ?? {}, 'currency', 'HUF')}',
+          ui('Nightly price · ${text(data ?? {}, 'currency', 'HUF')}'),
           controller: input.fields['rate_huf']!,
-          hint: 'Keep current',
+          hint: ui('Keep current'),
           keyboard: const TextInputType.numberWithOptions(decimal: true),
           validator: (v) {
             try {
@@ -469,7 +492,7 @@ class _DistributionDialogState extends State<DistributionDialog>
           PmsField(
             e.value,
             controller: input.fields[e.key]!,
-            hint: 'Keep current',
+            hint: ui('Keep current'),
             keyboard: TextInputType.number,
             validator: (v) =>
                 (v ?? '').trim().isEmpty || int.tryParse(v!) != null
@@ -484,7 +507,11 @@ class _DistributionDialogState extends State<DistributionDialog>
           PmsSelect(
             e.value,
             value: input.flags[e.key]!,
-            items: const {'': 'Keep current', 'false': 'No', 'true': 'Yes'},
+            items: {
+              '': ui('Keep current'),
+              'false': ui('No'),
+              'true': ui('Yes'),
+            },
             onChanged: busy
                 ? null
                 : (v) => setState(() => input.flags[e.key] = v),
@@ -493,9 +520,7 @@ class _DistributionDialogState extends State<DistributionDialog>
       if (!bulkRow && data?['certification_workspace'] == true)
         CheckboxListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text(
-            'Certification resend · resend even when unchanged',
-          ),
+          title: Text(ui('Certification resend · resend even when unchanged')),
           value: input.force,
           onChanged: busy ? null : (v) => setState(() => input.force = v!),
         ),
@@ -518,11 +543,11 @@ class DistributionResult extends StatelessWidget {
         failed = optionalRows(delivery['failed']);
     return PmsModal(
       title: deliveryTitle(result),
-      eyebrow: 'CHANNEL DISTRIBUTION',
+      eyebrow: ui('CHANNEL DISTRIBUTION'),
       width: 650,
       actions: [
         PmsButton(
-          'Done',
+          ui('Done'),
           primary: true,
           onPressed: () => Navigator.pop(context, true),
         ),
@@ -531,14 +556,18 @@ class DistributionResult extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            '$propertyName · ${result['days'] ?? '—'} days · ${delivered.length} requests submitted · ${failed.length} retrying',
+            ui(
+              '$propertyName · ${result['days'] ?? '—'} days · ${delivered.length} requests submitted · ${failed.length} retrying',
+            ),
           ),
           Text(text(result, 'message')),
           if (result['queued'] != null)
-            Text('${result['queued']} requests saved for delivery.'),
+            Text(ui('${result['queued']} requests saved for delivery.')),
           if (result['no_change'] != true && delivered.isEmpty)
-            const Text(
-              'Saved in the durable outbox. No provider task ID exists yet.',
+            Text(
+              ui(
+                'Saved in the durable outbox. No provider task ID exists yet.',
+              ),
             ),
           for (final item in delivered)
             ListTile(
@@ -550,8 +579,10 @@ class DistributionResult extends StatelessWidget {
               ),
             ),
           for (final item in failed) Text(text(item, 'error')),
-          const Text(
-            'A submitted task is not proof of OTA acceptance or Channex certification.',
+          Text(
+            ui(
+              'A submitted task is not proof of OTA acceptance or Channex certification.',
+            ),
           ),
         ],
       ),

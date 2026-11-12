@@ -1,3 +1,4 @@
+import 'package:delvane_business/core/localization/web_strings.dart';
 import 'package:flutter/material.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/network/api_client.dart';
@@ -51,7 +52,7 @@ class _RecordPageState extends State<RecordPage> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: Text('${widget.ref.kind.name} record'),
+      title: Text(ui('${widget.ref.kind.name} record')),
       actions: [
         IconButton(
           tooltip: 'Refresh record',
@@ -78,14 +79,14 @@ class _RecordPageState extends State<RecordPage> {
                   Text(
                     snapshot.error is ApiException
                         ? (snapshot.error as ApiException).message
-                        : 'Record unavailable.',
+                        : ui('Record unavailable.'),
                   ),
                   const SizedBox(height: 12),
                   FilledButton(
                     onPressed: () => setState(() {
                       result = _guardedLoad();
                     }),
-                    child: const Text('Retry'),
+                    child: Text(ui('Retry')),
                   ),
                 ],
               ),
@@ -107,8 +108,10 @@ class _RecordPageState extends State<RecordPage> {
                       style: Theme.of(context).textTheme.headlineMedium,
                     ),
                     const SizedBox(height: 8),
-                    const Text(
-                      'Connected to isolated development data · Read-only workspace',
+                    Text(
+                      ui(
+                        'Connected to isolated development data · Read-only workspace',
+                      ),
                     ),
                     const Divider(height: 28),
                     for (final entry in detail.fields.entries)
@@ -124,7 +127,7 @@ class _RecordPageState extends State<RecordPage> {
                             );
                             final value = SelectableText(
                               entry.value.isEmpty
-                                  ? 'Not provided'
+                                  ? ui('Not provided')
                                   : entry.value,
                             );
                             return constraints.maxWidth < 480
@@ -150,7 +153,7 @@ class _RecordPageState extends State<RecordPage> {
                       ),
                     if (detail.checklist.isNotEmpty) ...[
                       Text(
-                        'Cleaning checklist',
+                        ui('Cleaning checklist'),
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                       const SizedBox(height: 8),
@@ -164,7 +167,7 @@ class _RecordPageState extends State<RecordPage> {
                           ),
                           title: Text(item.label),
                           subtitle: Text(
-                            item.completed ? 'Completed' : 'Pending',
+                            item.completed ? ui('Completed') : ui('Pending'),
                           ),
                         ),
                     ],

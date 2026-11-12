@@ -1,3 +1,4 @@
+import 'package:delvane_business/core/localization/web_strings.dart';
 import 'package:flutter/material.dart';
 import '../../app/controller.dart';
 import '../../app/theme.dart';
@@ -18,9 +19,9 @@ class SettingsPage extends StatelessWidget {
           ),
           SwitchListTile.adaptive(
             contentPadding: EdgeInsets.zero,
-            title: const Text('Demo notification preference'),
-            subtitle: const Text(
-              'Stores a preference only; delivery is not connected.',
+            title: Text(ui('Demo notification preference')),
+            subtitle: Text(
+              ui('Stores a preference only; delivery is not connected.'),
             ),
             value: controller.notifications,
             onChanged: controller.setNotifications,
@@ -28,28 +29,28 @@ class SettingsPage extends StatelessWidget {
           const Divider(height: 30),
           SwitchListTile.adaptive(
             contentPadding: EdgeInsets.zero,
-            title: const Text('Compact task cards'),
-            subtitle: const Text('A little more room in Operations.'),
+            title: Text(ui('Compact task cards')),
+            subtitle: Text(ui('A little more room in Operations.')),
             value: controller.compactCards,
             onChanged: controller.setCompact,
           ),
           const Divider(height: 30),
-          const ListTile(
+          ListTile(
             contentPadding: EdgeInsets.zero,
             leading: Icon(Icons.language_rounded),
-            title: Text('English'),
-            subtitle: Text('Additional languages are planned.'),
+            title: Text(ui('English')),
+            subtitle: Text(ui('Additional languages are planned.')),
           ),
-          const ListTile(
+          ListTile(
             contentPadding: EdgeInsets.zero,
             leading: Icon(Icons.payments_outlined),
-            title: Text('Hungarian forint · HUF'),
-            subtitle: Text('Currency used by the sample dataset.'),
+            title: Text(ui('Hungarian forint · HUF')),
+            subtitle: Text(ui('Currency used by the sample dataset.')),
           ),
         ],
       ),
     ),
-    secondary: const Panel(
+    secondary: Panel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -61,22 +62,24 @@ class SettingsPage extends StatelessWidget {
           ),
           SizedBox(height: 20),
           Text(
-            'Delvane Business',
+            ui('Delvane Business'),
             style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
           ),
           SizedBox(height: 8),
           Text(
-            'Version 0.1.0 · Mock workspace',
+            ui('Version 0.1.0 · Mock workspace'),
             style: TextStyle(color: DelvaneColors.muted),
           ),
           Divider(height: 36),
           Text(
-            'Backend integration: not connected',
+            ui('Backend integration: not connected'),
             style: TextStyle(fontWeight: FontWeight.w600),
           ),
           SizedBox(height: 10),
           Text(
-            'The FastAPI backend is preserved. This preview does not read databases, send messages, submit reports, or change channel availability.',
+            ui(
+              'The FastAPI backend is preserved. This preview does not read databases, send messages, submit reports, or change channel availability.',
+            ),
             style: TextStyle(color: DelvaneColors.muted, height: 1.7),
           ),
         ],

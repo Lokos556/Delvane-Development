@@ -1,3 +1,4 @@
+import 'package:delvane_business/core/localization/web_strings.dart';
 import 'package:flutter/material.dart';
 import '../../app/controller.dart';
 import '../../app/theme.dart';
@@ -70,7 +71,7 @@ class PropertiesPage extends StatelessWidget {
                         children: [
                           Expanded(
                             child: Text(
-                              '${p.occupied} of ${p.units} units occupied',
+                              ui('${p.occupied} of ${p.units} units occupied'),
                               style: const TextStyle(fontSize: 12),
                             ),
                           ),
@@ -98,18 +99,20 @@ class PropertiesPage extends StatelessWidget {
                           builder: (context) => AlertDialog(
                             title: Text(p.name),
                             content: Text(
-                              '${p.location}\n${p.units} demo units\n${p.occupied} occupied\n\nIllustrative property only. No channel manager, locks, or live inventory connected.',
+                              ui(
+                                '${p.location}\n${p.units} demo units\n${p.occupied} occupied\n\nIllustrative property only. No channel manager, locks, or live inventory connected.',
+                              ),
                             ),
                             actions: [
                               TextButton(
                                 onPressed: () => Navigator.pop(context),
-                                child: const Text('Close'),
+                                child: Text(ui('Close')),
                               ),
                             ],
                           ),
                         ),
                         icon: const Icon(Icons.arrow_outward_rounded, size: 16),
-                        label: const Text('Property overview'),
+                        label: Text(ui('Property overview')),
                       ),
                     ],
                   ),

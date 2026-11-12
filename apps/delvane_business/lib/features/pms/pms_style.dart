@@ -1,5 +1,7 @@
+import 'package:delvane_business/core/localization/web_strings.dart';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'pms_icons.dart';
 
 // Source: final computed static/styles.css cascade, not the older theme layers.
 abstract final class PmsStyle {
@@ -278,14 +280,9 @@ class PmsIconButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(size / 2),
             hoverColor: const Color(0x22FFD500),
             child: Center(
-              child: Text(
+              child: PmsVectorIcon(
                 glyph,
-                style: TextStyle(
-                  fontFamily: 'Segoe UI Symbol',
-                  fontFamilyFallback: const ['Segoe UI', 'Arial'],
-                  fontSize: 18,
-                  color: onPressed == null ? PmsStyle.muted : Colors.black,
-                ),
+                color: onPressed == null ? PmsStyle.muted : Colors.black,
               ),
             ),
           ),
@@ -439,7 +436,7 @@ class PmsSideSheet extends StatelessWidget {
                             ),
                             PmsIconButton(
                               '×',
-                              label: 'Close settings',
+                              label: ui('Close settings'),
                               surface: true,
                               onPressed: () => Navigator.pop(context),
                             ),
@@ -607,7 +604,7 @@ class PmsToggle extends StatelessWidget {
   Widget build(BuildContext context) => Semantics(
     toggled: value,
     enabled: onChanged != null,
-    label: 'Enabled',
+    label: ui('Enabled'),
     child: Material(
       type: MaterialType.transparency,
       child: InkWell(
@@ -1020,7 +1017,7 @@ class PmsModal extends StatelessWidget {
                           ...headerActions,
                         PmsIconButton(
                           '×',
-                          label: 'Close dialog',
+                          label: ui('Close dialog'),
                           size: 36,
                           surface: true,
                           onPressed: canClose

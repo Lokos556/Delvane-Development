@@ -1,3 +1,4 @@
+import 'package:delvane_business/core/localization/web_strings.dart';
 import 'package:flutter/material.dart';
 import '../../app/controller.dart';
 import '../../app/theme.dart';
@@ -120,8 +121,8 @@ class _ReceptionPageState extends State<ReceptionPage> {
       ),
       secondary: Panel(
         child: selected == null
-            ? const EmptyState(
-                'A conversation starts here',
+            ? EmptyState(
+                ui('A conversation starts here'),
                 'Select a sample message to read it and save a local reply draft.',
               )
             : Column(
@@ -139,8 +140,8 @@ class _ReceptionPageState extends State<ReceptionPage> {
                   TextField(
                     controller: draft,
                     maxLines: 6,
-                    decoration: const InputDecoration(
-                      hintText: 'Write a demo reply…',
+                    decoration: InputDecoration(
+                      hintText: ui('Write a demo reply…'),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -148,19 +149,21 @@ class _ReceptionPageState extends State<ReceptionPage> {
                     onPressed: () {
                       widget.controller.saveDraft(selected.id, draft.text);
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
+                        SnackBar(
                           content: Text(
-                            'Demo draft saved in memory. Nothing was sent.',
+                            ui('Demo draft saved in memory. Nothing was sent.'),
                           ),
                         ),
                       );
                     },
                     icon: const Icon(Icons.edit_note_rounded),
-                    label: const Text('Save demo draft'),
+                    label: Text(ui('Save demo draft')),
                   ),
                   const SizedBox(height: 12),
-                  const Text(
-                    'Sending is not connected. Drafts are cleared when the app restarts.',
+                  Text(
+                    ui(
+                      'Sending is not connected. Drafts are cleared when the app restarts.',
+                    ),
                     style: TextStyle(color: DelvaneColors.muted, fontSize: 11),
                   ),
                 ],

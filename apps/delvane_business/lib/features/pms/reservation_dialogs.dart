@@ -1,3 +1,4 @@
+import 'package:delvane_business/core/localization/web_strings.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -155,7 +156,7 @@ class _ReservationEditorState extends State<ReservationEditor>
     if (!await pmsConfirm(
       context,
       t('Cancel reservation'),
-      "Cancel ${text(widget.reservation!, 'guest_name')}'s reservation?",
+      ui("Cancel ${text(widget.reservation!, 'guest_name')}'s reservation?"),
     )) {
       return;
     }
@@ -188,7 +189,7 @@ class _ReservationEditorState extends State<ReservationEditor>
         title: editing
             ? text(widget.reservation!, 'guest_name')
             : t('Add a stay'),
-        eyebrow: editing ? 'RESERVATION' : 'NEW RESERVATION',
+        eyebrow: editing ? ui('RESERVATION') : ui('NEW RESERVATION'),
         width: 760,
         canClose: !busy,
         actions: [
@@ -229,7 +230,7 @@ class _ReservationEditorState extends State<ReservationEditor>
           children: [
             errors(),
             if (loading) ...[
-              if (!busy) PmsButton('Retry', onPressed: load),
+              if (!busy) PmsButton(ui('Retry'), onPressed: load),
             ] else
               AbsorbPointer(
                 absorbing: busy,
@@ -264,7 +265,7 @@ class _ReservationEditorState extends State<ReservationEditor>
                       ], columns: 2),
                       if (roomLoading)
                         PmsButton(
-                          'Retry room types',
+                          ui('Retry room types'),
                           onPressed: () => changeProperty(property),
                         ),
                       PmsSelect(
@@ -301,8 +302,12 @@ class _ReservationEditorState extends State<ReservationEditor>
                       PmsCard(
                         child: Text(
                           nights > 0
-                              ? '$nights night${nights == 1 ? '' : 's'}. Occupied nights: ${fields['arrival_date']!.text} through ${isoDate(end!.subtract(const Duration(days: 1)))}. Checkout: ${fields['departure_date']!.text}; that night remains available.'
-                              : 'Choose a valid stay. Departure must be after arrival.',
+                              ? ui(
+                                  '$nights night${nights == 1 ? '' : 's'}. Occupied nights: ${fields['arrival_date']!.text} through ${isoDate(end!.subtract(const Duration(days: 1)))}. Checkout: ${fields['departure_date']!.text}; that night remains available.',
+                                )
+                              : ui(
+                                  'Choose a valid stay. Departure must be after arrival.',
+                                ),
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -320,13 +325,13 @@ class _ReservationEditorState extends State<ReservationEditor>
                         PmsField(
                           t('Guest arrival time'),
                           controller: fields['arrival_time']!,
-                          hint: 'HH:MM',
+                          hint: ui('HH:MM'),
                           validator: optionalTime,
                         ),
                         PmsField(
                           t('Total reservation value (HUF)'),
                           controller: fields['total_huf']!,
-                          hint: 'Optional — not the nightly rate',
+                          hint: ui('Optional — not the nightly rate'),
                           keyboard: TextInputType.number,
                           validator: (v) =>
                               v == null ||
@@ -338,19 +343,21 @@ class _ReservationEditorState extends State<ReservationEditor>
                         PmsField(
                           t('Reference'),
                           controller: fields['external_ref']!,
-                          hint: 'Optional',
+                          hint: ui('Optional'),
                         ),
                       ], columns: 2),
                       PmsField(
                         t('Special preparation'),
                         controller: fields['special_requests']!,
-                        hint: 'High chair, baby cot, extra towels',
+                        hint: ui('High chair, baby cot, extra towels'),
                       ),
                       if (selected != null)
                         Align(
                           alignment: Alignment.centerLeft,
                           child: Text(
-                            'Room capacity: ${selected['max_guests']}. Rate plans are informational; reservation value is entered above.',
+                            ui(
+                              'Room capacity: ${selected['max_guests']}. Rate plans are informational; reservation value is entered above.',
+                            ),
                           ),
                         ),
                       if (selected != null)
@@ -359,7 +366,9 @@ class _ReservationEditorState extends State<ReservationEditor>
                             contentPadding: EdgeInsets.zero,
                             title: Text(text(plan, 'name')),
                             subtitle: Text(
-                              'Base rate: ${text(plan, 'base_rate_huf', 'Not configured')} HUF · ${text(plan, 'cancellation_policy')}',
+                              ui(
+                                'Base rate: ${text(plan, 'base_rate_huf', 'Not configured')} HUF · ${text(plan, 'cancellation_policy')}',
+                              ),
                             ),
                           ),
                     ],
@@ -504,7 +513,7 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             errors(),
-            if (data == null && !busy) PmsButton('Retry', onPressed: load),
+            if (data == null && !busy) PmsButton(ui('Retry'), onPressed: load),
             if (data != null) ...[
               Text(
                 '${text(r, 'property_name')} · ${displayDate(r['arrival_date'] as String?)} → ${displayDate(r['departure_date'] as String?)}',
@@ -584,7 +593,11 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
           child: Column(
             children: [
               PmsEyebrow(t('Preparation')),
-              PmsField(t('Arrival time'), controller: arrival, hint: 'HH:MM'),
+              PmsField(
+                t('Arrival time'),
+                controller: arrival,
+                hint: ui('HH:MM'),
+              ),
               PmsSelect(
                 t('Payment'),
                 value: payment,
@@ -632,9 +645,9 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
   Widget guestContext() {
     final gp = data?['guest_profile'];
     if (gp is! Json) {
-      return const PmsCard(
+      return PmsCard(
         child: Column(
-          children: [PmsEyebrow('GUEST CONTEXT'), PmsEmpty('\u2014')],
+          children: [PmsEyebrow(ui('GUEST CONTEXT')), PmsEmpty('\u2014')],
         ),
       );
     }
@@ -642,13 +655,15 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const PmsEyebrow('GUEST CONTEXT'),
+          PmsEyebrow(ui('GUEST CONTEXT')),
           Text(
             text(gp, 'full_name'),
             style: const TextStyle(fontWeight: FontWeight.w700),
           ),
           Text(
-            '${gp['stay_count']} stays · ${text(gp, 'preferred_language', '—')}',
+            ui(
+              '${gp['stay_count']} stays · ${text(gp, 'preferred_language', '—')}',
+            ),
           ),
           for (final pref in optionalRows(gp['preferences']).take(4))
             Text(
@@ -682,30 +697,33 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const PmsEyebrow('CHANNEL DISTRIBUTION'),
-          const Text('Availability update'),
+          PmsEyebrow(ui('CHANNEL DISTRIBUTION')),
+          Text(ui('Availability update')),
           if (deliveryError != null) ...[
             Text(deliveryError!),
-            PmsButton('Retry status', onPressed: busy ? null : loadDelivery),
+            PmsButton(
+              ui('Retry status'),
+              onPressed: busy ? null : loadDelivery,
+            ),
           ] else if (delivery == null)
-            const Text('Checking Channex delivery…')
+            Text(ui('Checking Channex delivery…'))
           else if (ids.isNotEmpty) ...[
-            const Text('Delivered to Channex'),
-            Text('Task IDs: ${ids.join(', ')}'),
-            const Text(
-              'Submission evidence does not prove final OTA acceptance.',
+            Text(ui('Delivered to Channex')),
+            Text(ui('Task IDs: ${ids.join(', ')}')),
+            Text(
+              ui('Submission evidence does not prove final OTA acceptance.'),
             ),
           ] else
             Text(
               optionalRows(delivery?['pending']).isNotEmpty
-                  ? 'Queued for Channex'
-                  : 'No delivery recorded for this reservation',
+                  ? ui('Queued for Channex')
+                  : ui('No delivery recorded for this reservation'),
             ),
           if (delivery != null && ids.isEmpty)
             PmsButton(
               optionalRows(delivery?['pending']).isEmpty
-                  ? 'Send current availability to Channex'
-                  : 'Send to Channex now',
+                  ? ui('Send current availability to Channex')
+                  : ui('Send to Channex now'),
               onPressed: busy
                   ? null
                   : () async {
@@ -733,11 +751,11 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const PmsEyebrow('GUEST REGISTRATION'),
+          PmsEyebrow(ui('GUEST REGISTRATION')),
           PmsBadge(
             registration == 'complete'
-                ? 'Registration ready'
-                : 'Registration waiting',
+                ? ui('Registration ready')
+                : ui('Registration waiting'),
             tone: registration == 'complete' ? 'ready' : 'attention',
           ),
           for (final g in reg)
@@ -754,7 +772,7 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
             children: [
               if (registration != 'complete') ...[
                 PmsButton(
-                  'Send guest check-in link',
+                  ui('Send guest check-in link'),
                   onPressed: busy ? null : links,
                 ),
                 PmsButton(
@@ -779,7 +797,7 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
                 ),
               ],
               PmsButton(
-                'Review identity verification',
+                ui('Review identity verification'),
                 onPressed: busy ? null : verify,
               ),
             ],
@@ -829,14 +847,16 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
       useRootNavigator: false,
       context: context,
       builder: (_) => PmsModal(
-        title: 'Secure guest links',
-        eyebrow: 'GUEST PRE-CHECK-IN',
+        title: ui('Secure guest links'),
+        eyebrow: ui('GUEST PRE-CHECK-IN'),
         width: 600,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-              'Send each guest their own link. Generating/copying a link does not send a message.',
+            Text(
+              ui(
+                'Send each guest their own link. Generating/copying a link does not send a message.',
+              ),
             ),
             for (final link in optionalRows(response?['links']))
               PmsCard(
@@ -847,7 +867,7 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
                     Text(text(link, 'completeness')),
                     SelectableText(text(link, 'url')),
                     PmsButton(
-                      'Copy link',
+                      ui('Copy link'),
                       onPressed: () => Clipboard.setData(
                         ClipboardData(text: text(link, 'url')),
                       ),
@@ -1001,27 +1021,29 @@ class _IdentityReviewState extends State<IdentityReview>
   Widget build(BuildContext context) => PopScope(
     canPop: !busy,
     child: PmsModal(
-      title: 'Identity verification',
-      eyebrow: 'GUEST PRE-CHECK-IN',
+      title: ui('Identity verification'),
+      eyebrow: ui('GUEST PRE-CHECK-IN'),
       width: 650,
       canClose: !busy,
       actions: [
         PmsButton(
-          'Done',
+          ui('Done'),
           onPressed: busy ? null : () => Navigator.pop(context),
         ),
       ],
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            "Guest-submitted details are not verified automatically. Check the guest's identity and data before approving registration for VIZA. Delvane does not store document images.",
+          Text(
+            ui(
+              "Guest-submitted details are not verified automatically. Check the guest's identity and data before approving registration for VIZA. Delvane does not store document images.",
+            ),
           ),
           errors(),
-          if (guests == null && !busy) PmsButton('Retry', onPressed: load),
+          if (guests == null && !busy) PmsButton(ui('Retry'), onPressed: load),
           if (guests == null && busy) const LinearProgressIndicator(),
           if (guests != null && guests!.isEmpty)
-            const PmsEmpty('No guest registration records.'),
+            PmsEmpty(ui('No guest registration records.')),
           for (final guest in guests ?? <Json>[])
             PmsCard(
               child: Column(
@@ -1032,21 +1054,21 @@ class _IdentityReviewState extends State<IdentityReview>
                     text(guest, 'verification_status', 'not_submitted'),
                     tone: text(guest, 'verification_status'),
                   ),
-                  Text('Registration data: ${text(guest, 'completeness')}'),
+                  Text(ui('Registration data: ${text(guest, 'completeness')}')),
                   if (guest['verified_at'] != null)
-                    Text('Verified ${text(guest, 'verified_at')}'),
+                    Text(ui('Verified ${text(guest, 'verified_at')}')),
                   if (text(guest, 'review_note').isNotEmpty)
                     Text(text(guest, 'review_note')),
                   if (guest['completeness'] == 'complete' &&
                       guest['verification_status'] != 'verified') ...[
                     PmsSelect(
-                      'Verification method',
+                      ui('Verification method'),
                       value: methods[text(guest, 'id')] ?? 'in_person',
-                      items: const {
-                        'in_person': 'Checked in person',
-                        'video_call': 'Verified by video call',
-                        'identity_image': 'Reviewed identity image',
-                        'manual_review': 'Manual review',
+                      items: {
+                        'in_person': ui('Checked in person'),
+                        'video_call': ui('Verified by video call'),
+                        'identity_image': ui('Reviewed identity image'),
+                        'manual_review': ui('Manual review'),
                       },
                       onChanged: busy
                           ? null
@@ -1054,26 +1076,26 @@ class _IdentityReviewState extends State<IdentityReview>
                                 setState(() => methods[text(guest, 'id')] = v),
                     ),
                     PmsField(
-                      'Review note',
+                      ui('Review note'),
                       maxLength: 1000,
                       controller: notes.putIfAbsent(
                         text(guest, 'id'),
                         () => TextEditingController(),
                       ),
-                      hint: 'Optional note',
+                      hint: ui('Optional note'),
                     ),
                     Wrap(
                       spacing: 8,
                       children: [
                         PmsButton(
-                          'Verify identity',
+                          ui('Verify identity'),
                           primary: true,
                           onPressed: busy
                               ? null
                               : () => decide(guest, 'verify'),
                         ),
                         PmsButton(
-                          'Needs correction',
+                          ui('Needs correction'),
                           onPressed: busy
                               ? null
                               : () => decide(guest, 'reject'),

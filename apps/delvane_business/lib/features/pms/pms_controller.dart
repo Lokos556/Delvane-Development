@@ -1,7 +1,7 @@
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import '../../core/auth/auth_controller.dart';
+import '../../core/localization/web_strings.dart';
+export '../../core/localization/web_strings.dart';
 import '../../core/network/api_client.dart';
 import '../workspace/workspace_models.dart';
 
@@ -23,54 +23,6 @@ enum PmsPage {
   security,
 }
 
-class WebStrings {
-  Map<String, dynamic> data = {};
-  String language = 'en';
-  final Map<String, Map<String, String>> _lookups = {};
-  Future<void> load() async {
-    final bytes = await rootBundle.load('assets/web-locales.json');
-    data = jsonDecode(
-      utf8.decode(
-        bytes.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes),
-      ),
-    );
-  }
-
-  List<List<String>> get languages =>
-      ((data['languages'] ??
-                  [
-                    ['en', 'English'],
-                  ])
-              as List)
-          .map((row) => (row as List).cast<String>())
-          .toList();
-  String t(String english) {
-    if (language == 'en') return english;
-    final lookup = _lookups.putIfAbsent(language, () {
-      final out = <String, String>{};
-      for (final entry in ((data['catalogs'] ?? {}) as Map).entries) {
-        if (entry.value is! Map) continue;
-        final catalog = entry.value as Map;
-        final en = catalog['en'];
-        final translated = catalog[language];
-        if (entry.key == 'FULL_LOCALE' && translated is Map) {
-          for (final item in translated.entries) {
-            if (item.value is String) out[item.key.toString()] = item.value;
-          }
-        } else if (en is Map && translated is Map) {
-          for (final item in en.entries) {
-            if (item.value is String && translated[item.key] is String) {
-              out[item.value] = translated[item.key];
-            }
-          }
-        }
-      }
-      return out;
-    });
-    return lookup[english] ?? english;
-  }
-}
-
 class PmsController extends ChangeNotifier {
   PmsController(this.auth, {PmsPage? initialPage}) {
     page =
@@ -85,7 +37,7 @@ class PmsController extends ChangeNotifier {
   AuthUser get user => auth.user!;
   ApiClient get api => auth.api;
   late PmsPage page;
-  final WebStrings strings = WebStrings();
+  final WebStrings strings = WebStrings.current;
   final Map<String, Object?> data = {};
   bool loading = true, saving = false, _disposed = false;
   int _generation = 0;
@@ -142,8 +94,8 @@ class PmsController extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
-  void language(String value) {
-    strings.language = value;
+  Future<void> language(String value) async {
+    await strings.select(value);
     emit();
   }
 

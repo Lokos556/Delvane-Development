@@ -1,3 +1,4 @@
+import 'package:delvane_business/core/localization/web_strings.dart';
 import 'package:flutter/material.dart';
 import '../workspace/workspace_models.dart';
 import 'channel_api.dart';
@@ -24,7 +25,7 @@ class IntegrationsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!c.user.isOperator) return const PmsEmpty('No access');
+    if (!c.user.isOperator) return PmsEmpty(ui('No access'));
     final items = c.rows('integrations'), government = c.object('government');
     final booking = items
         .where((i) => text(i, 'provider').toLowerCase().contains('booking'))
@@ -32,23 +33,27 @@ class IntegrationsPage extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const PmsEyebrow('INTEGRATIONS'),
-        const PmsPageTitle('Channel distribution'),
-        const Text(
-          'Base prices and availability stay published automatically, while reservations and date-specific overrides update Channex safely.',
+        PmsEyebrow(ui('INTEGRATIONS')),
+        PmsPageTitle(ui('Channel distribution')),
+        Text(
+          ui(
+            'Base prices and availability stay published automatically, while reservations and date-specific overrides update Channex safely.',
+          ),
         ),
         const SizedBox(height: 24),
-        const PmsCard(
+        PmsCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              PmsEyebrow('CURRENT PHASE'),
+              PmsEyebrow(ui('CURRENT PHASE')),
               Text(
-                'Two-way channel control',
+                ui('Two-way channel control'),
                 style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
               ),
               Text(
-                'Changes made in Delvane are saved first, queued durably, batched by date range and retried automatically if Channex is temporarily unavailable.',
+                ui(
+                  'Changes made in Delvane are saved first, queued durably, batched by date range and retried automatically if Channex is temporarily unavailable.',
+                ),
               ),
             ],
           ),
@@ -88,18 +93,18 @@ class IntegrationsPage extends StatelessWidget {
             ),
         ], columns: 4),
         const SizedBox(height: 24),
-        const PmsEyebrow('BOOKING.COM'),
+        PmsEyebrow(ui('BOOKING.COM')),
         Wrap(
           alignment: WrapAlignment.spaceBetween,
           runSpacing: 8,
           children: [
-            const Text(
-              'Booking.com connections',
+            Text(
+              ui('Booking.com connections'),
               style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
             ),
             if (c.user.role == 'owner')
               PmsButton(
-                '+ Add connection',
+                ui('+ Add connection'),
                 onPressed: () => dialog(context, IntegrationSlotDialog(c: c)),
               ),
           ],
@@ -108,11 +113,11 @@ class IntegrationsPage extends StatelessWidget {
         PmsColumns([
           for (final item in booking) card(context, item),
         ], columns: 2),
-        if (booking.isEmpty) const PmsEmpty('No Booking.com connections.'),
+        if (booking.isEmpty) PmsEmpty(ui('No Booking.com connections.')),
         const SizedBox(height: 24),
-        const PmsEyebrow('OTHER CHANNELS'),
-        const Text(
-          'Szallas.hu and test feeds',
+        PmsEyebrow(ui('OTHER CHANNELS')),
+        Text(
+          ui('Szallas.hu and test feeds'),
           style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
         ),
         PmsColumns([
@@ -124,11 +129,15 @@ class IntegrationsPage extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const PmsEyebrow('HUNGARIAN GOVERNMENT REPORTING'),
+              PmsEyebrow(ui('HUNGARIAN GOVERNMENT REPORTING')),
               Text(
                 government['rosa_mtu_certified'] == true
-                    ? 'Server certification flag is enabled; each property still requires configured transport.'
-                    : 'NTAK and VIZA transmission remains locked until MTÜ certifies commercial Delvane. Reservation reports stay queued safely.',
+                    ? ui(
+                        'Server certification flag is enabled; each property still requires configured transport.',
+                      )
+                    : ui(
+                        'NTAK and VIZA transmission remains locked until MTÜ certifies commercial Delvane. Reservation reports stay queued safely.',
+                      ),
               ),
               for (final row in optionalRows(government['queue']))
                 Text(
@@ -138,7 +147,7 @@ class IntegrationsPage extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 24),
-        const PmsEyebrow('HISTORY'),
+        PmsEyebrow(ui('HISTORY')),
         for (final event in c.rows('integrationEvents').take(12))
           ListTile(
             contentPadding: EdgeInsets.zero,
@@ -150,7 +159,7 @@ class IntegrationsPage extends StatelessWidget {
             ),
           ),
         if (c.rows('integrationEvents').isEmpty)
-          const PmsEmpty('No sync history.'),
+          PmsEmpty(ui('No sync history.')),
       ],
     );
   }
@@ -175,18 +184,18 @@ class IntegrationsPage extends StatelessWidget {
             children: [
               PmsBadge(
                 i['status'] == 'error'
-                    ? 'NEEDS ATTENTION'
+                    ? ui('NEEDS ATTENTION')
                     : !booking
-                    ? 'SANDBOX ONLY'
+                    ? ui('SANDBOX ONLY')
                     : !ready
-                    ? 'NOT CONNECTED'
+                    ? ui('NOT CONNECTED')
                     : i['receiver_state'] == 'active'
-                    ? 'RECEIVER ACTIVE'
-                    : 'SETUP REQUIRED',
+                    ? ui('RECEIVER ACTIVE')
+                    : ui('SETUP REQUIRED'),
               ),
               PmsBadge(
                 cfg['certification_workspace'] == true
-                    ? 'Certification workspace'
+                    ? ui('Certification workspace')
                     : text(
                         cfg,
                         'channex_environment',
@@ -198,20 +207,26 @@ class IntegrationsPage extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             !booking
-                ? 'Szallas.hu production access has not been configured.'
+                ? ui('Szallas.hu production access has not been configured.')
                 : ready
                 ? i['receiver_state'] == 'active'
-                      ? 'Reservation receiver is running'
-                      : 'Receiver setup incomplete. Shared server credentials are required.'
-                : 'Connection not prepared. No Channex room or rate is mapped.',
+                      ? ui('Reservation receiver is running')
+                      : ui(
+                          'Receiver setup incomplete. Shared server credentials are required.',
+                        )
+                : ui(
+                    'Connection not prepared. No Channex room or rate is mapped.',
+                  ),
           ),
           const SizedBox(height: 16),
-          Text('OUTGOING QUEUE  ${i['ari_pending_count'] ?? 0}'),
+          Text(ui('OUTGOING QUEUE  ${i['ari_pending_count'] ?? 0}')),
           Text(
-            'LAST DISTRIBUTION UPDATE  ${text(i, 'last_ari_sent_at', 'Never')}',
+            ui(
+              'LAST DISTRIBUTION UPDATE  ${text(i, 'last_ari_sent_at', 'Never')}',
+            ),
           ),
           if (i['status'] == 'error')
-            const Text('Needs attention. Review the delivery diagnostics.'),
+            Text(ui('Needs attention. Review the delivery diagnostics.')),
           const SizedBox(height: 16),
           Wrap(
             spacing: 8,
@@ -219,13 +234,15 @@ class IntegrationsPage extends StatelessWidget {
             children: [
               if (booking)
                 PmsButton(
-                  ready ? 'Manage inventory mapping' : 'Map Channex inventory',
+                  ready
+                      ? ui('Manage inventory mapping')
+                      : ui('Map Channex inventory'),
                   onPressed: () =>
                       dialog(context, ChannexMappingDialog(api: api)),
                 ),
               if (ready) ...[
                 PmsButton(
-                  'Rates & availability',
+                  ui('Rates & availability'),
                   primary: true,
                   onPressed: () => dialog(
                     context,
@@ -236,22 +253,22 @@ class IntegrationsPage extends StatelessWidget {
                   ),
                 ),
                 PmsButton(
-                  'Check bookings',
+                  ui('Check bookings'),
                   onPressed: i['receiver_state'] != 'active'
                       ? null
                       : () => dialog(context, ReceiveBookingsDialog(api: api)),
                 ),
                 PmsButton(
-                  'Reservations',
+                  ui('Reservations'),
                   onPressed: () => c.navigate(PmsPage.reservations),
                 ),
               ] else ...[
                 PmsButton(
-                  'Test feed',
+                  ui('Test feed'),
                   onPressed: () => dialog(context, SandboxDialog(api: api)),
                 ),
                 PmsButton(
-                  'Review test data',
+                  ui('Review test data'),
                   onPressed: () => dialog(context, SyncPreviewDialog(api: api)),
                 ),
               ],
@@ -282,14 +299,17 @@ class _IntegrationSlotDialogState extends State<IntegrationSlotDialog>
 
   @override
   Widget build(BuildContext context) => PmsModal(
-    title: 'Reservation sync sandbox',
-    eyebrow: 'ADD CONNECTION',
+    title: ui('Reservation sync sandbox'),
+    eyebrow: ui('ADD CONNECTION'),
     width: 600,
     canClose: !busy,
     actions: [
-      PmsButton('Close', onPressed: busy ? null : () => Navigator.pop(context)),
       PmsButton(
-        'Save slot',
+        ui('Close'),
+        onPressed: busy ? null : () => Navigator.pop(context),
+      ),
+      PmsButton(
+        ui('Save slot'),
         primary: true,
         onPressed: busy || property.isEmpty || widget.c.user.role != 'owner'
             ? null
@@ -314,7 +334,7 @@ class _IntegrationSlotDialogState extends State<IntegrationSlotDialog>
       children: [
         errors(),
         PmsSelect(
-          'Property',
+          ui('Property'),
           value: property,
           items: {
             '': '—',
@@ -324,18 +344,20 @@ class _IntegrationSlotDialogState extends State<IntegrationSlotDialog>
           onChanged: busy ? null : (v) => setState(() => property = v),
         ),
         PmsSelect(
-          'Provider',
+          ui('Provider'),
           value: provider,
-          items: const {
-            'Booking.com': 'Booking.com',
-            'Szallas.hu': 'Szallas.hu',
-            'Other': 'Other',
+          items: {
+            'Booking.com': ui('Booking.com'),
+            'Szallas.hu': ui('Szallas.hu'),
+            'Other': ui('Other'),
           },
           onChanged: busy ? null : (v) => setState(() => provider = v),
         ),
-        PmsField('Connection type', controller: type),
-        const Text(
-          'Local sandbox only. No real OTA URL, password or token is stored.',
+        PmsField(ui('Connection type'), controller: type),
+        Text(
+          ui(
+            'Local sandbox only. No real OTA URL, password or token is stored.',
+          ),
         ),
       ],
     ),
@@ -368,15 +390,15 @@ class _ReceiveBookingsDialogState extends State<ReceiveBookingsDialog>
   @override
   Widget build(BuildContext context) => PmsModal(
     title: result == null
-        ? 'Checking Channex…'
-        : '${result!['fetched'] ?? 0} revisions checked',
-    eyebrow: 'CHANNEX RESERVATION RECEIVER',
+        ? ui('Checking Channex…')
+        : ui('${result!['fetched'] ?? 0} revisions checked'),
+    eyebrow: ui('CHANNEX RESERVATION RECEIVER'),
     canClose: !busy,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         errors(),
-        if (result == null && !busy) PmsButton('Retry', onPressed: receive),
+        if (result == null && !busy) PmsButton(ui('Retry'), onPressed: receive),
         if (result != null) ...[
           for (final e in optionalObject(result!['counts']).entries)
             Text('${e.key}: ${e.value}'),
@@ -388,8 +410,8 @@ class _ReceiveBookingsDialogState extends State<ReceiveBookingsDialog>
               ),
               subtitle: Text(
                 r['acknowledged'] == true
-                    ? 'Saved and acknowledged'
-                    : 'Saved; acknowledgement will retry automatically',
+                    ? ui('Saved and acknowledged')
+                    : ui('Saved; acknowledgement will retry automatically'),
               ),
             ),
           for (final e in optionalRows(result!['errors']))

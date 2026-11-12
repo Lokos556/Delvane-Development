@@ -1,3 +1,4 @@
+import 'package:delvane_business/core/localization/web_strings.dart';
 import 'package:flutter/material.dart';
 import '../app/theme.dart';
 import '../domain/models.dart';
@@ -126,13 +127,15 @@ class MockNotice extends StatelessWidget {
       color: DelvaneColors.yellowSoft,
       borderRadius: BorderRadius.circular(12),
     ),
-    child: const Row(
+    child: Row(
       children: [
         Icon(Icons.science_outlined, size: 17),
         SizedBox(width: 9),
         Expanded(
           child: Text(
-            'Demo workspace · Mock data only. Changes stay in memory; no live systems are connected.',
+            ui(
+              'Demo workspace · Mock data only. Changes stay in memory; no live systems are connected.',
+            ),
             style: TextStyle(fontSize: 11, height: 1.5),
           ),
         ),
@@ -224,7 +227,9 @@ void showStayDetails(
               '${shortDate(stay.arrival)} – ${shortDate(stay.departure)} ${stay.departure.year}',
             ),
             Text(
-              '${stay.guests} guests · ${stay.departure.difference(stay.arrival).inDays} nights',
+              ui(
+                '${stay.guests} guests · ${stay.departure.difference(stay.arrival).inDays} nights',
+              ),
             ),
             const Divider(height: 32),
             Text('${stay.channel} · ${stay.id}'),
@@ -234,8 +239,8 @@ void showStayDetails(
               style: Theme.of(context).textTheme.headlineMedium,
             ),
             const SizedBox(height: 20),
-            const Text(
-              'Synthetic reservation · Read-only preview',
+            Text(
+              ui('Synthetic reservation · Read-only preview'),
               style: TextStyle(color: DelvaneColors.muted, fontSize: 12),
             ),
           ],
@@ -244,7 +249,7 @@ void showStayDetails(
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Close'),
+          child: Text(ui('Close')),
         ),
       ],
     ),
@@ -258,8 +263,8 @@ class StayList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (stays.isEmpty) {
-      return const EmptyState(
-        'No matching reservations',
+      return EmptyState(
+        ui('No matching reservations'),
         'Try another name, property, or status.',
       );
     }

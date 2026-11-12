@@ -1,3 +1,4 @@
+import 'package:delvane_business/core/localization/web_strings.dart';
 import 'package:flutter/material.dart';
 import '../../app/controller.dart';
 import '../../app/theme.dart';
@@ -51,8 +52,10 @@ class _AiPageState extends State<AiPage> {
             color: DelvaneColors.canvas,
             borderRadius: BorderRadius.circular(16),
           ),
-          child: const Text(
-            'Less searching. More knowing.\nTry a sample briefing to see how Delvane could support your day.',
+          child: Text(
+            ui(
+              'Less searching. More knowing.\nTry a sample briefing to see how Delvane could support your day.',
+            ),
             style: TextStyle(
               fontSize: 18,
               height: 1.6,
@@ -105,7 +108,7 @@ class _AiPageState extends State<AiPage> {
           controller: input,
           onSubmitted: ask,
           decoration: InputDecoration(
-            hintText: 'Ask a demo question…',
+            hintText: ui('Ask a demo question…'),
             suffixIcon: IconButton(
               tooltip: 'Ask demo assistant',
               onPressed: () => ask(input.text),

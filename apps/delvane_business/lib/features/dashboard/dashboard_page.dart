@@ -1,3 +1,4 @@
+import 'package:delvane_business/core/localization/web_strings.dart';
 import 'package:flutter/material.dart';
 import '../../app/controller.dart';
 import '../../app/destination.dart';
@@ -39,8 +40,8 @@ class DashboardPage extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'A CALMER KIND OF HOSPITALITY',
+                      Text(
+                        ui('A CALMER KIND OF HOSPITALITY'),
                         style: TextStyle(
                           color: DelvaneColors.yellow,
                           fontSize: 10,
@@ -49,8 +50,8 @@ class DashboardPage extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 18),
-                      const Text(
-                        'Your spaces.\nIn good hands.',
+                      Text(
+                        ui('Your spaces.\nIn good hands.'),
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 34,
@@ -60,8 +61,10 @@ class DashboardPage extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      const Text(
-                        'A clear view of your stays, your team, and what comes next.',
+                      Text(
+                        ui(
+                          'A clear view of your stays, your team, and what comes next.',
+                        ),
                         style: TextStyle(
                           color: Color(0xFFB5BDB2),
                           fontSize: 13,
@@ -76,7 +79,7 @@ class DashboardPage extends StatelessWidget {
                           controller.navigate(Destination.reservations);
                         },
                         icon: const Icon(Icons.arrow_outward_rounded, size: 17),
-                        label: const Text('View demo arrivals'),
+                        label: Text(ui('View demo arrivals')),
                       ),
                     ],
                   ),
@@ -274,8 +277,8 @@ class DashboardPage extends StatelessWidget {
                   foreground: DelvaneColors.ink,
                 ),
                 const SizedBox(height: 16),
-                const Text(
-                  'Small details.\nBetter stays.',
+                Text(
+                  ui('Small details.\nBetter stays.'),
                   style: TextStyle(
                     fontSize: 23,
                     fontWeight: FontWeight.w600,
@@ -284,14 +287,16 @@ class DashboardPage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 12),
-                const Text(
-                  'An arrival suite needs preparation and a tap needs a quick check. Your demo team has the details.',
+                Text(
+                  ui(
+                    'An arrival suite needs preparation and a tap needs a quick check. Your demo team has the details.',
+                  ),
                   style: TextStyle(color: DelvaneColors.muted, height: 1.7),
                 ),
                 const SizedBox(height: 14),
                 TextButton.icon(
                   onPressed: () => controller.navigate(Destination.operations),
-                  label: const Text('Open operations'),
+                  label: Text(ui('Open operations')),
                   icon: const Icon(Icons.arrow_forward_rounded, size: 16),
                 ),
               ],
@@ -310,7 +315,7 @@ class DashboardPage extends StatelessWidget {
                   action: TextButton(
                     onPressed: () =>
                         controller.navigate(Destination.reservations),
-                    child: const Text('View all'),
+                    child: Text(ui('View all')),
                   ),
                 ),
                 StayList(stays: arrivals, snapshot: data),

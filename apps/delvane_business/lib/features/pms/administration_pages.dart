@@ -1,3 +1,4 @@
+import 'package:delvane_business/core/localization/web_strings.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../workspace/workspace_models.dart';
@@ -11,26 +12,30 @@ class SecurityPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final sec = c.object('security');
-    if (!c.user.isOperator) return const PmsEmpty('No access');
+    if (!c.user.isOperator) return PmsEmpty(ui('No access'));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const PmsEyebrow('PRODUCTION CORE'),
-        const PmsPageTitle('Security center'),
-        const Text(
-          'Sessions, tenant boundaries, access controls and audit evidence in one place.',
+        PmsEyebrow(ui('PRODUCTION CORE')),
+        PmsPageTitle(ui('Security center')),
+        Text(
+          ui(
+            'Sessions, tenant boundaries, access controls and audit evidence in one place.',
+          ),
         ),
         const SizedBox(height: 20),
         PmsCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                'Production core',
+              Text(
+                ui('Production core'),
                 style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
               ),
-              const Text(
-                'Production deployments require PostgreSQL, secure cookies, encryption keys and demo mode disabled.',
+              Text(
+                ui(
+                  'Production deployments require PostgreSQL, secure cookies, encryption keys and demo mode disabled.',
+                ),
               ),
               const SizedBox(height: 16),
               PmsColumns([
@@ -95,7 +100,7 @@ class SecurityPage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const PmsEyebrow('ACTIVE SESSIONS'),
+                PmsEyebrow(ui('ACTIVE SESSIONS')),
                 for (final s in optionalRows(sec['sessions']))
                   PmsCard(
                     child: Column(
@@ -111,20 +116,24 @@ class SecurityPage extends StatelessWidget {
                         Text('${text(s, 'role')} · ${text(s, 'ip_address')}'),
                         Text(text(s, 'user_agent')),
                         Text(
-                          'Last seen ${text(s, 'last_seen_at')} · expires ${text(s, 'expires_at')}',
+                          ui(
+                            'Last seen ${text(s, 'last_seen_at')} · expires ${text(s, 'expires_at')}',
+                          ),
                         ),
                         if (c.user.role == 'owner')
                           Align(
                             alignment: Alignment.centerRight,
                             child: PmsButton(
-                              'Revoke session',
+                              ui('Revoke session'),
                               onPressed: c.saving
                                   ? null
                                   : () async {
                                       if (await pmsConfirm(
                                             context,
-                                            'Revoke this active session?',
-                                            'The selected session will be signed out.',
+                                            ui('Revoke this active session?'),
+                                            ui(
+                                              'The selected session will be signed out.',
+                                            ),
                                           ) &&
                                           c.auth.user?.role == 'owner') {
                                         await c.act(() async {
@@ -141,7 +150,7 @@ class SecurityPage extends StatelessWidget {
                     ),
                   ),
                 if (optionalRows(sec['sessions']).isEmpty)
-                  const PmsEmpty('No active sessions.'),
+                  PmsEmpty(ui('No active sessions.')),
                 const SizedBox(height: 24),
               ],
             ),
@@ -150,9 +159,9 @@ class SecurityPage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const PmsEyebrow('LEAST PRIVILEGE'),
-                const Text(
-                  'Role permissions',
+                PmsEyebrow(ui('LEAST PRIVILEGE')),
+                Text(
+                  ui('Role permissions'),
                   style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
                 ),
                 PmsColumns([
@@ -166,7 +175,9 @@ class SecurityPage extends StatelessWidget {
                             style: const TextStyle(fontWeight: FontWeight.w700),
                           ),
                           Text(
-                            '${role.value is List ? (role.value as List).length : 0} permissions',
+                            ui(
+                              '${role.value is List ? (role.value as List).length : 0} permissions',
+                            ),
                           ),
                           if (role.value is List)
                             Text(
@@ -188,9 +199,9 @@ class SecurityPage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const PmsEyebrow('EVIDENCE'),
-                const Text(
-                  'Audit trail',
+                PmsEyebrow(ui('EVIDENCE')),
+                Text(
+                  ui('Audit trail'),
                   style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
                 ),
                 for (final a in c.rows('audit').take(35))
@@ -208,9 +219,9 @@ class SecurityPage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const PmsEyebrow('PRIVACY'),
-                const Text(
-                  'Data retention',
+                PmsEyebrow(ui('PRIVACY')),
+                Text(
+                  ui('Data retention'),
                   style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
                 ),
                 for (final r in c.rows('retention'))
@@ -291,23 +302,27 @@ class _KnowledgePageState extends State<KnowledgePage>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const PmsEyebrow('TRAIN DELVANE'),
-        const PmsPageTitle('Train Delvane'),
-        const Text(
-          'Shared knowledge applies across properties. Property-specific knowledge overrides shared guidance.',
+        PmsEyebrow(ui('TRAIN DELVANE')),
+        PmsPageTitle(ui('Train Delvane')),
+        Text(
+          ui(
+            'Shared knowledge applies across properties. Property-specific knowledge overrides shared guidance.',
+          ),
         ),
         const SizedBox(height: 24),
         errors(),
-        const PmsCard(
+        PmsCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Prototype knowledge',
+                ui('Prototype knowledge'),
                 style: TextStyle(fontWeight: FontWeight.w700),
               ),
               Text(
-                'The seeded entries marked "DEMO ONLY" are placeholders, not real Casa Rosa policies. Replace them before guest messaging goes live.',
+                ui(
+                  'The seeded entries marked "DEMO ONLY" are placeholders, not real Casa Rosa policies. Replace them before guest messaging goes live.',
+                ),
               ),
             ],
           ),
@@ -334,8 +349,8 @@ class _KnowledgePageState extends State<KnowledgePage>
                   if (!saved &&
                       !await pmsConfirm(
                         context,
-                        'Change knowledge scope?',
-                        'Unsaved changes in this scope will be discarded.',
+                        ui('Change knowledge scope?'),
+                        ui('Unsaved changes in this scope will be discarded.'),
                       )) {
                     return;
                   }
@@ -348,10 +363,10 @@ class _KnowledgePageState extends State<KnowledgePage>
                 },
         ),
         const SizedBox(height: 20),
-        const PmsEyebrow('EDITING'),
+        PmsEyebrow(ui('EDITING')),
         Text(
           scope == 'shared'
-              ? 'Casa Rosa \u00b7 shared'
+              ? ui('Casa Rosa \u00b7 shared')
               : text(
                   optionalRows(
                     d['properties'],
@@ -362,11 +377,13 @@ class _KnowledgePageState extends State<KnowledgePage>
         ),
         Text(
           scope == 'shared'
-              ? 'Used as a fallback for every apartment.'
-              : 'Overrides shared answers for this apartment.',
+              ? ui('Used as a fallback for every apartment.')
+              : ui('Overrides shared answers for this apartment.'),
         ),
         Text(
-          '${optionalObject(optionalObject(d['scopes'])[scope]).values.where((v) => v.toString().trim().isNotEmpty).length} of ${optionalRows(d['fields']).length} configured',
+          ui(
+            '${optionalObject(optionalObject(d['scopes'])[scope]).values.where((v) => v.toString().trim().isNotEmpty).length} of ${optionalRows(d['fields']).length} configured',
+          ),
           style: const TextStyle(fontWeight: FontWeight.w700),
         ),
         for (final category in optionalRows(
@@ -394,13 +411,13 @@ class _KnowledgePageState extends State<KnowledgePage>
         Align(
           alignment: Alignment.centerRight,
           child: PmsButton(
-            saved ? 'Saved' : 'Save knowledge',
+            saved ? ui('Saved') : ui('Save knowledge'),
             primary: true,
             onPressed: busy || saved ? null : save,
           ),
         ),
         const SizedBox(height: 24),
-        const PmsEyebrow('AUTHORITY'),
+        PmsEyebrow(ui('AUTHORITY')),
         for (final entry in optionalObject(d['authority']).entries)
           PmsCard(
             child: Wrap(
@@ -410,12 +427,12 @@ class _KnowledgePageState extends State<KnowledgePage>
                 SizedBox(
                   width: 260,
                   child: PmsSelect(
-                    'Authority',
+                    ui('Authority'),
                     value: text(optionalObject(entry.value), 'mode'),
-                    items: const {
-                      'auto': 'Handle automatically',
-                      'ask': 'Ask owner',
-                      'never': 'Never without owner',
+                    items: {
+                      'auto': ui('Handle automatically'),
+                      'ask': ui('Ask owner'),
+                      'never': ui('Never without owner'),
                     },
                     onChanged: busy
                         ? null
@@ -478,8 +495,8 @@ class _OperatingModePageState extends State<OperatingModePage>
     if (mode == 'autonomous' &&
         !await pmsConfirm(
           context,
-          'Enable AUTONOMOUS mode?',
-          'Only Delvane actions marked Automatic can execute.',
+          ui('Enable AUTONOMOUS mode?'),
+          ui('Only Delvane actions marked Automatic can execute.'),
         )) {
       return;
     }
@@ -498,11 +515,11 @@ class _OperatingModePageState extends State<OperatingModePage>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const PmsEyebrow('PRODUCTION PILOT CONTROL'),
-        const PmsPageTitle('Simulation / Operating mode'),
+        PmsEyebrow(ui('PRODUCTION PILOT CONTROL')),
+        PmsPageTitle(ui('Simulation / Operating mode')),
         errors(),
         const SizedBox(height: 24),
-        Text('Current mode: $current'),
+        Text(ui('Current mode: $current')),
         const SizedBox(height: 16),
         PmsColumns([
           for (final e in descriptions.entries)
@@ -519,7 +536,7 @@ class _OperatingModePageState extends State<OperatingModePage>
                   const SizedBox(height: 16),
                   if (c.user.role == 'owner')
                     PmsButton(
-                      current == e.key ? 'Current mode' : 'Select',
+                      current == e.key ? ui('Current mode') : ui('Select'),
                       onPressed: busy || current == e.key
                           ? null
                           : () => mode(e.key),
@@ -529,7 +546,7 @@ class _OperatingModePageState extends State<OperatingModePage>
             ),
         ], columns: 3),
         const SizedBox(height: 24),
-        const PmsEyebrow('SIMULATION LEDGER'),
+        PmsEyebrow(ui('SIMULATION LEDGER')),
         PmsColumns([
           for (final entry in {
             'simulated': 'Simulated',
@@ -572,7 +589,7 @@ class _OperatingModePageState extends State<OperatingModePage>
                     a['status'] == 'executed' &&
                     a['undone_at'] == null)
                   PmsButton(
-                    'Undo',
+                    ui('Undo'),
                     onPressed: busy
                         ? null
                         : () async {
@@ -591,9 +608,9 @@ class _OperatingModePageState extends State<OperatingModePage>
               ],
             ),
           ),
-        if (c.rows('actions').isEmpty) const PmsEmpty('No actions recorded.'),
+        if (c.rows('actions').isEmpty) PmsEmpty(ui('No actions recorded.')),
         const SizedBox(height: 24),
-        const PmsEyebrow('NOTIFICATIONS'),
+        PmsEyebrow(ui('NOTIFICATIONS')),
         for (final e in events.entries)
           CheckboxListTile(
             contentPadding: EdgeInsets.zero,
@@ -606,7 +623,7 @@ class _OperatingModePageState extends State<OperatingModePage>
         Align(
           alignment: Alignment.centerRight,
           child: PmsButton(
-            'Save notifications',
+            ui('Save notifications'),
             onPressed: busy
                 ? null
                 : () => perform(() async {
@@ -617,8 +634,8 @@ class _OperatingModePageState extends State<OperatingModePage>
           ),
         ),
         const SizedBox(height: 24),
-        const PmsEyebrow('STRUCTURED BUSINESS MEMORY'),
-        const Text('Facts, not hidden model memory.'),
+        PmsEyebrow(ui('STRUCTURED BUSINESS MEMORY')),
+        Text(ui('Facts, not hidden model memory.')),
         for (final m in optionalRows(memory['business']))
           ListTile(
             contentPadding: EdgeInsets.zero,

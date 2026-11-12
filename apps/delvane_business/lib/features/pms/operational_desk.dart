@@ -1,3 +1,4 @@
+import 'package:delvane_business/core/localization/web_strings.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../workspace/workspace_models.dart';
@@ -136,7 +137,7 @@ class _OperationalDeskState extends State<OperationalDesk>
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      const PmsEyebrow('LIVE CONTEXT'),
+                                      PmsEyebrow(ui('LIVE CONTEXT')),
                                       Text(
                                         widget.c.t(labels[0]),
                                         style: const TextStyle(
@@ -150,7 +151,7 @@ class _OperationalDeskState extends State<OperationalDesk>
                                 ),
                                 PmsIconButton(
                                   '×',
-                                  label: 'Close live context',
+                                  label: ui('Close live context'),
                                   onPressed: busy
                                       ? null
                                       : () => Navigator.pop(context),
@@ -218,7 +219,7 @@ class _OperationalDeskState extends State<OperationalDesk>
                                   errors(),
                                   if (selected == 0) ...[
                                     card([
-                                      const PmsEyebrow('LIVE BRIEFING'),
+                                      PmsEyebrow(ui('LIVE BRIEFING')),
                                       Text(
                                         text(d, 'brief'),
                                         style: const TextStyle(
@@ -253,10 +254,12 @@ class _OperationalDeskState extends State<OperationalDesk>
                                         ]),
                                     ], columns: mobile ? 2 : 4),
                                     const SizedBox(height: 26),
-                                    heading('Delvane handling'),
+                                    heading(ui('Delvane handling')),
                                     if (tasks.isEmpty)
-                                      const PmsEmpty(
-                                        'No exceptions. Everything is moving.',
+                                      PmsEmpty(
+                                        ui(
+                                          'No exceptions. Everything is moving.',
+                                        ),
                                       ),
                                     for (final task in tasks)
                                       Padding(
@@ -276,10 +279,10 @@ class _OperationalDeskState extends State<OperationalDesk>
                                       ),
                                   ],
                                   if (selected == 1) ...[
-                                    heading('Needs you'),
+                                    heading(ui('Needs you')),
                                     if (approvals.isEmpty)
-                                      const PmsEmpty(
-                                        'No decisions waiting for you.',
+                                      PmsEmpty(
+                                        ui('No decisions waiting for you.'),
                                       ),
                                     PmsColumns([
                                       for (final item in approvals)
@@ -315,8 +318,8 @@ class _OperationalDeskState extends State<OperationalDesk>
                                               crossAxisAlignment:
                                                   CrossAxisAlignment.start,
                                               children: [
-                                                const Text(
-                                                  'ROSA RECOMMENDS',
+                                                Text(
+                                                  ui('ROSA RECOMMENDS'),
                                                   style: TextStyle(
                                                     fontSize: 8.32,
                                                   ),
@@ -337,7 +340,7 @@ class _OperationalDeskState extends State<OperationalDesk>
                                             spacing: 8,
                                             children: [
                                               PmsButton(
-                                                'Decline',
+                                                ui('Decline'),
                                                 small: true,
                                                 onPressed: busy
                                                     ? null
@@ -347,7 +350,7 @@ class _OperationalDeskState extends State<OperationalDesk>
                                                       ),
                                               ),
                                               PmsButton(
-                                                'Approve',
+                                                ui('Approve'),
                                                 small: true,
                                                 onPressed: busy
                                                     ? null
@@ -362,10 +365,12 @@ class _OperationalDeskState extends State<OperationalDesk>
                                     ], columns: mobile ? 1 : 2),
                                   ],
                                   if (selected == 2) ...[
-                                    heading('Exceptions'),
+                                    heading(ui('Exceptions')),
                                     if (exceptions.isEmpty)
-                                      const PmsEmpty(
-                                        'No exceptions. Everything is moving.',
+                                      PmsEmpty(
+                                        ui(
+                                          'No exceptions. Everything is moving.',
+                                        ),
                                       ),
                                     PmsColumns([
                                       for (final item in exceptions)
@@ -391,10 +396,12 @@ class _OperationalDeskState extends State<OperationalDesk>
                                     ], columns: mobile ? 1 : 2),
                                   ],
                                   if (selected == 3) ...[
-                                    heading('Next 48h'),
+                                    heading(ui('Next 48h')),
                                     if (arrivals.isEmpty)
-                                      const PmsEmpty(
-                                        'No exceptions. Everything is moving.',
+                                      PmsEmpty(
+                                        ui(
+                                          'No exceptions. Everything is moving.',
+                                        ),
                                       ),
                                     for (final arrival in arrivals)
                                       Padding(
@@ -415,7 +422,9 @@ class _OperationalDeskState extends State<OperationalDesk>
                                             '${text(arrival, 'arrival_date')} · ${text(arrival, 'arrival_time')}',
                                           ),
                                           Text(
-                                            '${arrival['guest_count'] ?? 1} guests',
+                                            ui(
+                                              '${arrival['guest_count'] ?? 1} guests',
+                                            ),
                                             style: const TextStyle(
                                               fontSize: 11,
                                             ),
@@ -445,7 +454,7 @@ class _OperationalDeskState extends State<OperationalDesk>
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const PmsEyebrow('ROSA AI'),
+        PmsEyebrow(ui('ROSA AI')),
         Text(
           widget.c.t(label),
           style: const TextStyle(

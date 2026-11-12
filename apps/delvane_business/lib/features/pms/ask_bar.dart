@@ -1,3 +1,4 @@
+import 'package:delvane_business/core/localization/web_strings.dart';
 import 'package:flutter/material.dart';
 import '../workspace/workspace_models.dart';
 import 'pms_controller.dart';
@@ -60,7 +61,7 @@ class _PmsAskBarState extends State<PmsAskBar> with PmsActions<PmsAskBar> {
                     alignment: Alignment.centerRight,
                     child: PmsIconButton(
                       '×',
-                      label: 'Close answer',
+                      label: ui('Close answer'),
                       size: 28,
                       onPressed: () => setState(() {
                         answer = null;
@@ -91,8 +92,8 @@ class _PmsAskBarState extends State<PmsAskBar> with PmsActions<PmsAskBar> {
                     textInputAction: TextInputAction.send,
                     onSubmitted: (_) => ask(),
                     style: const TextStyle(fontSize: 14),
-                    decoration: const InputDecoration(
-                      hintText: 'Ask Delvane anything…',
+                    decoration: InputDecoration(
+                      hintText: ui('Ask Delvane anything…'),
                       border: InputBorder.none,
                       enabledBorder: InputBorder.none,
                       focusedBorder: InputBorder.none,
@@ -108,7 +109,7 @@ class _PmsAskBarState extends State<PmsAskBar> with PmsActions<PmsAskBar> {
                 SizedBox(
                   width: 64,
                   height: 64,
-                  child: PmsButton('Ask', onPressed: busy ? null : ask),
+                  child: PmsButton(ui('Ask'), onPressed: busy ? null : ask),
                 ),
               ],
             ),

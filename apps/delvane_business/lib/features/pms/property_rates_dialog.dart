@@ -1,3 +1,4 @@
+import 'package:delvane_business/core/localization/web_strings.dart';
 import 'package:flutter/material.dart';
 import '../workspace/workspace_models.dart';
 import 'channel_api.dart';
@@ -44,12 +45,12 @@ class _PropertyRatesDialogState extends State<PropertyRatesDialog>
 
   @override
   Widget build(BuildContext context) => PmsModal(
-    title: 'Rate plans',
-    eyebrow: 'PROPERTY',
+    title: ui('Rate plans'),
+    eyebrow: ui('PROPERTY'),
     canClose: !busy,
     actions: [
       PmsButton(
-        '+ Add rate plan',
+        ui('+ Add rate plan'),
         primary: true,
         onPressed: busy || rooms == null || rooms!.isEmpty
             ? null
@@ -72,7 +73,7 @@ class _PropertyRatesDialogState extends State<PropertyRatesDialog>
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         errors(),
-        if (plans == null && !busy) PmsButton('Retry', onPressed: load),
+        if (plans == null && !busy) PmsButton(ui('Retry'), onPressed: load),
         if (plans != null) ...[
           for (final plan in plans!)
             PmsCard(
@@ -90,7 +91,9 @@ class _PropertyRatesDialogState extends State<PropertyRatesDialog>
                     '${text(plan, 'room_type_name')} · ${text(plan, 'code')} · ${enabled(plan['active']) ? 'Active' : 'Inactive'}',
                   ),
                   Text(
-                    'Base rate ${plan['base_rate_huf'] ?? 'Not set'} HUF · ${text(plan, 'meal_type')} · ${text(plan, 'cancellation_policy')}',
+                    ui(
+                      'Base rate ${plan['base_rate_huf'] ?? 'Not set'} HUF · ${text(plan, 'meal_type')} · ${text(plan, 'cancellation_policy')}',
+                    ),
                   ),
                   for (final mapping in optionalRows(plan['channex_mappings']))
                     Text(
@@ -99,9 +102,11 @@ class _PropertyRatesDialogState extends State<PropertyRatesDialog>
                 ],
               ),
             ),
-          if (plans!.isEmpty) const PmsEmpty('No rate plans.'),
-          const Text(
-            'Rate-plan creation is supported by the existing API. Editing/deleting existing plans and changing room inventory are not exposed by that API.',
+          if (plans!.isEmpty) PmsEmpty(ui('No rate plans.')),
+          Text(
+            ui(
+              'Rate-plan creation is supported by the existing API. Editing/deleting existing plans and changing room inventory are not exposed by that API.',
+            ),
           ),
         ],
       ],
@@ -142,17 +147,17 @@ class _RatePlanEditorState extends State<RatePlanEditor>
 
   @override
   Widget build(BuildContext context) => PmsModal(
-    title: 'Add rate plan',
-    eyebrow: 'RATE PLAN',
+    title: ui('Add rate plan'),
+    eyebrow: ui('RATE PLAN'),
     width: 650,
     canClose: !busy,
     actions: [
       PmsButton(
-        'Cancel',
+        ui('Cancel'),
         onPressed: busy ? null : () => Navigator.pop(context),
       ),
       PmsButton(
-        'Create rate plan',
+        ui('Create rate plan'),
         primary: true,
         onPressed: busy || room.isEmpty
             ? null
@@ -185,19 +190,19 @@ class _RatePlanEditorState extends State<RatePlanEditor>
           errors(),
           PmsColumns([
             PmsSelect(
-              'Room type',
+              ui('Room type'),
               value: room,
               items: {
                 for (final r in widget.rooms) text(r, 'id'): text(r, 'name'),
               },
               onChanged: busy ? null : (v) => setState(() => room = v),
             ),
-            PmsField('Name', controller: name, required: true),
-            PmsField('Code', controller: code),
-            PmsField('Meal type', controller: meal),
-            PmsField('Cancellation policy', controller: cancellation),
+            PmsField(ui('Name'), controller: name, required: true),
+            PmsField(ui('Code'), controller: code),
+            PmsField(ui('Meal type'), controller: meal),
+            PmsField(ui('Cancellation policy'), controller: cancellation),
             PmsField(
-              'Base rate · HUF',
+              ui('Base rate · HUF'),
               controller: rate,
               keyboard: TextInputType.number,
               validator: (v) =>

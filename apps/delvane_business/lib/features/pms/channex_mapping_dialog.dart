@@ -1,3 +1,4 @@
+import 'package:delvane_business/core/localization/web_strings.dart';
 import 'package:flutter/material.dart';
 import '../workspace/workspace_models.dart';
 import 'channel_api.dart';
@@ -89,16 +90,16 @@ class _ChannexMappingDialogState extends State<ChannexMappingDialog>
 
   @override
   Widget build(BuildContext context) => PmsModal(
-    title: 'Map existing inventory',
-    eyebrow: 'BOOKING.COM · CHANNEX',
+    title: ui('Map existing inventory'),
+    eyebrow: ui('BOOKING.COM · CHANNEX'),
     canClose: !busy,
     actions: [
       PmsButton(
-        'Cancel',
+        ui('Cancel'),
         onPressed: busy ? null : () => Navigator.pop(context),
       ),
       PmsButton(
-        'Save mapping',
+        ui('Save mapping'),
         primary: true,
         onPressed: busy || data == null || property.isEmpty || saved
             ? null
@@ -108,23 +109,25 @@ class _ChannexMappingDialogState extends State<ChannexMappingDialog>
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text(
-          'Delvane will only map existing Channex rooms and rate plans. It will not create anything in Channex.',
+        Text(
+          ui(
+            'Delvane will only map existing Channex rooms and rate plans. It will not create anything in Channex.',
+          ),
         ),
         errors(),
         if (failure != null)
           PmsButton(
-            'Retry inventory read',
+            ui('Retry inventory read'),
             onPressed: busy
                 ? null
                 : () => load(property.isEmpty ? null : property),
           ),
         if (data != null) ...[
           PmsSelect(
-            'Channex property',
+            ui('Channex property'),
             value: property,
             items: {
-              '': 'Choose…',
+              '': ui('Choose…'),
               for (final p in optionalRows(data!['properties']))
                 text(p, 'id'): text(p, 'title'),
             },
@@ -136,7 +139,9 @@ class _ChannexMappingDialogState extends State<ChannexMappingDialog>
                   },
           ),
           Text(
-            '${optionalRows(data!['remote_room_types']).length} existing room types · ${optionalRows(data!['remote_rate_plans']).length} existing rate plans',
+            ui(
+              '${optionalRows(data!['remote_room_types']).length} existing room types · ${optionalRows(data!['remote_rate_plans']).length} existing rate plans',
+            ),
           ),
           for (final room in localRooms)
             Padding(
@@ -145,7 +150,7 @@ class _ChannexMappingDialogState extends State<ChannexMappingDialog>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const PmsEyebrow('ROSA ROOM TYPE'),
+                    PmsEyebrow(ui('ROSA ROOM TYPE')),
                     Text(
                       text(room, 'name'),
                       style: const TextStyle(
@@ -154,13 +159,15 @@ class _ChannexMappingDialogState extends State<ChannexMappingDialog>
                       ),
                     ),
                     Text(
-                      '${room['inventory_count']} units · up to ${room['max_guests']} guests',
+                      ui(
+                        '${room['inventory_count']} units · up to ${room['max_guests']} guests',
+                      ),
                     ),
                     PmsSelect(
-                      'Channex room · ${text(room, 'name')}',
+                      ui('Channex room · ${text(room, 'name')}'),
                       value: rooms[room['id']] ?? '',
                       items: {
-                        '': 'Choose Channex room…',
+                        '': ui('Choose Channex room…'),
                         for (final r in optionalRows(
                           data!['remote_room_types'],
                         ))
@@ -193,7 +200,7 @@ class _ChannexMappingDialogState extends State<ChannexMappingDialog>
                         text(rate, 'name'),
                         value: rates[rate['id']] ?? '',
                         items: {
-                          '': 'Choose Channex rate…',
+                          '': ui('Choose Channex rate…'),
                           for (final r
                               in optionalRows(data!['remote_rate_plans']).where(
                                 (r) => r['room_type_id'] == rooms[room['id']],
@@ -206,8 +213,8 @@ class _ChannexMappingDialogState extends State<ChannexMappingDialog>
                                   setState(() => rates[text(rate, 'id')] = v),
                       ),
                     if (!localRates.any((r) => r['room_type_id'] == room['id']))
-                      const Text(
-                        'No active rate plans on this Delvane room type.',
+                      Text(
+                        ui('No active rate plans on this Delvane room type.'),
                       ),
                   ],
                 ),

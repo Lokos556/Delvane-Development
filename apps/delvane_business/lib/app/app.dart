@@ -1,4 +1,7 @@
+import 'package:delvane_business/core/localization/web_strings.dart';
 import 'package:flutter/material.dart';
+import 'dart:async';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import '../data/mock_business_repository.dart';
 import '../domain/business_repository.dart';
 import '../shared/app_shell.dart';
@@ -34,6 +37,12 @@ class _DelvaneBusinessAppState extends State<DelvaneBusinessApp> {
   @override
   void initState() {
     super.initState();
+    WebStrings.current.addListener(_languageChanged);
+    unawaited(
+      WebStrings.current.initialize(
+        widget.auth?.store ?? const PlatformSessionStore(),
+      ),
+    );
     showDemo = widget.demoMode;
     if (showDemo) {
       controller = BusinessController(
@@ -57,13 +66,21 @@ class _DelvaneBusinessAppState extends State<DelvaneBusinessApp> {
 
   @override
   void dispose() {
+    WebStrings.current.removeListener(_languageChanged);
     controller?.dispose();
     if (widget.auth == null) auth?.dispose();
     super.dispose();
   }
 
+  void _languageChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) => MaterialApp(
+    locale: Locale(WebStrings.current.language),
+    supportedLocales: const [Locale('hu'), Locale('en')],
+    localizationsDelegates: GlobalMaterialLocalizations.delegates,
     title: 'Delvane Business',
     debugShowCheckedModeBanner: false,
     theme: delvaneTheme(),
@@ -78,10 +95,10 @@ class _DelvaneBusinessAppState extends State<DelvaneBusinessApp> {
                           color: DelvaneColors.yellowSoft,
                           child: ListTile(
                             dense: true,
-                            title: const Text('Offline demo · synthetic data'),
+                            title: Text(ui('Offline demo · synthetic data')),
                             trailing: TextButton(
                               onPressed: () => setState(() => showDemo = false),
-                              child: const Text('Exit demo'),
+                              child: Text(ui('Exit demo')),
                             ),
                           ),
                         ),

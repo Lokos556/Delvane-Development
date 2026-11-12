@@ -1,3 +1,4 @@
+import 'package:delvane_business/core/localization/web_strings.dart';
 import 'package:flutter/material.dart';
 import '../workspace/workspace_models.dart';
 import 'pms_controller.dart';
@@ -56,12 +57,12 @@ class _PropertyWorkspaceState extends State<PropertyWorkspace>
     );
     return PmsModal(
       title: text(p, 'name', 'Property'),
-      eyebrow: 'PROPERTY',
+      eyebrow: ui('PROPERTY'),
       width: 760,
       canClose: !busy,
       actions: [
         PmsButton(
-          'Rate plans',
+          ui('Rate plans'),
           onPressed: busy || data == null
               ? null
               : () => showDialog<void>(
@@ -72,9 +73,10 @@ class _PropertyWorkspaceState extends State<PropertyWorkspace>
                       PropertyRatesDialog(c: widget.c, propertyId: widget.id),
                 ),
         ),
-        if (failure != null) PmsButton('Retry', onPressed: busy ? null : load),
+        if (failure != null)
+          PmsButton(ui('Retry'), onPressed: busy ? null : load),
         PmsButton(
-          'Open calendar',
+          ui('Open calendar'),
           onPressed: data == null || busy
               ? null
               : () {
@@ -84,7 +86,7 @@ class _PropertyWorkspaceState extends State<PropertyWorkspace>
         ),
         if (primary.isNotEmpty)
           PmsButton(
-            'Open reservation',
+            ui('Open reservation'),
             primary: true,
             onPressed: busy
                 ? null
@@ -104,16 +106,22 @@ class _PropertyWorkspaceState extends State<PropertyWorkspace>
                 color: const Color(0xFFFFF4BD),
                 child: Column(
                   children: [
-                    const PmsEyebrow('SAME-DAY TURNOVER'),
+                    PmsEyebrow(ui('SAME-DAY TURNOVER')),
                     PmsColumns([
                       Text(
-                        '${text(p, 'checkout_time')}\n${text(optionalObject(d['departing_today']), 'guest_name')} leaves',
+                        ui(
+                          '${text(p, 'checkout_time')}\n${text(optionalObject(d['departing_today']), 'guest_name')} leaves',
+                        ),
                       ),
                       Text(
-                        'Cleaning\n${text(p, 'checkout_time')} → ${text(p, 'checkin_time')}',
+                        ui(
+                          'Cleaning\n${text(p, 'checkout_time')} → ${text(p, 'checkin_time')}',
+                        ),
                       ),
                       Text(
-                        '${text(p, 'checkin_time')}\n${text(optionalObject(d['arriving_today']), 'guest_name')} checks in',
+                        ui(
+                          '${text(p, 'checkin_time')}\n${text(optionalObject(d['arriving_today']), 'guest_name')} checks in',
+                        ),
                       ),
                     ], columns: 3),
                   ],
@@ -125,9 +133,9 @@ class _PropertyWorkspaceState extends State<PropertyWorkspace>
               runSpacing: 8,
               children: [
                 Text(text(p, 'address', 'Address not configured')),
-                Text('Max ${p['max_guests'] ?? 1} guests'),
-                Text('Check-in ${text(p, 'checkin_time')}'),
-                Text('Checkout ${text(p, 'checkout_time')}'),
+                Text(ui('Max ${p['max_guests'] ?? 1} guests')),
+                Text(ui('Check-in ${text(p, 'checkin_time')}')),
+                Text(ui('Checkout ${text(p, 'checkout_time')}')),
               ],
             ),
             const SizedBox(height: 24),
@@ -136,15 +144,17 @@ class _PropertyWorkspaceState extends State<PropertyWorkspace>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const PmsEyebrow('TODAY'),
+                    PmsEyebrow(ui('TODAY')),
                     for (final key in ['departing_today', 'arriving_today'])
                       if (optionalObject(d[key]).isNotEmpty)
                         ListTile(
                           contentPadding: EdgeInsets.zero,
                           title: Text(
                             key == 'arriving_today'
-                                ? 'Arrival · ${text(optionalObject(d[key]), 'arrival_time', text(p, 'checkin_time'))}'
-                                : 'Departure · ${text(p, 'checkout_time')}',
+                                ? ui(
+                                    'Arrival · ${text(optionalObject(d[key]), 'arrival_time', text(p, 'checkin_time'))}',
+                                  )
+                                : ui('Departure · ${text(p, 'checkout_time')}'),
                           ),
                           subtitle: Text(
                             text(optionalObject(d[key]), 'guest_name'),
@@ -152,7 +162,7 @@ class _PropertyWorkspaceState extends State<PropertyWorkspace>
                         ),
                     if (d['departing_today'] == null &&
                         d['arriving_today'] == null)
-                      const Text('No changeover today'),
+                      Text(ui('No changeover today')),
                   ],
                 ),
               ),
@@ -160,12 +170,12 @@ class _PropertyWorkspaceState extends State<PropertyWorkspace>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const PmsEyebrow('CLEANING'),
+                    PmsEyebrow(ui('CLEANING')),
                     PmsBadge(text(cleaning, 'status', 'No cleaning scheduled')),
                     const SizedBox(height: 12),
                     Text(
                       cleaning.isEmpty
-                          ? 'Nothing currently scheduled.'
+                          ? ui('Nothing currently scheduled.')
                           : '${text(cleaning, 'scheduled_date')} · ${text(cleaning, 'earliest_time', 'Flexible')} → ${text(cleaning, 'deadline_time')} · ${text(cleaning, 'assigned_name', 'Unassigned')}',
                     ),
                   ],
@@ -175,13 +185,13 @@ class _PropertyWorkspaceState extends State<PropertyWorkspace>
             const SizedBox(height: 24),
             PmsEyebrow(
               d['arriving_today'] != null
-                  ? 'ARRIVING RESERVATION'
+                  ? ui('ARRIVING RESERVATION')
                   : d['current'] != null
-                  ? 'CURRENT STAY'
-                  : 'NEXT STAY',
+                  ? ui('CURRENT STAY')
+                  : ui('NEXT STAY'),
             ),
             primary.isEmpty
-                ? const PmsEmpty('No upcoming reservation.')
+                ? PmsEmpty(ui('No upcoming reservation.'))
                 : PmsCard(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -193,13 +203,15 @@ class _PropertyWorkspaceState extends State<PropertyWorkspace>
                           contentPadding: EdgeInsets.zero,
                           title: Text(text(primary, 'guest_name')),
                           subtitle: Text(
-                            '${text(primary, 'arrival_date')} → ${text(primary, 'departure_date')} · ${primary['guest_count'] ?? ''} guests',
+                            ui(
+                              '${text(primary, 'arrival_date')} → ${text(primary, 'departure_date')} · ${primary['guest_count'] ?? ''} guests',
+                            ),
                           ),
                         ),
                         PmsBadge(
                           text(primary, 'registration_status') == 'complete'
-                              ? 'Registration complete'
-                              : 'Registration incomplete',
+                              ? ui('Registration complete')
+                              : ui('Registration incomplete'),
                           tone:
                               text(primary, 'registration_status') == 'complete'
                               ? 'ready'
@@ -209,16 +221,19 @@ class _PropertyWorkspaceState extends State<PropertyWorkspace>
                     ),
                   ),
             const SizedBox(height: 24),
-            const PmsEyebrow('ROOM TYPES'),
+            PmsEyebrow(ui('ROOM TYPES')),
             Wrap(
               alignment: WrapAlignment.spaceBetween,
               runSpacing: 8,
               children: [
-                const Text(
-                  'Sellable room types',
+                Text(
+                  ui('Sellable room types'),
                   style: TextStyle(fontSize: 23, fontWeight: FontWeight.w700),
                 ),
-                PmsButton('+ Add room type', onPressed: busy ? null : addRoom),
+                PmsButton(
+                  ui('+ Add room type'),
+                  onPressed: busy ? null : addRoom,
+                ),
               ],
             ),
             for (final room in optionalRows(d['room_types']))
@@ -233,7 +248,9 @@ class _PropertyWorkspaceState extends State<PropertyWorkspace>
                         style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
                       Text(
-                        '${room['inventory_count']} units · up to ${room['max_guests']} guests · ${room['active'] == 1 ? 'Active' : 'Inactive'}',
+                        ui(
+                          '${room['inventory_count']} units · up to ${room['max_guests']} guests · ${room['active'] == 1 ? 'Active' : 'Inactive'}',
+                        ),
                       ),
                       Text(text(room, 'code')),
                     ],
@@ -241,8 +258,8 @@ class _PropertyWorkspaceState extends State<PropertyWorkspace>
                 ),
               ),
             const SizedBox(height: 12),
-            const Text(
-              'Rate plans and Channex room mappings belong to a room type.',
+            Text(
+              ui('Rate plans and Channex room mappings belong to a room type.'),
             ),
           ],
         ],
@@ -298,17 +315,17 @@ class _RoomTypeEditorState extends State<RoomTypeEditor>
 
   @override
   Widget build(BuildContext context) => PmsModal(
-    title: 'Add room type',
-    eyebrow: 'ROOM TYPE',
+    title: ui('Add room type'),
+    eyebrow: ui('ROOM TYPE'),
     width: 650,
     canClose: !busy,
     actions: [
       PmsButton(
-        'Cancel',
+        ui('Cancel'),
         onPressed: busy ? null : () => Navigator.pop(context),
       ),
       PmsButton(
-        'Create room type',
+        ui('Create room type'),
         primary: true,
         onPressed: busy || saved ? null : save,
       ),
@@ -320,21 +337,25 @@ class _RoomTypeEditorState extends State<RoomTypeEditor>
           errors(),
           PmsColumns([
             PmsField(
-              'Name',
+              ui('Name'),
               controller: name,
               required: true,
-              hint: 'e.g. One-bedroom apartment',
+              hint: ui('e.g. One-bedroom apartment'),
             ),
-            PmsField('Code', controller: code, hint: 'e.g. one-bedroom'),
             PmsField(
-              'Units',
+              ui('Code'),
+              controller: code,
+              hint: ui('e.g. one-bedroom'),
+            ),
+            PmsField(
+              ui('Units'),
               controller: units,
               keyboard: TextInputType.number,
               validator: (v) =>
                   int.tryParse(v ?? '') == null ? 'Enter whole units' : null,
             ),
             PmsField(
-              'Max guests',
+              ui('Max guests'),
               controller: guests,
               keyboard: TextInputType.number,
               validator: (v) =>

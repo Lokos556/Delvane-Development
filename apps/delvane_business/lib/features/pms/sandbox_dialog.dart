@@ -1,3 +1,4 @@
+import 'package:delvane_business/core/localization/web_strings.dart';
 import 'package:flutter/material.dart';
 import '../workspace/workspace_models.dart';
 import 'channel_api.dart';
@@ -74,29 +75,35 @@ class _SandboxDialogState extends State<SandboxDialog>
     final locked = busy || stale || data == null;
     return PmsModal(
       title: '${text(i, 'property_name')} · ${text(i, 'provider')}',
-      eyebrow: 'LOCAL SYNC SANDBOX',
+      eyebrow: ui('LOCAL SYNC SANDBOX'),
       canClose: !busy,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            'Test feed only. These controls modify the local sandbox, not an OTA feed.',
+          Text(
+            ui(
+              'Test feed only. These controls modify the local sandbox, not an OTA feed.',
+            ),
           ),
           errors(),
           if (data == null || stale)
-            PmsButton('Refresh feed', onPressed: busy ? null : load),
+            PmsButton(ui('Refresh feed'), onPressed: busy ? null : load),
           if (stale)
-            const Text(
-              'The server accepted the change. Refresh the feed before another action.',
+            Text(
+              ui(
+                'The server accepted the change. Refresh the feed before another action.',
+              ),
             ),
           if (data != null) ...[
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
-                PmsBadge(outage ? 'Feed unavailable' : 'Feed available'),
+                PmsBadge(
+                  outage ? ui('Feed unavailable') : ui('Feed available'),
+                ),
                 PmsButton(
-                  outage ? 'Recover feed' : 'Simulate outage',
+                  outage ? ui('Recover feed') : ui('Simulate outage'),
                   onPressed: locked
                       ? null
                       : () => mutate(
@@ -105,7 +112,7 @@ class _SandboxDialogState extends State<SandboxDialog>
                         ),
                 ),
                 PmsButton(
-                  'Sync now',
+                  ui('Sync now'),
                   primary: true,
                   onPressed: locked || outage
                       ? null
@@ -122,7 +129,7 @@ class _SandboxDialogState extends State<SandboxDialog>
               ],
             ),
             const SizedBox(height: 20),
-            const PmsEyebrow('CURRENT FEED'),
+            PmsEyebrow(ui('CURRENT FEED')),
             for (final item in optionalRows(data!['items']))
               PmsCard(
                 child: Column(
@@ -136,7 +143,9 @@ class _SandboxDialogState extends State<SandboxDialog>
                       ),
                     ),
                     Text(
-                      '${text(item, 'external_ref')} · ${text(item, 'arrival_date')} → ${text(item, 'departure_date')} · ${item['guest_count']} guests',
+                      ui(
+                        '${text(item, 'external_ref')} · ${text(item, 'arrival_date')} → ${text(item, 'departure_date')} · ${item['guest_count']} guests',
+                      ),
                     ),
                     PmsBadge(text(item, 'status')),
                     const SizedBox(height: 12),
@@ -145,7 +154,7 @@ class _SandboxDialogState extends State<SandboxDialog>
                       runSpacing: 8,
                       children: [
                         PmsButton(
-                          'Extend one night',
+                          ui('Extend one night'),
                           onPressed: locked || item['status'] == 'cancelled'
                               ? null
                               : () => mutate(
@@ -163,8 +172,8 @@ class _SandboxDialogState extends State<SandboxDialog>
                         ),
                         PmsButton(
                           item['status'] == 'cancelled'
-                              ? 'Restore feed item'
-                              : 'Cancel feed item',
+                              ? ui('Restore feed item')
+                              : ui('Cancel feed item'),
                           onPressed: locked
                               ? null
                               : () => mutate(
@@ -183,23 +192,23 @@ class _SandboxDialogState extends State<SandboxDialog>
                 ),
               ),
             if (optionalRows(data!['items']).isEmpty)
-              const PmsEmpty('No feed items.'),
+              PmsEmpty(ui('No feed items.')),
             const SizedBox(height: 24),
-            const PmsEyebrow('TEST SCENARIOS'),
-            const Text(
-              'Simulate booking',
+            PmsEyebrow(ui('TEST SCENARIOS')),
+            Text(
+              ui('Simulate booking'),
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
             ),
             Form(
               key: form,
               child: Column(
                 children: [
-                  PmsField('Guest name', controller: guest, required: true),
+                  PmsField(ui('Guest name'), controller: guest, required: true),
                   PmsColumns([
-                    PmsDateField('Arrival', controller: from),
-                    PmsDateField('Departure', controller: to),
+                    PmsDateField(ui('Arrival'), controller: from),
+                    PmsDateField(ui('Departure'), controller: to),
                     PmsField(
-                      'Guest count',
+                      ui('Guest count'),
                       controller: guests,
                       keyboard: TextInputType.number,
                       validator: (v) => int.tryParse(v ?? '') == null
@@ -207,15 +216,15 @@ class _SandboxDialogState extends State<SandboxDialog>
                           : null,
                     ),
                     PmsField(
-                      'External reference',
+                      ui('External reference'),
                       controller: ref,
-                      hint: 'auto',
+                      hint: ui('auto'),
                     ),
                   ], columns: 2),
                   Align(
                     alignment: Alignment.centerRight,
                     child: PmsButton(
-                      '+ Add to feed',
+                      ui('+ Add to feed'),
                       primary: true,
                       onPressed: locked
                           ? null
@@ -239,19 +248,19 @@ class _SandboxDialogState extends State<SandboxDialog>
             const SizedBox(height: 20),
             ExpansionTile(
               tilePadding: EdgeInsets.zero,
-              title: const Text('iCal sample'),
+              title: Text(ui('iCal sample')),
               children: [
-                PmsField('iCal text', controller: ical, lines: 6),
+                PmsField(ui('iCal text'), controller: ical, lines: 6),
                 CheckboxListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('Replace feed'),
+                  title: Text(ui('Replace feed')),
                   value: replace,
                   onChanged: locked
                       ? null
                       : (v) => setState(() => replace = v!),
                 ),
                 PmsButton(
-                  'Load iCal',
+                  ui('Load iCal'),
                   onPressed: locked
                       ? null
                       : () {
@@ -304,17 +313,17 @@ class _SyncPreviewDialogState extends State<SyncPreviewDialog>
       'cancelled',
     ].fold<num>(0, (n, k) => n + (counts[k] as num? ?? 0));
     return PmsModal(
-      title: result == null ? 'Sync preview' : 'Import complete',
-      eyebrow: 'DRY RUN · LOCAL TEST FEED',
+      title: result == null ? ui('Sync preview') : ui('Import complete'),
+      eyebrow: ui('DRY RUN · LOCAL TEST FEED'),
       canClose: !busy,
       actions: [
         PmsButton(
-          'Close',
+          ui('Close'),
           onPressed: busy ? null : () => Navigator.pop(context),
         ),
         if (result == null)
           PmsButton(
-            actionable == 0 ? 'Nothing to import' : 'Apply import',
+            actionable == 0 ? ui('Nothing to import') : ui('Apply import'),
             primary: true,
             onPressed: busy || actionable == 0
                 ? null
@@ -329,10 +338,12 @@ class _SyncPreviewDialogState extends State<SyncPreviewDialog>
         children: [
           errors(),
           if (data == null && !busy)
-            PmsButton('Retry preview', onPressed: preview),
+            PmsButton(ui('Retry preview'), onPressed: preview),
           if (result != null)
             Text(
-              '${optionalObject(result!['counts'])['applied'] ?? 0} applied · ${optionalObject(result!['counts'])['skipped'] ?? 0} skipped',
+              ui(
+                '${optionalObject(result!['counts'])['applied'] ?? 0} applied · ${optionalObject(result!['counts'])['skipped'] ?? 0} skipped',
+              ),
             ),
           if (result == null && data != null) ...[
             Wrap(
@@ -357,8 +368,10 @@ class _SyncPreviewDialogState extends State<SyncPreviewDialog>
                   ],
                 ),
               ),
-            const Text(
-              'Preview does not import reservations. Apply revalidates the current feed and preserves conflicts for review.',
+            Text(
+              ui(
+                'Preview does not import reservations. Apply revalidates the current feed and preserves conflicts for review.',
+              ),
             ),
           ],
         ],

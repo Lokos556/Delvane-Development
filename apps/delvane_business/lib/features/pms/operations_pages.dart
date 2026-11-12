@@ -1,3 +1,4 @@
+import 'package:delvane_business/core/localization/web_strings.dart';
 import 'package:flutter/material.dart';
 import '../workspace/workspace_models.dart';
 import 'operations_workflows.dart';
@@ -34,37 +35,39 @@ class _MaintenancePageState extends State<MaintenancePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const PmsEyebrow('MAINTENANCE'),
-        const PmsPageTitle('Issues become owned work.'),
-        const Text(
-          'No WhatsApp archaeology. Every issue has a property, urgency, owner and resolution trail.',
+        PmsEyebrow(ui('MAINTENANCE')),
+        PmsPageTitle(ui('Issues become owned work.')),
+        Text(
+          ui(
+            'No WhatsApp archaeology. Every issue has a property, urgency, owner and resolution trail.',
+          ),
         ),
         const SizedBox(height: 16),
         if (c.user.isOperator || c.user.role == 'cleaner')
           Align(
             alignment: Alignment.centerRight,
             child: PmsButton(
-              '+ Report issue',
+              ui('+ Report issue'),
               primary: true,
               onPressed: c.saving ? null : create,
             ),
           ),
         const SizedBox(height: 20),
         PmsSelect(
-          'Status',
+          ui('Status'),
           value: filter,
-          items: const {
-            'all': 'All cases',
-            'reported': 'Reported',
-            'assigned': 'Assigned',
-            'in_progress': 'In progress',
-            'resolved': 'Resolved',
-            'verified': 'Verified',
+          items: {
+            'all': ui('All cases'),
+            'reported': ui('Reported'),
+            'assigned': ui('Assigned'),
+            'in_progress': ui('In progress'),
+            'resolved': ui('Resolved'),
+            'verified': ui('Verified'),
           },
           onChanged: c.saving ? null : (v) => setState(() => filter = v),
         ),
         PmsColumns([for (final m in items) caseCard(m)], columns: 2),
-        if (items.isEmpty) const PmsEmpty('No maintenance cases in this view.'),
+        if (items.isEmpty) PmsEmpty(ui('No maintenance cases in this view.')),
       ],
     );
   }
@@ -113,23 +116,23 @@ class _MaintenancePageState extends State<MaintenancePage> {
           const SizedBox(height: 20),
           PmsLifecycleRail(stages: stages, index: index),
           const SizedBox(height: 20),
-          Text('Owner: ${text(m, 'assigned_name', 'Unassigned')}'),
-          Text('Reported ${text(m, 'created_at')}'),
-          if (m['due_at'] != null) Text('Due ${text(m, 'due_at')}'),
+          Text(ui('Owner: ${text(m, 'assigned_name', 'Unassigned')}')),
+          Text(ui('Reported ${text(m, 'created_at')}')),
+          if (m['due_at'] != null) Text(ui('Due ${text(m, 'due_at')}')),
           if (m['resolved_at'] != null)
-            Text('Resolved ${text(m, 'resolved_at')}'),
+            Text(ui('Resolved ${text(m, 'resolved_at')}')),
           if (m['verified_at'] != null)
-            Text('Verified ${text(m, 'verified_at')}'),
+            Text(ui('Verified ${text(m, 'verified_at')}')),
           const SizedBox(height: 16),
           if (permitted && next != null)
             Align(
               alignment: Alignment.centerRight,
               child: PmsButton(
                 next == 'in_progress'
-                    ? 'Start work'
+                    ? ui('Start work')
                     : next == 'resolved'
-                    ? 'Mark resolved'
-                    : 'Verify',
+                    ? ui('Mark resolved')
+                    : ui('Verify'),
                 primary: next != 'in_progress',
                 onPressed: c.saving
                     ? null
@@ -183,17 +186,17 @@ class _MaintenanceEditorState extends State<MaintenanceEditor>
 
   @override
   Widget build(BuildContext context) => PmsModal(
-    title: 'Delvane will route it.',
-    eyebrow: 'REPORT ISSUE',
+    title: ui('Delvane will route it.'),
+    eyebrow: ui('REPORT ISSUE'),
     width: 650,
     canClose: !busy,
     actions: [
       PmsButton(
-        'Cancel',
+        ui('Cancel'),
         onPressed: busy ? null : () => Navigator.pop(context),
       ),
       PmsButton(
-        'Create case',
+        ui('Create case'),
         primary: true,
         onPressed: busy || saved || property.isEmpty ? null : save,
       ),
@@ -204,9 +207,9 @@ class _MaintenanceEditorState extends State<MaintenanceEditor>
         children: [
           errors(),
           if (widget.c.rows('properties').isEmpty)
-            const PmsEmpty('No properties available. Reload the workspace.'),
+            PmsEmpty(ui('No properties available. Reload the workspace.')),
           PmsSelect(
-            'Property',
+            ui('Property'),
             value: property,
             items: {
               for (final p in widget.c.rows('properties'))
@@ -215,22 +218,26 @@ class _MaintenanceEditorState extends State<MaintenanceEditor>
             onChanged: busy ? null : (v) => setState(() => property = v),
           ),
           PmsField(
-            'Issue',
+            ui('Issue'),
             controller: title,
             required: true,
-            hint: 'e.g. Bathroom tap leaking',
+            hint: ui('e.g. Bathroom tap leaking'),
           ),
           PmsSelect(
-            'Severity',
+            ui('Severity'),
             value: severity,
-            items: const {'low': 'low', 'medium': 'medium', 'high': 'high'},
+            items: {
+              'low': ui('low'),
+              'medium': ui('medium'),
+              'high': ui('high'),
+            },
             onChanged: busy ? null : (v) => setState(() => severity = v),
           ),
           PmsField(
-            'Details',
+            ui('Details'),
             controller: detail,
             lines: 4,
-            hint: 'What did you notice?',
+            hint: ui('What did you notice?'),
           ),
         ],
       ),
@@ -254,15 +261,17 @@ class SuppliesPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final d = c.object('inventory'), items = optionalRows(d['items']);
-    if (!c.user.isOperator) return const PmsEmpty('No access');
+    if (!c.user.isOperator) return PmsEmpty(ui('No access'));
     final low = items.where((x) => x['low'] == true).toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const PmsEyebrow('SUPPLIES'),
-        const PmsPageTitle('Delvane watches consumption.'),
+        PmsEyebrow(ui('SUPPLIES')),
+        PmsPageTitle(ui('Delvane watches consumption.')),
         Text(
-          '${d['upcoming_stays'] ?? 0} upcoming stays are included in the current estimate.',
+          ui(
+            '${d['upcoming_stays'] ?? 0} upcoming stays are included in the current estimate.',
+          ),
         ),
         const SizedBox(height: 24),
         PmsColumns([
@@ -275,7 +284,9 @@ class SuppliesPage extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   PmsEyebrow(
-                    item['low'] == true ? 'RESTOCK SUGGESTED' : 'STOCK HEALTHY',
+                    item['low'] == true
+                        ? ui('RESTOCK SUGGESTED')
+                        : ui('STOCK HEALTHY'),
                   ),
                   Text(
                     text(item, 'name'),
@@ -293,7 +304,9 @@ class SuppliesPage extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    'Target ${item['par_level']} · estimated upcoming use ${item['estimated_need']}',
+                    ui(
+                      'Target ${item['par_level']} · estimated upcoming use ${item['estimated_need']}',
+                    ),
                   ),
                   const SizedBox(height: 16),
                   LinearProgressIndicator(value: stockFraction(item)),
@@ -301,7 +314,7 @@ class SuppliesPage extends StatelessWidget {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: PmsButton(
-                      'Adjust stock',
+                      ui('Adjust stock'),
                       small: true,
                       onPressed: c.saving ? null : () => adjust(context, item),
                     ),
@@ -310,15 +323,15 @@ class SuppliesPage extends StatelessWidget {
               ),
             ),
         ], columns: 3),
-        if (items.isEmpty) const PmsEmpty('No inventory items.'),
+        if (items.isEmpty) PmsEmpty(ui('No inventory items.')),
         const SizedBox(height: 24),
         PmsCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const PmsEyebrow('SHOPPING LIST'),
+              PmsEyebrow(ui('SHOPPING LIST')),
               Text(
-                '${low.length} items need attention',
+                ui('${low.length} items need attention'),
                 style: const TextStyle(
                   fontSize: 26,
                   fontWeight: FontWeight.w700,
@@ -328,7 +341,7 @@ class SuppliesPage extends StatelessWidget {
                 Text(
                   '${text(item, 'name')} · ${shoppingQuantity(item)} ${text(item, 'unit')}',
                 ),
-              if (low.isEmpty) const Text('Nothing to buy.'),
+              if (low.isEmpty) Text(ui('Nothing to buy.')),
             ],
           ),
         ),
@@ -381,16 +394,16 @@ class _StockEditorState extends State<StockEditor>
 
   @override
   Widget build(BuildContext context) => PmsModal(
-    title: 'Adjust stock',
+    title: ui('Adjust stock'),
     eyebrow: text(widget.item, 'name'),
     width: 480,
     canClose: !busy,
     actions: [
       PmsButton(
-        'Cancel',
+        ui('Cancel'),
         onPressed: busy ? null : () => Navigator.pop(context),
       ),
-      PmsButton('Save', primary: true, onPressed: busy ? null : save),
+      PmsButton(ui('Save'), primary: true, onPressed: busy ? null : save),
     ],
     child: Form(
       key: form,
@@ -398,7 +411,7 @@ class _StockEditorState extends State<StockEditor>
         children: [
           errors(),
           PmsField(
-            'Current quantity',
+            ui('Current quantity'),
             controller: quantity,
             keyboard: const TextInputType.numberWithOptions(decimal: true),
             validator: (v) => num.tryParse(v ?? '')?.isFinite != true

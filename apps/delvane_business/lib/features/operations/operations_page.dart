@@ -1,3 +1,4 @@
+import 'package:delvane_business/core/localization/web_strings.dart';
 import 'package:flutter/material.dart';
 import '../../app/controller.dart';
 import '../../app/theme.dart';
@@ -94,8 +95,8 @@ class OperationsPage extends StatelessWidget {
               ),
             ),
           const SizedBox(height: 8),
-          const Text(
-            'Demo task updates stay on this device for this session only.',
+          Text(
+            ui('Demo task updates stay on this device for this session only.'),
             style: TextStyle(fontSize: 11, color: DelvaneColors.muted),
           ),
         ],

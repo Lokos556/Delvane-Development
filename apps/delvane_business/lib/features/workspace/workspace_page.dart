@@ -1,3 +1,4 @@
+import 'package:delvane_business/core/localization/web_strings.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../app/theme.dart';
@@ -120,16 +121,16 @@ class _WorkspacePageState extends State<WorkspacePage>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const Text(
-                        'delvane',
+                      Text(
+                        ui('delvane'),
                         style: TextStyle(
                           fontSize: 28,
                           fontWeight: FontWeight.w800,
                           letterSpacing: -1,
                         ),
                       ),
-                      const Text(
-                        'BUSINESS',
+                      Text(
+                        ui('BUSINESS'),
                         style: TextStyle(fontSize: 10, letterSpacing: 3),
                       ),
                       const SizedBox(height: 28),
@@ -190,7 +191,9 @@ class _WorkspacePageState extends State<WorkspacePage>
                                   ).textTheme.titleMedium,
                                 ),
                                 Text(
-                                  'Connected · isolated data · ${user.role}',
+                                  ui(
+                                    'Connected · isolated data · ${user.role}',
+                                  ),
                                   style: const TextStyle(
                                     fontSize: 11,
                                     color: DelvaneColors.muted,
@@ -238,9 +241,9 @@ class _WorkspacePageState extends State<WorkspacePage>
                             labelText: 'Property scope',
                           ),
                           items: [
-                            const DropdownMenuItem(
+                            DropdownMenuItem(
                               value: '',
-                              child: Text('All accessible properties'),
+                              child: Text(ui('All accessible properties')),
                             ),
                             for (final prop in data.properties)
                               DropdownMenuItem(
@@ -260,13 +263,13 @@ class _WorkspacePageState extends State<WorkspacePage>
                       child: controller.tab == WorkspaceTab.account
                           ? _account(user)
                           : controller.phase == WorkspacePhase.loading
-                          ? const Center(
+                          ? Center(
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   CircularProgressIndicator(),
                                   SizedBox(height: 16),
-                                  Text('Loading operational workspace…'),
+                                  Text(ui('Loading operational workspace…')),
                                 ],
                               ),
                             )
@@ -290,7 +293,9 @@ class _WorkspacePageState extends State<WorkspacePage>
                                     ).textTheme.headlineMedium,
                                   ),
                                   Text(
-                                    '${data!.date} · Read-only operational workspace',
+                                    ui(
+                                      '${data!.date} · Read-only operational workspace',
+                                    ),
                                   ),
                                   const SizedBox(height: 16),
                                   if (controller.tab == WorkspaceTab.properties)
@@ -342,8 +347,10 @@ class _WorkspacePageState extends State<WorkspacePage>
                                       _properties(data),
                                     ]),
                                   const SizedBox(height: 14),
-                                  const Text(
-                                    'Messaging, AI actions, booking edits and integration controls remain in the web PMS during migration.',
+                                  Text(
+                                    ui(
+                                      'Messaging, AI actions, booking edits and integration controls remain in the web PMS during migration.',
+                                    ),
                                     style: TextStyle(
                                       color: DelvaneColors.muted,
                                       fontSize: 12,
@@ -387,9 +394,9 @@ class _WorkspacePageState extends State<WorkspacePage>
         ),
         const SizedBox(height: 8),
         if (items.isEmpty)
-          const Padding(
+          Padding(
             padding: EdgeInsets.symmetric(vertical: 14),
-            child: Text('No items in this scope.'),
+            child: Text(ui('No items in this scope.')),
           ),
         for (final item in items)
           _recordTile(
@@ -406,13 +413,13 @@ class _WorkspacePageState extends State<WorkspacePage>
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'Property readiness',
+          ui('Property readiness'),
           style: Theme.of(context).textTheme.titleLarge,
         ),
         if (data.properties.where((p) => controller.includes(p.id)).isEmpty)
-          const Padding(
+          Padding(
             padding: EdgeInsets.all(12),
-            child: Text('No accessible properties.'),
+            child: Text(ui('No accessible properties.')),
           ),
         for (final p in data.properties.where((p) => controller.includes(p.id)))
           ListTile(
@@ -421,7 +428,7 @@ class _WorkspacePageState extends State<WorkspacePage>
             title: Text(p.name),
             subtitle: Text(
               p.state == null
-                  ? 'Operational context · readiness restricted'
+                  ? ui('Operational context · readiness restricted')
                   : '${p.state} ${p.reasons.isEmpty ? '' : '· ${p.reasons.join(' · ')}'}',
             ),
             trailing: const Icon(Icons.chevron_right),
@@ -438,16 +445,16 @@ class _WorkspacePageState extends State<WorkspacePage>
         children: [
           const Icon(Icons.cloud_off_outlined, size: 32),
           const SizedBox(height: 12),
-          const Text(
-            'Workspace unavailable',
+          Text(
+            ui('Workspace unavailable'),
             style: TextStyle(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 8),
           Text(controller.error!, textAlign: TextAlign.center),
           const SizedBox(height: 8),
-          const Text('No demo data has been substituted.'),
+          Text(ui('No demo data has been substituted.')),
           const SizedBox(height: 16),
-          FilledButton(onPressed: controller.load, child: const Text('Retry')),
+          FilledButton(onPressed: controller.load, child: Text(ui('Retry'))),
         ],
       ),
     ),
@@ -458,19 +465,26 @@ class _WorkspacePageState extends State<WorkspacePage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Account', style: Theme.of(context).textTheme.headlineMedium),
-          const SizedBox(height: 12),
-          Text(user.name),
-          Text('Role: ${user.role}'),
-          Text(user.organization),
-          const SizedBox(height: 16),
-          Text('Development server: ${widget.auth.api.baseUrl.origin}'),
-          const Text(
-            'Session cookie is stored using platform-secure storage. Passwords and guest records are not persisted.',
+          Text(
+            ui('Account'),
+            style: Theme.of(context).textTheme.headlineMedium,
           ),
           const SizedBox(height: 12),
-          const Text(
-            'Permissions are supplied by the backend. All writes remain server-authorized.',
+          Text(user.name),
+          Text(ui('Role: ${user.role}')),
+          Text(user.organization),
+          const SizedBox(height: 16),
+          Text(ui('Development server: ${widget.auth.api.baseUrl.origin}')),
+          Text(
+            ui(
+              'Session cookie is stored using platform-secure storage. Passwords and guest records are not persisted.',
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            ui(
+              'Permissions are supplied by the backend. All writes remain server-authorized.',
+            ),
           ),
           const SizedBox(height: 10),
           Wrap(
@@ -482,8 +496,10 @@ class _WorkspacePageState extends State<WorkspacePage>
             ],
           ),
           const SizedBox(height: 16),
-          const Text(
-            'This milestone is read-only apart from authentication. Use the existing web PMS for unfinished workflows.',
+          Text(
+            ui(
+              'This milestone is read-only apart from authentication. Use the existing web PMS for unfinished workflows.',
+            ),
           ),
         ],
       ),
@@ -545,13 +561,13 @@ class _ReservationsViewState extends State<_ReservationsView> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('Reservation list unavailable.'),
+              Text(ui('Reservation list unavailable.')),
               FilledButton(
                 onPressed: () => setState(() {
                   future = _load();
                   future.ignore();
                 }),
-                child: const Text('Retry'),
+                child: Text(ui('Retry')),
               ),
             ],
           ),
@@ -569,10 +585,10 @@ class _ReservationsViewState extends State<_ReservationsView> {
         padding: const EdgeInsets.all(20),
         children: [
           Text(
-            'Reservations',
+            ui('Reservations'),
             style: Theme.of(context).textTheme.headlineMedium,
           ),
-          const Text('Real backend records · Read-only'),
+          Text(ui('Real backend records · Read-only')),
           const SizedBox(height: 16),
           TextField(
             key: const ValueKey('live-reservation-search'),
@@ -583,7 +599,7 @@ class _ReservationsViewState extends State<_ReservationsView> {
             onChanged: (value) => setState(() => search = value),
           ),
           const SizedBox(height: 16),
-          if (items.isEmpty) const Text('No reservations match this scope.'),
+          if (items.isEmpty) Text(ui('No reservations match this scope.')),
           for (final item in items)
             _recordTile(
               item,

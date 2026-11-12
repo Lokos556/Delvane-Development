@@ -1,3 +1,4 @@
+import 'package:delvane_business/core/localization/web_strings.dart';
 import 'package:flutter/material.dart';
 import '../workspace/workspace_models.dart';
 import 'pms_controller.dart';
@@ -41,7 +42,7 @@ class _GuestHistoryDialogState extends State<GuestHistoryDialog>
   @override
   Widget build(BuildContext context) => PmsModal(
     title: data == null
-        ? 'Guest history'
+        ? ui('Guest history')
         : text(jsonObject(data!['guest']), 'full_name'),
     width: 760,
     canClose: !busy,
@@ -49,9 +50,9 @@ class _GuestHistoryDialogState extends State<GuestHistoryDialog>
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         errors(),
-        if (data == null && !busy) PmsButton('Retry', onPressed: load),
+        if (data == null && !busy) PmsButton(ui('Retry'), onPressed: load),
         if (data != null) ...[
-          const PmsEyebrow('GUEST HISTORY'),
+          PmsEyebrow(ui('GUEST HISTORY')),
           for (final stay in optionalRows(data!['stays']))
             ListTile(
               title: Text(
@@ -61,18 +62,18 @@ class _GuestHistoryDialogState extends State<GuestHistoryDialog>
                 '${text(stay, 'source')} · ${text(stay, 'status')}',
               ),
             ),
-          const PmsEyebrow('PREFERENCES'),
+          PmsEyebrow(ui('PREFERENCES')),
           Text(text(jsonObject(data!['guest']), 'preferred_language', '—')),
           for (final pref in optionalRows(data!['preferences']))
             PmsKeyValues({
               text(pref, 'preference_key'): text(pref, 'preference_value'),
             }),
           if (optionalRows(data!['preferences']).isEmpty)
-            const PmsEmpty('No operational preferences recorded.'),
+            PmsEmpty(ui('No operational preferences recorded.')),
           Align(
             alignment: Alignment.centerRight,
             child: PmsButton(
-              '+ Add preference',
+              ui('+ Add preference'),
               onPressed: busy ? null : preference,
             ),
           ),
@@ -103,13 +104,16 @@ class _GuestPreferenceDialogState extends State<GuestPreferenceDialog>
 
   @override
   Widget build(BuildContext context) => PmsModal(
-    title: 'Add preference',
+    title: ui('Add preference'),
     width: 500,
     canClose: !busy,
     actions: [
-      PmsButton('Close', onPressed: busy ? null : () => Navigator.pop(context)),
       PmsButton(
-        'Save',
+        ui('Close'),
+        onPressed: busy ? null : () => Navigator.pop(context),
+      ),
+      PmsButton(
+        ui('Save'),
         primary: true,
         onPressed: busy
             ? null
@@ -135,16 +139,16 @@ class _GuestPreferenceDialogState extends State<GuestPreferenceDialog>
         children: [
           errors(),
           PmsField(
-            'Key',
+            ui('Key'),
             controller: keyInput,
             required: true,
-            hint: 'e.g. pillow_preference',
+            hint: ui('e.g. pillow_preference'),
           ),
           PmsField(
-            'Preferences',
+            ui('Preferences'),
             controller: value,
             required: true,
-            hint: 'e.g. prefers an extra pillow',
+            hint: ui('e.g. prefers an extra pillow'),
           ),
         ],
       ),
