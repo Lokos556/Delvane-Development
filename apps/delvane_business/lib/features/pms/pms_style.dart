@@ -1,3 +1,4 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 // Source: final computed static/styles.css cascade, not the older theme layers.
@@ -8,17 +9,54 @@ abstract final class PmsStyle {
   static const canvas = Colors.white;
   static const soft = Color(0xFFFAF7F0);
   static const line = Color(0x85FFFFFF);
+  static const font = 'Segoe UI';
+  static const sidebarWidth = 235.0;
+  static const mobileBreakpoint = 760.0;
   static const logo = 'assets/delvane-icon.png';
+  // CSS backdrop-filter: blur(...) saturate(...). Applied only to actual glass
+  // layers, not every nested card (which would repeatedly filter the backdrop).
+  static ui.ImageFilter glassFilter(double blur, double saturation) {
+    final r = .2126 * (1 - saturation),
+        g = .7152 * (1 - saturation),
+        b = .0722 * (1 - saturation);
+    return ui.ImageFilter.compose(
+      outer: ColorFilter.matrix([
+        r + saturation,
+        g,
+        b,
+        0,
+        0,
+        r,
+        g + saturation,
+        b,
+        0,
+        0,
+        r,
+        g,
+        b + saturation,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+      ]),
+      inner: ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+    );
+  }
+
   static const shadow = BoxShadow(
-    color: Color(0x0C302714),
-    blurRadius: 32,
+    color: Color(0x172D2719),
+    blurRadius: 36,
     offset: Offset(0, 12),
   );
 }
 
 ThemeData pmsTheme() => ThemeData(
   useMaterial3: true,
-  fontFamily: 'Segoe UI',
+  fontFamily: PmsStyle.font,
+  fontFamilyFallback: const ['Segoe UI Symbol', 'Arial', 'sans-serif'],
   scaffoldBackgroundColor: PmsStyle.canvas,
   colorScheme: ColorScheme.fromSeed(
     seedColor: PmsStyle.yellow,
@@ -27,7 +65,24 @@ ThemeData pmsTheme() => ThemeData(
     surface: Colors.white,
   ),
   textTheme: const TextTheme(
-    bodyMedium: TextStyle(fontSize: 14, color: PmsStyle.ink, height: 1.4),
+    bodyMedium: TextStyle(fontSize: 16, color: Colors.black, height: 1.4),
+  ),
+  listTileTheme: const ListTileThemeData(
+    dense: true,
+    minVerticalPadding: 8,
+    contentPadding: EdgeInsets.symmetric(horizontal: 16),
+    horizontalTitleGap: 12,
+    titleTextStyle: TextStyle(
+      fontFamily: PmsStyle.font,
+      fontSize: 14,
+      fontWeight: FontWeight.w700,
+      color: PmsStyle.ink,
+    ),
+    subtitleTextStyle: TextStyle(
+      fontFamily: PmsStyle.font,
+      fontSize: 12,
+      color: PmsStyle.muted,
+    ),
   ),
   inputDecorationTheme: InputDecorationTheme(
     filled: true,
@@ -35,15 +90,15 @@ ThemeData pmsTheme() => ThemeData(
     isDense: true,
     contentPadding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
     border: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(18),
       borderSide: const BorderSide(color: Color(0xFFE8E6E1)),
     ),
     enabledBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(18),
       borderSide: const BorderSide(color: Color(0xFFE8E6E1)),
     ),
     focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(18),
       borderSide: const BorderSide(color: PmsStyle.yellow),
     ),
   ),
@@ -73,32 +128,37 @@ class PmsButton extends StatelessWidget {
       opacity: onPressed == null ? .48 : 1,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: primary
-                ? const [Color(0xFFFFE76A), Color(0xFFFFD000)]
-                : const [Color(0xDDFFFFFF), Color(0x88FFFFFF)],
-          ),
-          borderRadius: BorderRadius.circular(small ? 12 : 18),
+          color: primary ? null : const Color(0x6BFFFFFF),
+          gradient: primary
+              ? const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFFFFE76A), Color(0xFFFFD000)],
+                )
+              : null,
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(color: const Color(0xBBFFFFFF)),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x0B302714),
-              blurRadius: 14,
-              offset: Offset(0, 5),
-            ),
-          ],
+          boxShadow: primary
+              ? const [
+                  BoxShadow(
+                    color: Color(0x33BF9B00),
+                    blurRadius: 24,
+                    offset: Offset(0, 8),
+                  ),
+                ]
+              : null,
         ),
         child: Material(
           type: MaterialType.transparency,
           child: InkWell(
             onTap: onPressed,
-            borderRadius: BorderRadius.circular(small ? 12 : 18),
+            hoverColor: const Color(0x14FFD500),
+            focusColor: const Color(0x33FFD500),
+            borderRadius: BorderRadius.circular(18),
             child: Padding(
               padding: EdgeInsets.symmetric(
-                horizontal: small ? 12 : 17,
-                vertical: small ? 8 : 12,
+                horizontal: small ? 12 : 18,
+                vertical: small ? 8 : 13,
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -108,7 +168,7 @@ class PmsButton extends StatelessWidget {
                     child: Text(
                       label,
                       style: TextStyle(
-                        fontSize: small ? 12 : 13,
+                        fontSize: small ? 12 : 16,
                         fontWeight: FontWeight.w700,
                         color: danger ? const Color(0xFFA12E36) : PmsStyle.ink,
                       ),
@@ -124,31 +184,347 @@ class PmsButton extends StatelessWidget {
   );
 }
 
+class PmsNavItem extends StatelessWidget {
+  const PmsNavItem(
+    this.label, {
+    super.key,
+    required this.selected,
+    required this.onPressed,
+    this.mobile = false,
+  });
+  final String label;
+  final bool selected, mobile;
+  final VoidCallback onPressed;
+  @override
+  Widget build(BuildContext context) => Semantics(
+    selected: selected,
+    button: true,
+    child: Container(
+      height: mobile ? 60 : 54,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(19),
+        border: Border.all(color: const Color(0xE0FFFFFF)),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: selected
+              ? const [Color(0xFAFFE64B), Color(0xEBFFD500)]
+              : const [Color(0x80FFFFFF), Color(0x40FFFCF3)],
+        ),
+        boxShadow: selected
+            ? const [
+                BoxShadow(
+                  color: Color(0x26C29700),
+                  blurRadius: 24,
+                  offset: Offset(0, 8),
+                ),
+              ]
+            : null,
+      ),
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(19),
+          hoverColor: const Color(0x33FFD500),
+          focusColor: const Color(0x33FFD500),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 17),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: mobile ? 18 : 16,
+                  fontWeight: selected ? FontWeight.w800 : FontWeight.w700,
+                  color: PmsStyle.ink,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+class PmsIconButton extends StatelessWidget {
+  const PmsIconButton(
+    this.glyph, {
+    super.key,
+    required this.label,
+    required this.onPressed,
+    this.size = 42,
+    this.surface = false,
+  });
+  final String glyph, label;
+  final double size;
+  final bool surface;
+  final VoidCallback? onPressed;
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    message: label,
+    child: Semantics(
+      label: label,
+      button: true,
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: Material(
+          color: surface ? const Color(0xA6FFFFFF) : Colors.transparent,
+          borderRadius: BorderRadius.circular(size / 2),
+          child: InkWell(
+            onTap: onPressed,
+            borderRadius: BorderRadius.circular(size / 2),
+            hoverColor: const Color(0x22FFD500),
+            child: Center(
+              child: Text(
+                glyph,
+                style: TextStyle(
+                  fontFamily: 'Segoe UI Symbol',
+                  fontFamilyFallback: const ['Segoe UI', 'Arial'],
+                  fontSize: 18,
+                  color: onPressed == null ? PmsStyle.muted : Colors.black,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+class PmsPageHeader extends StatelessWidget {
+  const PmsPageHeader({
+    super.key,
+    required this.eyebrow,
+    required this.title,
+    this.description = '',
+    this.actions = const [],
+    this.titleSize,
+    this.descriptionSize = 16,
+    this.titleLineHeight = 1.04,
+  });
+  final String eyebrow, title, description;
+  final List<Widget> actions;
+  final double? titleSize;
+  final double descriptionSize;
+  final double titleLineHeight;
+  @override
+  Widget build(BuildContext context) {
+    final mobile =
+        MediaQuery.sizeOf(context).width <= PmsStyle.mobileBreakpoint;
+    final copy = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        PmsEyebrow(eyebrow),
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: titleSize ?? (mobile ? 38.4 : 57.6),
+            height: titleLineHeight,
+            letterSpacing: -2,
+            fontWeight: FontWeight.w700,
+            color: Colors.black,
+          ),
+        ),
+        if (description.isNotEmpty)
+          Text(
+            description,
+            style: TextStyle(fontSize: descriptionSize, height: 1.4),
+          ),
+      ],
+    );
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 28),
+      child: mobile
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                copy,
+                if (actions.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Wrap(spacing: 8, runSpacing: 8, children: actions),
+                  ),
+              ],
+            )
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(child: copy),
+                if (actions.isNotEmpty) ...[
+                  const SizedBox(width: 20),
+                  Wrap(spacing: 8, children: actions),
+                ],
+              ],
+            ),
+    );
+  }
+}
+
+class PmsPageTitle extends StatelessWidget {
+  const PmsPageTitle(this.title, {super.key});
+  final String title;
+  @override
+  Widget build(BuildContext context) => Text(
+    title,
+    style: TextStyle(
+      fontSize: MediaQuery.sizeOf(context).width <= 760 ? 38.4 : 57.6,
+      height: 1.04,
+      letterSpacing: -2,
+      fontWeight: FontWeight.w700,
+      color: Colors.black,
+    ),
+  );
+}
+
+class PmsSideSheet extends StatelessWidget {
+  const PmsSideSheet({
+    super.key,
+    required this.child,
+    required this.title,
+    this.eyebrow = 'WORKSPACE',
+  });
+  final Widget child;
+  final String title, eyebrow;
+  @override
+  Widget build(BuildContext context) {
+    final mobile = MediaQuery.sizeOf(context).width <= 760;
+    return SafeArea(
+      child: Align(
+        alignment: Alignment.centerRight,
+        child: Padding(
+          padding: EdgeInsets.all(mobile ? 8 : 12),
+          child: SizedBox(
+            width: mobile ? MediaQuery.sizeOf(context).width - 16 : 490,
+            height: MediaQuery.sizeOf(context).height - (mobile ? 16 : 24),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(mobile ? 30 : 32),
+              child: BackdropFilter(
+                filter: PmsStyle.glassFilter(42, 1.9),
+                child: Material(
+                  color: const Color(0xA8FFFCF3),
+                  child: Container(
+                    padding: mobile
+                        ? const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 22,
+                          )
+                        : const EdgeInsets.all(26),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: const Color(0xADFFFFFF)),
+                      borderRadius: BorderRadius.circular(32),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  PmsEyebrow(eyebrow),
+                                  Text(
+                                    title,
+                                    style: const TextStyle(
+                                      fontSize: 28,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            PmsIconButton(
+                              '×',
+                              label: 'Close settings',
+                              surface: true,
+                              onPressed: () => Navigator.pop(context),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
+                        Expanded(child: SingleChildScrollView(child: child)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class PmsCount extends StatelessWidget {
+  const PmsCount(this.value, {super.key, this.symbol = false});
+  final String value;
+  final bool symbol;
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 26,
+    height: 26,
+    alignment: Alignment.center,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      color: symbol ? const Color(0xFFF0ECE6) : PmsStyle.yellow,
+    ),
+    child: Text(
+      value,
+      style: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w800,
+        color: symbol ? const Color(0xFF554F43) : Colors.black,
+      ),
+    ),
+  );
+}
+
 class PmsCard extends StatelessWidget {
   const PmsCard({
     super.key,
     required this.child,
     this.padding = const EdgeInsets.all(20),
-    this.radius = 18,
+    this.radius = 24,
     this.color = const Color(0x6BFFFFFF),
-    this.shadow = false,
+    this.shadow = true,
+    this.gradient,
+    this.backdropBlur = 0,
+    this.saturation = 1,
   });
   final Widget child;
   final EdgeInsetsGeometry padding;
   final double radius;
   final Color color;
   final bool shadow;
+  final Gradient? gradient;
+  final double backdropBlur, saturation;
   @override
-  Widget build(BuildContext context) => Container(
-    padding: padding,
-    decoration: BoxDecoration(
-      color: color,
+  Widget build(BuildContext context) {
+    final surface = Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        color: color,
+        gradient: gradient,
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(color: PmsStyle.line),
+        boxShadow: shadow ? const [PmsStyle.shadow] : null,
+      ),
+      child: child,
+    );
+    if (backdropBlur == 0) return surface;
+    return ClipRRect(
       borderRadius: BorderRadius.circular(radius),
-      border: Border.all(color: PmsStyle.line),
-      boxShadow: shadow ? const [PmsStyle.shadow] : null,
-    ),
-    child: child,
-  );
+      child: BackdropFilter(
+        filter: PmsStyle.glassFilter(backdropBlur, saturation),
+        child: surface,
+      ),
+    );
+  }
 }
 
 class PmsEyebrow extends StatelessWidget {
@@ -168,8 +544,16 @@ class PmsEyebrow extends StatelessWidget {
 }
 
 class PmsBadge extends StatelessWidget {
-  const PmsBadge(this.label, {super.key, this.tone = 'neutral'});
+  const PmsBadge(
+    this.label, {
+    super.key,
+    this.tone = 'neutral',
+    this.large = false,
+    this.compact = false,
+  });
   final String label, tone;
+  final bool large;
+  final bool compact;
   @override
   Widget build(BuildContext context) {
     final colors = switch (tone) {
@@ -186,7 +570,19 @@ class PmsBadge extends StatelessWidget {
       _ => (const Color(0xFFF0ECE4), const Color(0xFF5F5A51)),
     };
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+      constraints: large ? const BoxConstraints(minHeight: 54) : null,
+      padding: EdgeInsets.symmetric(
+        horizontal: large
+            ? 20
+            : compact
+            ? 8
+            : 11,
+        vertical: large
+            ? 18
+            : compact
+            ? 5
+            : 7,
+      ),
       decoration: BoxDecoration(
         color: colors.$1,
         borderRadius: BorderRadius.circular(16),
@@ -194,7 +590,7 @@ class PmsBadge extends StatelessWidget {
       child: Text(
         label,
         style: TextStyle(
-          fontSize: 11,
+          fontSize: compact ? 10 : 11,
           fontWeight: FontWeight.w800,
           color: colors.$2,
         ),
@@ -264,7 +660,7 @@ class PmsColumns extends StatelessWidget {
       final window = MediaQuery.sizeOf(context).width;
       final count = window <= mobileBreakpoint
           ? mobileColumns
-          : window <= 1050 && columns > 2
+          : window <= 1100 && columns > 2
           ? 2
           : columns;
       final width = (constraints.maxWidth - gap * (count - 1)) / count;
@@ -308,27 +704,129 @@ class PmsTabs extends StatelessWidget {
     required this.labels,
     required this.selected,
     required this.onChanged,
+    this.plain = false,
   });
   final List<String> labels;
   final int selected;
   final ValueChanged<int> onChanged;
+  final bool plain;
   @override
-  Widget build(BuildContext context) => SingleChildScrollView(
-    scrollDirection: Axis.horizontal,
-    child: Row(
-      children: [
-        for (var i = 0; i < labels.length; i++)
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: PmsButton(
-              labels[i],
-              primary: i == selected,
-              small: true,
-              onPressed: () => onChanged(i),
-            ),
-          ),
-      ],
+  Widget build(BuildContext context) => Container(
+    padding: plain ? EdgeInsets.zero : const EdgeInsets.all(2),
+    decoration: BoxDecoration(
+      color: plain ? Colors.transparent : const Color(0x6BFFFFFF),
+      borderRadius: BorderRadius.circular(24),
     ),
+    child: SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (var i = 0; i < labels.length; i++)
+            Semantics(
+              selected: i == selected,
+              button: true,
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  gradient: !plain && i == selected
+                      ? const LinearGradient(
+                          colors: [Color(0xFFFFE76A), Color(0xFFFFD000)],
+                        )
+                      : null,
+                ),
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(18),
+                    onTap: () => onChanged(i),
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: plain ? 12 : 13,
+                      ),
+                      child: Text(
+                        labels[i],
+                        style: TextStyle(
+                          fontSize: plain ? 14 : 16,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    ),
+  );
+}
+
+class PmsLifecycleRail extends StatelessWidget {
+  const PmsLifecycleRail({
+    super.key,
+    required this.stages,
+    required this.index,
+  });
+  final List<String> stages;
+  final int index;
+  @override
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      for (var i = 0; i < stages.length; i++)
+        Expanded(
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      height: 2,
+                      color: i == 0
+                          ? Colors.transparent
+                          : const Color(0xFFE8E3D9),
+                    ),
+                  ),
+                  Container(
+                    width: 26,
+                    height: 26,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: i <= index
+                          ? PmsStyle.yellow
+                          : const Color(0xFFF0ECE4),
+                    ),
+                    child: Text(
+                      i < index ? '✓' : '${i + 1}',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Container(
+                      height: 2,
+                      color: i == stages.length - 1
+                          ? Colors.transparent
+                          : const Color(0xFFE8E3D9),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                stages[i].replaceAll('_', ' '),
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 9, color: PmsStyle.muted),
+              ),
+            ],
+          ),
+        ),
+    ],
   );
 }
 
@@ -344,6 +842,8 @@ class PmsField extends StatelessWidget {
     this.onChanged,
     this.validator,
     this.suffix,
+    this.maxLength,
+    this.status,
   });
   final String label;
   final TextEditingController controller;
@@ -354,6 +854,8 @@ class PmsField extends StatelessWidget {
   final ValueChanged<String>? onChanged;
   final String? Function(String?)? validator;
   final Widget? suffix;
+  final int? maxLength;
+  final String? status;
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: 12),
@@ -364,10 +866,16 @@ class PmsField extends StatelessWidget {
           label,
           style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
         ),
+        if (status != null)
+          Text(
+            status!,
+            style: const TextStyle(fontSize: 11, color: PmsStyle.muted),
+          ),
         const SizedBox(height: 5),
         TextFormField(
           controller: controller,
           maxLines: lines,
+          maxLength: maxLength,
           keyboardType: keyboard,
           onChanged: onChanged,
           decoration: InputDecoration(hintText: hint, suffixIcon: suffix),
@@ -407,6 +915,12 @@ class PmsSelect extends StatelessWidget {
         ),
         const SizedBox(height: 5),
         DropdownButtonFormField<String>(
+          borderRadius: BorderRadius.circular(18),
+          dropdownColor: const Color(0xFFFFFDF8),
+          icon: const Text(
+            '⌄',
+            style: TextStyle(fontFamily: 'Segoe UI Symbol', fontSize: 18),
+          ),
           value: items.containsKey(value) ? value : null,
           isExpanded: true,
           items: items.entries
@@ -438,6 +952,7 @@ class PmsModal extends StatelessWidget {
     this.actions = const [],
     this.canClose = true,
     this.headerActions = const [],
+    this.mobileSheet = false,
   });
   final String title;
   final String? eyebrow;
@@ -446,22 +961,32 @@ class PmsModal extends StatelessWidget {
   final List<Widget> actions;
   final bool canClose;
   final List<Widget> headerActions;
+  final bool mobileSheet;
   @override
   Widget build(BuildContext context) => PopScope(
     canPop: canClose,
     child: Dialog(
+      alignment: mobileSheet && MediaQuery.sizeOf(context).width <= 760
+          ? Alignment.bottomCenter
+          : Alignment.center,
       backgroundColor: Colors.transparent,
       insetPadding: EdgeInsets.all(
-        MediaQuery.sizeOf(context).width < 720 ? 7 : 24,
+        mobileSheet && MediaQuery.sizeOf(context).width <= 760
+            ? 0
+            : MediaQuery.sizeOf(context).width < 720
+            ? 7
+            : 24,
       ),
       child: ConstrainedBox(
         constraints: BoxConstraints(
           maxWidth: width,
-          maxHeight: MediaQuery.sizeOf(context).height * .94,
+          maxHeight: MediaQuery.sizeOf(context).height * .92,
         ),
         child: PmsCard(
           radius: 24,
-          color: const Color(0xFAFFFEFA),
+          color: const Color(0xE0FFFFFF),
+          backdropBlur: 26,
+          saturation: 1.55,
           padding: EdgeInsets.zero,
           shadow: true,
           child: Column(
@@ -469,45 +994,64 @@ class PmsModal extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(24, 20, 14, 18),
-                child: Row(
+                padding: const EdgeInsets.fromLTRB(28, 28, 20, 18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (eyebrow != null) PmsEyebrow(eyebrow!),
-                          Text(
-                            title,
-                            style: const TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: -.8,
-                            ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (eyebrow != null) PmsEyebrow(eyebrow!),
+                              Text(
+                                title,
+                                style: const TextStyle(
+                                  fontSize: 32,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: -.8,
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
+                        if (MediaQuery.sizeOf(context).width > 760)
+                          ...headerActions,
+                        PmsIconButton(
+                          '×',
+                          label: 'Close dialog',
+                          size: 36,
+                          surface: true,
+                          onPressed: canClose
+                              ? () => Navigator.of(context).pop()
+                              : null,
+                        ),
+                      ],
+                    ),
+                    if (MediaQuery.sizeOf(context).width <= 760 &&
+                        headerActions.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: Wrap(
+                          alignment: WrapAlignment.end,
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: headerActions,
+                        ),
                       ),
-                    ),
-                    ...headerActions,
-                    PmsButton(
-                      '×',
-                      small: true,
-                      onPressed: canClose
-                          ? () => Navigator.of(context).pop()
-                          : null,
-                    ),
                   ],
                 ),
               ),
               Flexible(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+                  padding: const EdgeInsets.fromLTRB(28, 0, 28, 20),
                   child: child,
                 ),
               ),
               if (actions.isNotEmpty)
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+                  padding: const EdgeInsets.fromLTRB(28, 0, 28, 28),
                   child: Wrap(
                     spacing: 8,
                     runSpacing: 8,

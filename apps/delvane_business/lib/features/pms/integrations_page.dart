@@ -33,10 +33,7 @@ class IntegrationsPage extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const PmsEyebrow('INTEGRATIONS'),
-        const Text(
-          'Channel distribution',
-          style: TextStyle(fontSize: 38, fontWeight: FontWeight.w700),
-        ),
+        const PmsPageTitle('Channel distribution'),
         const Text(
           'Base prices and availability stay published automatically, while reservations and date-specific overrides update Channex safely.',
         ),

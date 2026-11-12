@@ -1,6 +1,5 @@
 import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
-import 'package:flutter/services.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -9,10 +8,14 @@ import 'package:delvane_business/features/pms/pms_shell.dart';
 import 'package:delvane_business/features/pms/pms_style.dart';
 import 'package:delvane_business/features/pms/pms_controller.dart';
 import 'support/fake_pms.dart';
+import 'support/visual_fonts.dart';
 
 void main() {
   for (final size in [const Size(1440, 1000), const Size(390, 844)]) {
     testWidgets('reference Today at $size', (tester) async {
+      final oldShadows = debugDisableShadows;
+      debugDisableShadows = false;
+      addTearDown(() => debugDisableShadows = oldShadows);
       tester.view.physicalSize = size;
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
@@ -28,23 +31,20 @@ void main() {
       }
       final auth = await signedIn(pms);
       final key = GlobalKey();
-      await tester.runAsync(() async {
-        final loader = FontLoader('Segoe UI')
-          ..addFont(
-            File(
-              'C:/Windows/Fonts/segoeui.ttf',
-            ).readAsBytes().then(ByteData.sublistView),
-          );
-        await loader.load();
-      });
+      await tester.runAsync(loadVisualFonts);
       await tester.pumpWidget(
         MaterialApp(
+          debugShowCheckedModeBanner: false,
           theme: pmsTheme(),
           home: RepaintBoundary(
             key: key,
             child: PmsShell(auth: auth, initialPage: PmsPage.today),
           ),
         ),
+      );
+      await tester.pumpAndSettle();
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 40)),
       );
       await tester.pumpAndSettle();
       expect(find.text("Today's command center"), findsOneWidget);
@@ -70,6 +70,7 @@ void main() {
       }
       await tester.pumpWidget(const SizedBox());
       auth.dispose();
+      debugDisableShadows = oldShadows;
     });
   }
 }

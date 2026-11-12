@@ -4,10 +4,15 @@ The authenticated default now uses the source-shaped PMS shell. See [PORT_STATUS
 
 Reservations, Reception, property rates, worker maintenance/cleaning, stock,
 team administration and Channex distribution now have real API workflows. The current
-validation is 110 Flutter tests and 48 selected isolated Python tests passing; see
+validation is 160 Flutter tests and 48 selected isolated Python tests passing
+in the latest operational-desk and visual continuation; see
 [PORT_STATUS.md](PORT_STATUS.md) for exact coverage, endpoints and remaining visual
 and functional gaps. The Milestone 1 test counts and read-only inventory below
 are historical, while its guarded launch/security instructions remain applicable.
+
+The source-based visual pass includes 38 paired desktop/mobile page and expanded-desk captures.
+See [VISUAL_REFERENCE.md](VISUAL_REFERENCE.md) for measured design values, safe
+capture commands and remaining visual differences. This is not pixel-perfect parity.
 
 # Delvane Business
 

@@ -42,27 +42,21 @@ class _TeamPageState extends State<TeamPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const PmsEyebrow('TEAM & ACCESS'),
-        const Text(
-          'Your people, their work, and exactly what they can see.',
-          style: TextStyle(
-            fontSize: 34,
-            fontWeight: FontWeight.w700,
-            letterSpacing: -1.5,
-          ),
+        PmsPageHeader(
+          eyebrow: 'TEAM & ACCESS',
+          title: 'Your people, their work, and exactly what they can see.',
+          description:
+              'Add cleaners, maintenance workers and managers, review access, suspend accounts and understand workload without mixing it into the day-to-day task screens.',
+          actions: [
+            canManage
+                ? PmsButton('+ Add team member', primary: true, onPressed: edit)
+                : const Text(
+                    'Manager view - owner controls accounts',
+                    style: TextStyle(fontSize: 12),
+                  ),
+          ],
         ),
-        const Text(
-          'Add cleaners, maintenance workers and managers, review access, suspend accounts and understand workload without mixing it into the day-to-day task screens.',
-        ),
-        const SizedBox(height: 16),
-        Align(
-          alignment: Alignment.centerRight,
-          child: canManage
-              ? PmsButton('+ Add team member', primary: true, onPressed: edit)
-              : const Text('Manager view · account changes are owner-only.'),
-        ),
-        const SizedBox(height: 24),
-        PmsColumns([
+        PmsColumns(gap: 0, [
           for (final e in {
             'active': 'Active people',
             'cleaners': 'Cleaners',
@@ -76,17 +70,22 @@ class _TeamPageState extends State<TeamPage> {
                   Text(
                     '${stats[e.key] ?? 0}',
                     style: const TextStyle(
-                      fontSize: 32,
+                      fontFamily: 'Georgia',
+                      fontSize: 22,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  Text(e.value),
+                  Text(
+                    e.value.toUpperCase(),
+                    style: const TextStyle(fontSize: 10, letterSpacing: .5),
+                  ),
                 ],
               ),
             ),
         ], columns: 4),
         const SizedBox(height: 24),
         PmsTabs(
+          plain: true,
           labels: ['People (${members.length})', 'Access & roles', 'Workload'],
           selected: tab,
           onChanged: (v) => setState(() => tab = v),
@@ -183,51 +182,162 @@ class _TeamPageState extends State<TeamPage> {
     );
   }
 
-  Widget person(Json m) => PmsCard(
-    radius: 19,
-    padding: const EdgeInsets.all(18),
-    color: m['active'] == 0 ? const Color(0xFFF7F3EC) : const Color(0xFFFFFDF8),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Wrap(
-          alignment: WrapAlignment.spaceBetween,
-          spacing: 12,
-          runSpacing: 8,
-          children: [
-            PmsBadge(text(m, 'role')),
-            if (m['active'] == 0) const PmsBadge('Suspended', tone: 'high'),
-            if (canManage)
-              PmsButton('Manage', small: true, onPressed: () => edit(m)),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Text(
-          text(m, 'full_name'),
-          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
-        ),
-        Text(text(m, 'job_title', text(m, 'role'))),
-        const SizedBox(height: 16),
-        SelectableText(text(m, 'email')),
-        Text(text(m, 'phone', 'Not added')),
-        const SizedBox(height: 16),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            PmsBadge(
-              m['email_verified'] == 1 ? 'Email verified' : 'Email unverified',
-            ),
-            PmsBadge(m['mfa_enabled'] == 1 ? 'MFA' : 'MFA off'),
-            PmsBadge('${m['active_sessions'] ?? 0} active sessions'),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Text(
-          '${(m['upcoming_cleaning'] as num? ?? 0) + (m['open_maintenance'] as num? ?? 0)} open next 7 days · ${m['in_progress'] ?? 0} in progress · ${m['completed_30d'] ?? 0} completed / 30d',
-        ),
-        Text('Last sign-in: ${text(m, 'last_login_at', 'Never')}'),
-      ],
+  Widget person(Json m) => Opacity(
+    opacity: m['active'] == 0 ? .68 : 1,
+    child: PmsCard(
+      radius: 24,
+      padding: const EdgeInsets.all(18),
+      color: m['active'] == 0
+          ? const Color(0xFFF7F3EC)
+          : const Color(0xFFFFFDF8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 24,
+                backgroundColor: const Color(0xFF204A3A),
+                child: Text(
+                  text(m, 'full_name')
+                      .split(' ')
+                      .where((s) => s.isNotEmpty)
+                      .take(2)
+                      .map((s) => s[0])
+                      .join()
+                      .toUpperCase(),
+                  style: const TextStyle(
+                    fontFamily: 'Georgia',
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      spacing: 6,
+                      children: [
+                        PmsBadge(text(m, 'role').toUpperCase()),
+                        if (m['active'] == 0)
+                          const PmsBadge('Suspended', tone: 'high'),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      text(m, 'full_name'),
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      text(m, 'job_title').isEmpty
+                          ? text(m, 'role')
+                          : text(m, 'job_title'),
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                  ],
+                ),
+              ),
+              if (canManage)
+                PmsButton('Manage', small: true, onPressed: () => edit(m)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          PmsColumns(
+            [
+              for (final e in {
+                'EMAIL': text(m, 'email'),
+                'PHONE': text(m, 'phone').isEmpty
+                    ? 'Not added'
+                    : text(m, 'phone'),
+              }.entries)
+                Container(
+                  padding: const EdgeInsets.all(11),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8F4EE),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        e.key,
+                        style: const TextStyle(fontSize: 10, letterSpacing: .5),
+                      ),
+                      const SizedBox(height: 3),
+                      SelectableText(
+                        e.value,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+            columns: 2,
+            mobileColumns: 2,
+            gap: 10,
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              PmsBadge(
+                m['email_verified'] == 1
+                    ? 'Email verified'
+                    : '! Email unverified',
+              ),
+              Text(
+                m['mfa_enabled'] == 1 ? 'MFA' : 'MFA off',
+                style: const TextStyle(fontSize: 11),
+              ),
+              Text(
+                '${m['active_sessions'] ?? 0} active sessions',
+                style: const TextStyle(fontSize: 11),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final e in {
+                'open / next 7 days':
+                    '${(m['upcoming_cleaning'] as num? ?? 0) + (m['open_maintenance'] as num? ?? 0)}',
+                'in progress': '${m['in_progress'] ?? 0}',
+                'completed 30d': '${m['completed_30d'] ?? 0}',
+                'last sign-in': text(m, 'last_login_at', 'Never'),
+              }.entries)
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        e.value,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(e.key, style: const TextStyle(fontSize: 10)),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
     ),
   );
 }

@@ -1,5 +1,219 @@
 # Delvane PMS Flutter port: current status
 
+## Latest continuation — Operational desk, administration and visual depth
+
+Updated 2026-11-12. Previous uncommitted work, including the original visual pass,
+was preserved. This section supersedes the counts below. No backend application
+code, architecture, dependencies or operational data changed. No real Channex,
+government, messaging or AI provider was contacted. No commit/publication.
+
+### Work completed
+
+- Intelligence pulse/brief controls now open the original **Live context** desk:
+  At a glance, Needs you, Exceptions and Next 48h. It reads the already loaded
+  `/api/intelligence` contract, uses the existing backend task/arrival/exception
+  summaries, and preserves the original distinctions between handled counts and
+  real action execution. Desktop workspace insets and mobile full-width geometry
+  are based on computed reference styles, not a new navigation concept.
+- Approve/Decline uses `POST /api/approvals/{id}/resolve` with existing session/CSRF
+  and operator checks. This resolves/logs an approval record, not an arbitrary
+  business transaction. Accepted actions close before refresh. A session-only
+  snapshot prevents the closing route from reading cleared parent data; failed
+  mutations retain the decision and error. Worker opening is denied.
+- Security Center now renders actual `/api/system/runtime` environment, database,
+  schema and version, six posture indicators and `/api/security` role permissions.
+  Sessions and permissions share desktop columns. No database filesystem path or
+  credentials are displayed, and no fixed version is substituted for server data.
+  Existing owner-only session revocation remains intact.
+- Train Delvane now includes original scope tabs, prototype warning, configured
+  field indicators, persisted completeness and property/shared context. Existing
+  knowledge and authority mutations remain unchanged; unsaved scope-change
+  confirmation is retained. Full localization/legend/savebar fidelity remains.
+- Simulation displays simulated/awaiting/executed counts, source payload labels
+  and operating mode/time. Business memory preserves structured values when no
+  note/topic exists and shows subject/confidence. Existing Undo and notifications
+  remain connected; these records do not imply unrestricted autonomous execution.
+- Identity review adds explicit loading/empty feedback and the original 1000-character
+  note limit. Actual owner verification/rejection and secure link workflows were
+  retained. Public native camera/OCR and sensitive vault editors were not invented.
+- Property context now includes original arrival/departure timing and primary stay
+  source/reference/registration badge. Shared dialogs have source blur/saturation;
+  settings saturation is corrected; narrow reservation detail is bottom aligned.
+
+### Files changed in this continuation
+
+Within `apps/delvane_business/`:
+
+- `lib/features/pms/operational_desk.dart` (new), `intelligence_workspace.dart`,
+  `administration_pages.dart`, `pms_style.dart`, `reservation_dialogs.dart`,
+  `property_dialog.dart`.
+- `test/operational_desk_test.dart` (new), `test/visual_parity_test.dart`,
+  `test/fixtures/web_reference.json`, `tool/capture_web_reference.py`.
+- `PORT_STATUS.md`, `VISUAL_REFERENCE.md`, `FEATURE_PARITY.md`, `README.md`.
+
+Repository root: `tests/test_flutter_visual_contracts.py`. These 15 files are this
+continuation's changes; older dirty files and user Gradle/IDE edits are preserved.
+
+### Verification and evidence
+
+- Flutter analysis: **no issues**.
+- Complete Flutter suite: **160 passed, 0 failed, 0 skipped**. New desk tests cover
+  both decisions, failure retention, worker exclusion, mobile tabs, server runtime
+  mapping, action counts/labels and structured memory. Existing auth/session/role,
+  reservation, reception, operations, staff and distribution tests also pass.
+- Selected isolated Python suite: **48 passed, 0 failed, 0 skipped**, with two
+  existing Starlette/httpx/AnyIO deprecation warnings. Command from repository root:
+
+  ```powershell
+  .\.venv\Scripts\python -B -m pytest -q tests/test_isolation.py tests/test_flutter_visual_contracts.py tests/test_flutter_reservation_reception.py tests/test_flutter_operations_admin.py tests/test_flutter_distribution.py tests/test_flutter_workspace.py tests/test_guest_checkin.py
+  ```
+
+  This exercises create/edit/cancel and booking validation, Reception drafting/
+  arrival/request/scheduled approvals, guest link/verification, cleaning checklist/
+  completion, maintenance transitions, staff permissions and guarded workspace/
+  session behavior. Channex adapters are stubbed, or setup/role failures are
+  asserted before provider access. All SQLite work stays under root test isolation.
+  These are real in-process ASGI API workflows plus native mapping/widget tests;
+  a full Win32 GUI-to-server automation run was **not** performed.
+- Captures expanded from 30 to **38 web / 38 Flutter images**, including all four
+  desk tabs on desktop/mobile, with synthetic shared fixture data. Selected paired
+  desk, property and Security images were inspected; all captured layouts pass.
+  Source bug `wireRosa` remains recorded without modifying the web reference.
+- Windows release build: **succeeded** using `tool/build_windows.ps1` and the
+  existing VS 2026 fallback after Flutter's incompatible VS 2019 generator attempt.
+  Executable: `build/windows-vs2026/x64/runner/Release/delvane_business.exe`.
+  Keep its adjacent DLLs and `data/` directory together.
+- Logs/evidence are ignored under `build/visual-reference/`: `migration-tests.txt`,
+  `backend-migration-tests.txt`, `migration-windows-build.txt`, paired PNGs and CSS JSON.
+
+### Acceptance readiness and remaining work
+
+The 125-row ledger now reports **78 F / 21 P / 13 M / 11 B / 2 S**. Five rows
+advanced on implementation/test evidence; visual improvements did not automatically
+promote unrelated workflows. Missing native workflows remain identified separately
+from backend limitations. In particular, public native guest OCR/check-in, credential/
+commercial onboarding, sensitive vault/scanner ingestion, API-only government setup/
+preview, recovery tokens, maintenance reassignment and welcome/reset remain absent.
+The existing browser guest journey is preserved.
+
+Backend blockers remain property CRUD, physical-room allocation, certified government
+transport, invoicing/NAV, card processing, transactional invitation/email delivery,
+working MFA/passkeys, direct additional OTA adapters, payroll/purchasing and durable
+offline/push. Original sandbox and simulate-send stay explicitly simulated.
+
+This build is ready for **comprehensive manual acceptance of implemented workflows
+in the disposable workspace**, not a production cutover or a completed migration.
+Use the guarded README launcher and synthetic accounts. Check desktop/mobile-sized
+windows, keyboard/Back/Escape, pending/failure/session-expiry behavior and each role;
+create/edit/cancel a synthetic stay, check calendar/readiness/cleaning derivation,
+exercise Reception drafts/approvals, finish assigned cleaning, resolve/verify
+maintenance, inspect staff access and unconfigured/sandbox Channex states. Never
+enter real credentials or enable provider networking. Preserve the browser PMS
+until missing/partial rows and device acceptance are resolved.
+
+Pixel-perfect parity is not claimed. Remaining differences include font metrics,
+Security card density/decoration, property dialog borders/chips/scroll structure,
+some mobile reception/forms and native menus/scrollbars. See VISUAL_REFERENCE.md.
+
+## Latest pass — Source-based visual and interaction fidelity
+
+Updated 2026-11-12. This section supersedes validation counts and visual notes in
+the historical passes below; their functional coverage and limitations still
+apply. Backend source, dependencies, operational databases and production services
+were not changed or accessed. Existing Android Gradle and `.vscode/` changes were
+preserved. No commits or publication.
+
+### Corrected components and pages
+
+- Shell: measured 235px sidebar, source logo/brand typography, 54px desktop / 60px
+  mobile navigation, yellow selection gradient, original symbol controls, compact
+  utility bar, scrolling navigation and account footer. Main content now starts
+  at the top even on short pages. Mobile navigation closes on selection.
+- Shared design: source font fallback and text sizes, responsive headings, cards,
+  shadows, buttons, forms, pills/counts, lifecycle rail, tabs, menus and dialogs.
+  Long mobile dialog titles/actions wrap instead of overflowing. Existing busy
+  close guards and submission behavior remain intact.
+- Settings: original grouped labels in a right-hand glass sheet, source dimensions
+  and responsive margins, existing role-filtered routes and logout/language
+  controls. The sheet is removed with the protected navigator on session expiry.
+- Today: source heading/urgency, 66px metrics, registration strip, compact queue
+  panels, time/severity hierarchy, property readiness and aligned actions. Worker
+  task columns retain real start/checklist/finish callbacks.
+- Intelligence: active v264 compact workspace rather than legacy oversized metric
+  blocks; pulse, centered empty state, bottom prompts/composer and message scroll.
+  Existing chat/proposal APIs, errors and session safeguards remain in use.
+- Reservations: original calendar heading, padding, weekday labels, elastic cell
+  heights, translucent stay cards with property-color dots and contextual actions.
+  Existing creation/edit/cancellation/date navigation workflows were preserved.
+- Reception: measured list/detail widths, independent pane scrolling, metrics and
+  empty detail panel; no changes to draft, approval, schedule or rule APIs.
+- Team: person-card hierarchy, 48px avatars, contact panels, security chips, compact
+  statistics and plain tabs; existing management permissions preserved.
+- Operations, maintenance, supplies, property dialogs, administration, integrations
+  and worker pages use the corrected shared controls/headers. Maintenance now uses
+  the original numbered lifecycle rail.
+- Restored the original floating Ask bar on Reservations, Reception, Team and Train
+  only, using `POST /api/rosa/ask`. Its local-answer contract and CSRF enforcement
+  were verified against disposable data. It does not claim provider delivery.
+
+### Files changed in this pass
+
+Within `apps/delvane_business/`:
+
+- `lib/features/pms/pms_style.dart`, `pms_shell.dart`, `reception_page.dart`,
+  `team_page.dart`, `operations_pages.dart`, `administration_pages.dart`,
+  `integrations_page.dart`.
+- New `lib/features/pms/intelligence_workspace.dart` and `ask_bar.dart`.
+- `test/fixtures/web_reference.json`, `test/pms_port_test.dart`; new
+  `test/support/visual_fonts.dart`, `test/visual_parity_test.dart` and
+  `test/visual_interactions_test.dart`.
+- `tool/capture_web_reference.py`, `README.md`, `PORT_STATUS.md`; new
+  `VISUAL_REFERENCE.md`.
+
+Repository root: new `tests/test_flutter_visual_contracts.py`. No backend application
+files changed. These are 19 files; the pre-existing Gradle/IDE changes are excluded.
+
+### Comparison evidence and limits
+
+[VISUAL_REFERENCE.md](VISUAL_REFERENCE.md) records measured source values,
+breakpoint/context overrides, capture instructions and limitations. The ignored
+`build/visual-reference/` folder contains 30 web and 30 final Flutter screenshots:
+15 states at 1440 × 1000 and 390 × 844, plus browser CSS and native geometry JSON.
+Both renderers use the same synthetic fixture; the original static frontend was
+served through an isolated read-only fixture server without importing the backend.
+No operational database or real external integration was used.
+
+The Today desktop metrics row is x307/y208, 1046 × 66 in Flutter versus
+x307/y208.89, 1046 × 66 in the web reference. This is useful geometry evidence,
+not a whole-page pixel match. Remaining differences include font kerning/weights,
+lower-page row positions, glass saturation/inset highlights, native menus and
+scrollbars, some mobile layouts and uncaptured expanded/error/dialog states.
+The original Team/Train source calls missing `wireRosa`; capture records that
+reference error without a shim. Native working controls were not broken to match it.
+Captures are renderer tests, not end-to-end Win32/mobile acceptance. No pixel-perfect
+claim or automated image-diff threshold is made. Functional parity counts from the
+previous pass are not promoted based solely on these appearance changes.
+
+### Validation — completed 2026-11-12
+
+- `flutter --no-version-check analyze`: **no issues**.
+- `flutter --no-version-check test --reporter expanded`: **145 passed, 0 failed,
+  0 skipped**. Includes 30 desktop/mobile render tests and 5 new interaction tests;
+  existing reservation, reception, distribution, property, staff, worker, auth,
+  session and role-navigation tests remain in the complete run.
+- `python -B -m pytest -q tests/test_isolation.py tests/test_flutter_visual_contracts.py`
+  through the repository `.venv`: **14 passed, 0 failed, 0 skipped**. The new Ask
+  contract and missing-CSRF tests use root isolation guards and temporary SQLite.
+  Two existing Starlette/httpx/AnyIO deprecation warnings remain; no dependency
+  installation or upgrade was needed. The full backend suite was not rerun because
+  backend application code did not change.
+- `tool/build_windows.ps1`: **Windows release succeeded** through its existing
+  VS 2026 CMake/MSBuild fallback after Flutter's incompatible VS 2019 generator
+  attempt. Bundle: `build/windows-vs2026/x64/runner/Release/`; executable
+  `delvane_business.exe`. Keep the DLLs and `data/` alongside it.
+- Build/test logs: ignored `build/visual-reference/regression-final.txt` and
+  `windows-build-final.txt`. Setup and guarded launch remain in [README.md](README.md).
+
 ## Latest pass — Distribution and remaining functional parity
 
 Updated 2026-11-11. This section supersedes the historical reports below. The

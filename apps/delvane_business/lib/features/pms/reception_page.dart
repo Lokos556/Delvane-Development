@@ -178,6 +178,7 @@ class _ReceptionPageState extends State<ReceptionPage>
                     Text(
                       '${entry.value ?? 0}',
                       style: const TextStyle(
+                        fontFamily: 'Georgia',
                         fontSize: 28,
                         fontWeight: FontWeight.w700,
                       ),
@@ -324,22 +325,66 @@ class _ReceptionPageState extends State<ReceptionPage>
         ],
       ),
     );
-    if (mobile) return list;
+    if (mobile) {
+      return ConstrainedBox(
+        constraints: BoxConstraints(
+          minHeight: (MediaQuery.sizeOf(context).height - 260).clamp(320, 1200),
+        ),
+        child: list,
+      );
+    }
     return LayoutBuilder(
-      builder: (context, box) => Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: (box.maxWidth * .36).clamp(240.0, 440.0),
-            child: list,
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: active == null
-                ? const PmsEmpty('Select a message to review it.', tall: true)
-                : message(active, false),
-          ),
-        ],
+      builder: (context, box) => SizedBox(
+        height: (MediaQuery.sizeOf(context).height - 235).clamp(480, 1200),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              width: (box.maxWidth * .36).clamp(300.0, 365.0),
+              child: SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: (MediaQuery.sizeOf(context).height - 235).clamp(
+                      480,
+                      1200,
+                    ),
+                  ),
+                  child: list,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: (MediaQuery.sizeOf(context).height - 235).clamp(
+                      480,
+                      1200,
+                    ),
+                  ),
+                  child: active == null
+                      ? const PmsCard(
+                          child: Padding(
+                            padding: EdgeInsets.only(top: 112),
+                            child: Align(
+                              alignment: Alignment.topCenter,
+                              child: Text(
+                                'Select a message to review it.',
+                                style: TextStyle(
+                                  fontFamily: 'Georgia',
+                                  fontSize: 22,
+                                ),
+                              ),
+                            ),
+                          ),
+                        )
+                      : message(active, false),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

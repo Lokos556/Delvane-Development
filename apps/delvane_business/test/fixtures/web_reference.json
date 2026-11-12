@@ -1,19 +1,878 @@
 {
-  "/api/me": {"id":"user-owner","full_name":"Development Owner","email":"owner@workspace.invalid","role":"owner","organization_id":"org-test","organization_name":"Test hospitality","operating_mode":"observe","csrf_token":"synthetic_csrf_0123456789","permissions":["reservations.read","reservations.write","maintenance.read","maintenance.write","operations.read","users.manage","knowledge.write"]},
-  "/api/operations/today-command": {"date":"2032-05-10","urgent_count":3,"arrivals":[{"id":"r1","property_id":"p1","guest_name":"Synthetic Guest","property_name":"Test House","arrival_time":"16:00","checkin_time":"15:00","guest_count":2,"registration_status":"incomplete"}],"departures":[{"id":"r0","property_id":"p2","guest_name":"Departure Guest","property_name":"Garden Apartment","checkout_time":"10:00"}],"cleaning":[{"id":"t1","property_id":"p1","property_name":"Test House","status":"pending","priority":"high","scheduled_date":"2032-05-10","earliest_time":"10:00","deadline_time":"14:00","assigned_name":"Development Cleaner","assigned_to":"user-cleaner","worker_note":"","previous_reservation_id":"r0","next_reservation_id":"r1"}],"maintenance":[{"id":"m1","property_id":"p1","property_name":"Test House","title":"Bathroom tap is loose","severity":"high","status":"assigned"}],"registration_risks":[{"id":"r1","property_id":"p1","guest_name":"Synthetic Guest","property_name":"Test House","arrival_date":"2032-05-10","arrival_time":"16:00","guest_count":2,"registration_status":"incomplete"}]},
-  "/api/owner/dashboard": {"date":"2032-05-10","arrivals":1,"departures":1,"attention":[],"activity":[],"worker_tasks":[],"properties":[{"id":"p1","name":"Test House","state":"attention","reasons":["Guest registration incomplete","Cleaning not finished"],"next_guest":"Synthetic Guest","next_arrival":"2032-05-10","cleaning_status":"pending"},{"id":"p2","name":"Garden Apartment","state":"ready","reasons":[],"next_guest":null,"next_arrival":null,"cleaning_status":"complete"}]},
-  "/api/properties": [{"id":"p1","name":"Test House","address":"Synthetic development address","checkin_time":"15:00","checkout_time":"10:00","max_guests":4},{"id":"p2","name":"Garden Apartment","address":"Synthetic development address","checkin_time":"15:00","checkout_time":"10:00","max_guests":2}],
-  "/api/maintenance": [{"id":"m1","property_id":"p1","property_name":"Test House","title":"Bathroom tap is loose","detail":"Synthetic development maintenance case.","severity":"high","status":"assigned","assigned_to":"user-maintenance","assigned_name":"Development Maintenance","created_at":"2032-05-10T08:00:00"}],
-  "/api/notifications": {"unread":1,"items":[{"id":"n1","title":"Registration due","detail":"Test House arrival requires review.","status":"unread","created_at":"2032-05-10T08:00:00"}]},
-  "/api/organization": {"id":"org-test","name":"Test hospitality","operating_mode":"observe","counts":{"properties":2,"users":4,"guests":2}},
-  "/api/reservations": [{"id":"r1","property_id":"p1","property_name":"Test House","guest_name":"Synthetic Guest","arrival_date":"2032-05-10","departure_date":"2032-05-12","arrival_time":"16:00","checkin_time":"15:00","checkout_time":"10:00","status":"confirmed","registration_status":"incomplete","guest_count":2,"source":"Direct","total_huf":98000,"payment_status":"unpaid","special_requests":"[\"Prepare cot\"]","external_ref":"TEST-001"},{"id":"r0","property_id":"p2","property_name":"Garden Apartment","guest_name":"Departure Guest","arrival_date":"2032-05-08","departure_date":"2032-05-10","guest_count":2,"status":"confirmed","registration_status":"complete","source":"Booking.com","total_huf":64000,"special_requests":"[]","payment_status":"paid"}],
-  "/api/intelligence": {"brief":"One arrival, one turnover and one registration review need attention today.","handled":2,"approvals":[],"exceptions":[],"arrivals":[],"tasks":[]},
-  "/api/rosa/provider": {"provider":"local","external_fallback_configured":false,"state":"local"},
-  "/api/rosa/conversation": {"conversation":{"id":"c1","title":"New conversation"},"messages":[],"proposals":[]},
+  "/api/me": {
+    "id": "user-owner",
+    "full_name": "Development Owner",
+    "email": "owner@workspace.invalid",
+    "role": "owner",
+    "organization_id": "org-test",
+    "organization_name": "Test hospitality",
+    "operating_mode": "observe",
+    "csrf_token": "synthetic_csrf_0123456789",
+    "permissions": [
+      "reservations.read",
+      "reservations.write",
+      "maintenance.read",
+      "maintenance.write",
+      "operations.read",
+      "users.manage",
+      "knowledge.write"
+    ]
+  },
+  "/api/operations/today-command": {
+    "date": "2032-05-10",
+    "urgent_count": 3,
+    "arrivals": [
+      {
+        "id": "r1",
+        "property_id": "p1",
+        "guest_name": "Synthetic Guest",
+        "property_name": "Test House",
+        "arrival_time": "16:00",
+        "checkin_time": "15:00",
+        "guest_count": 2,
+        "registration_status": "incomplete"
+      }
+    ],
+    "departures": [
+      {
+        "id": "r0",
+        "property_id": "p2",
+        "guest_name": "Departure Guest",
+        "property_name": "Garden Apartment",
+        "checkout_time": "10:00"
+      }
+    ],
+    "cleaning": [
+      {
+        "id": "t1",
+        "property_id": "p1",
+        "property_name": "Test House",
+        "status": "pending",
+        "priority": "high",
+        "scheduled_date": "2032-05-10",
+        "earliest_time": "10:00",
+        "deadline_time": "14:00",
+        "assigned_name": "Development Cleaner",
+        "assigned_to": "user-cleaner",
+        "worker_note": "",
+        "previous_reservation_id": "r0",
+        "next_reservation_id": "r1",
+        "checklist": [
+          {
+            "id": "check1",
+            "label": "Final readiness check",
+            "completed": 0
+          }
+        ],
+        "checklist_done": 0,
+        "checklist_total": 1,
+        "next_guest_count": 2,
+        "special_requests": [
+          "Prepare cot"
+        ]
+      }
+    ],
+    "maintenance": [
+      {
+        "id": "m1",
+        "property_id": "p1",
+        "property_name": "Test House",
+        "title": "Bathroom tap is loose",
+        "severity": "high",
+        "status": "assigned"
+      }
+    ],
+    "registration_risks": [
+      {
+        "id": "r1",
+        "property_id": "p1",
+        "guest_name": "Synthetic Guest",
+        "property_name": "Test House",
+        "arrival_date": "2032-05-10",
+        "arrival_time": "16:00",
+        "guest_count": 2,
+        "registration_status": "incomplete"
+      }
+    ]
+  },
+  "/api/owner/dashboard": {
+    "date": "2032-05-10",
+    "arrivals": 1,
+    "departures": 1,
+    "attention": [],
+    "activity": [],
+    "worker_tasks": [],
+    "properties": [
+      {
+        "id": "p1",
+        "name": "Test House",
+        "state": "attention",
+        "reasons": [
+          "Guest registration incomplete",
+          "Cleaning not finished"
+        ],
+        "next_guest": "Synthetic Guest",
+        "next_arrival": "2032-05-10",
+        "cleaning_status": "pending"
+      },
+      {
+        "id": "p2",
+        "name": "Garden Apartment",
+        "state": "ready",
+        "reasons": [],
+        "next_guest": null,
+        "next_arrival": null,
+        "cleaning_status": "complete"
+      }
+    ]
+  },
+  "/api/properties": [
+    {
+      "id": "p1",
+      "name": "Test House",
+      "address": "Synthetic development address",
+      "checkin_time": "15:00",
+      "checkout_time": "10:00",
+      "max_guests": 4
+    },
+    {
+      "id": "p2",
+      "name": "Garden Apartment",
+      "address": "Synthetic development address",
+      "checkin_time": "15:00",
+      "checkout_time": "10:00",
+      "max_guests": 2
+    }
+  ],
+  "/api/maintenance": [
+    {
+      "id": "m1",
+      "property_id": "p1",
+      "property_name": "Test House",
+      "title": "Bathroom tap is loose",
+      "detail": "Synthetic development maintenance case.",
+      "severity": "high",
+      "status": "assigned",
+      "assigned_to": "user-maintenance",
+      "assigned_name": "Development Maintenance",
+      "created_at": "2032-05-10T08:00:00"
+    }
+  ],
+  "/api/notifications": {
+    "unread": 1,
+    "items": [
+      {
+        "id": "n1",
+        "title": "Registration due",
+        "detail": "Test House arrival requires review.",
+        "status": "unread",
+        "created_at": "2032-05-10T08:00:00"
+      }
+    ]
+  },
+  "/api/organization": {
+    "id": "org-test",
+    "name": "Test hospitality",
+    "operating_mode": "observe",
+    "counts": {
+      "properties": 2,
+      "users": 4,
+      "guests": 2
+    }
+  },
+  "/api/reservations": [
+    {
+      "id": "r1",
+      "property_id": "p1",
+      "property_name": "Test House",
+      "guest_name": "Synthetic Guest",
+      "arrival_date": "2032-05-10",
+      "departure_date": "2032-05-12",
+      "arrival_time": "16:00",
+      "checkin_time": "15:00",
+      "checkout_time": "10:00",
+      "status": "confirmed",
+      "registration_status": "incomplete",
+      "guest_count": 2,
+      "source": "Direct",
+      "total_huf": 98000,
+      "payment_status": "unpaid",
+      "special_requests": "[\"Prepare cot\"]",
+      "external_ref": "TEST-001"
+    },
+    {
+      "id": "r0",
+      "property_id": "p2",
+      "property_name": "Garden Apartment",
+      "guest_name": "Departure Guest",
+      "arrival_date": "2032-05-08",
+      "departure_date": "2032-05-10",
+      "guest_count": 2,
+      "status": "confirmed",
+      "registration_status": "complete",
+      "source": "Booking.com",
+      "total_huf": 64000,
+      "special_requests": "[]",
+      "payment_status": "paid"
+    }
+  ],
+  "/api/intelligence": {
+    "brief": "One arrival, one turnover and one registration review need attention today.",
+    "handled": 2,
+    "approvals": [
+      {
+        "id": "visual-decision",
+        "kind": "review",
+        "title": "Review preparation request",
+        "detail": "Synthetic operational decision for visual comparison.",
+        "recommendation": "Review the preparation request."
+      }
+    ],
+    "exceptions": [
+      {
+        "kind": "registration",
+        "severity": "high",
+        "title": "Test House registration risk",
+        "detail": "Synthetic Guest still needs registration."
+      }
+    ],
+    "arrivals": [
+      {
+        "id": "r1",
+        "property_id": "p1",
+        "guest_name": "Synthetic Guest",
+        "property_name": "Test House",
+        "arrival_time": "16:00",
+        "checkin_time": "15:00",
+        "guest_count": 2,
+        "registration_status": "incomplete"
+      }
+    ],
+    "tasks": [
+      {
+        "id": "t1",
+        "property_id": "p1",
+        "property_name": "Test House",
+        "status": "pending",
+        "priority": "high",
+        "scheduled_date": "2032-05-10",
+        "earliest_time": "10:00",
+        "deadline_time": "14:00",
+        "assigned_name": "Development Cleaner",
+        "assigned_to": "user-cleaner",
+        "worker_note": "",
+        "previous_reservation_id": "r0",
+        "next_reservation_id": "r1",
+        "checklist": [
+          {
+            "id": "check1",
+            "label": "Final readiness check",
+            "completed": 0
+          }
+        ],
+        "checklist_done": 0,
+        "checklist_total": 1,
+        "next_guest_count": 2,
+        "special_requests": [
+          "Prepare cot"
+        ]
+      }
+    ]
+  },
+  "/api/rosa/provider": {
+    "provider": "local",
+    "external_fallback_configured": false,
+    "state": "local"
+  },
+  "/api/rosa/conversation": {
+    "conversation": {
+      "id": "c1",
+      "title": "New conversation"
+    },
+    "messages": [],
+    "proposals": []
+  },
   "/api/operations/timeline": [],
-  "/api/guest-journeys": [],
+  "/api/guest-journeys": [
+    {
+      "id": "r1",
+      "property_id": "p1",
+      "property_name": "Test House",
+      "guest_name": "Synthetic Guest",
+      "arrival_date": "2032-05-10",
+      "departure_date": "2032-05-12",
+      "arrival_time": "16:00",
+      "checkin_time": "15:00",
+      "checkout_time": "10:00",
+      "status": "confirmed",
+      "registration_status": "incomplete",
+      "guest_count": 2,
+      "source": "Direct",
+      "total_huf": 98000,
+      "payment_status": "unpaid",
+      "special_requests": "[\"Prepare cot\"]",
+      "external_ref": "TEST-001",
+      "current_stage": "registration",
+      "current_stage_index": 2,
+      "stage_total": 5,
+      "next_stage": "arrival_preparation",
+      "requests": [
+        "Prepare cot"
+      ]
+    }
+  ],
   "/api/inbox": [],
-  "/api/reception/summary": {"new":0,"waiting_approval":0,"scheduled":0,"enabled_rules":0,"external_sending_connected":false},
+  "/api/reception/summary": {
+    "new": 0,
+    "waiting_approval": 0,
+    "scheduled": 0,
+    "enabled_rules": 0,
+    "external_sending_connected": false
+  },
   "/api/communications/outbox": [],
-  "/api/automation/rules": []
+  "/api/automation/rules": [],
+  "/api/worker/dashboard": {
+    "date": "2032-05-10",
+    "tasks": [
+      {
+        "id": "t1",
+        "property_id": "p1",
+        "property_name": "Test House",
+        "status": "pending",
+        "priority": "high",
+        "scheduled_date": "2032-05-10",
+        "earliest_time": "10:00",
+        "deadline_time": "14:00",
+        "assigned_name": "Development Cleaner",
+        "assigned_to": "user-cleaner",
+        "worker_note": "",
+        "previous_reservation_id": "r0",
+        "next_reservation_id": "r1",
+        "checklist": [
+          {
+            "id": "check1",
+            "label": "Final readiness check",
+            "completed": 0
+          }
+        ],
+        "checklist_done": 0,
+        "checklist_total": 1,
+        "next_guest_count": 2,
+        "special_requests": [
+          "Prepare cot"
+        ]
+      }
+    ]
+  },
+  "/api/properties/p1/overview": {
+    "property": {
+      "id": "p1",
+      "name": "Test House",
+      "address": "Synthetic development address",
+      "checkin_time": "15:00",
+      "checkout_time": "10:00",
+      "max_guests": 4
+    },
+    "room_types": [
+      {
+        "id": "room1",
+        "name": "Apartment",
+        "code": "apartment",
+        "inventory_count": 1,
+        "max_guests": 4,
+        "active": 1
+      }
+    ],
+    "current": {
+      "id": "r1",
+      "property_id": "p1",
+      "property_name": "Test House",
+      "guest_name": "Synthetic Guest",
+      "arrival_date": "2032-05-10",
+      "departure_date": "2032-05-12",
+      "arrival_time": "16:00",
+      "checkin_time": "15:00",
+      "checkout_time": "10:00",
+      "status": "confirmed",
+      "registration_status": "incomplete",
+      "guest_count": 2,
+      "source": "Direct",
+      "total_huf": 98000,
+      "payment_status": "unpaid",
+      "special_requests": "[\"Prepare cot\"]",
+      "external_ref": "TEST-001"
+    },
+    "arriving_today": {
+      "id": "r1",
+      "property_id": "p1",
+      "property_name": "Test House",
+      "guest_name": "Synthetic Guest",
+      "arrival_date": "2032-05-10",
+      "departure_date": "2032-05-12",
+      "arrival_time": "16:00",
+      "checkin_time": "15:00",
+      "checkout_time": "10:00",
+      "status": "confirmed",
+      "registration_status": "incomplete",
+      "guest_count": 2,
+      "source": "Direct",
+      "total_huf": 98000,
+      "payment_status": "unpaid",
+      "special_requests": "[\"Prepare cot\"]",
+      "external_ref": "TEST-001"
+    },
+    "departing_today": null,
+    "next": {
+      "id": "r1",
+      "property_id": "p1",
+      "property_name": "Test House",
+      "guest_name": "Synthetic Guest",
+      "arrival_date": "2032-05-10",
+      "departure_date": "2032-05-12",
+      "arrival_time": "16:00",
+      "checkin_time": "15:00",
+      "checkout_time": "10:00",
+      "status": "confirmed",
+      "registration_status": "incomplete",
+      "guest_count": 2,
+      "source": "Direct",
+      "total_huf": 98000,
+      "payment_status": "unpaid",
+      "special_requests": "[\"Prepare cot\"]",
+      "external_ref": "TEST-001"
+    },
+    "cleaning": {
+      "id": "t1",
+      "property_id": "p1",
+      "property_name": "Test House",
+      "status": "pending",
+      "priority": "high",
+      "scheduled_date": "2032-05-10",
+      "earliest_time": "10:00",
+      "deadline_time": "14:00",
+      "assigned_name": "Development Cleaner",
+      "assigned_to": "user-cleaner",
+      "worker_note": "",
+      "previous_reservation_id": "r0",
+      "next_reservation_id": "r1",
+      "checklist": [
+        {
+          "id": "check1",
+          "label": "Final readiness check",
+          "completed": 0
+        }
+      ],
+      "checklist_done": 0,
+      "checklist_total": 1,
+      "next_guest_count": 2,
+      "special_requests": [
+        "Prepare cot"
+      ]
+    },
+    "same_day_turnover": false
+  },
+  "/api/properties/p1/room-types": {
+    "property": {
+      "id": "p1",
+      "name": "Test House",
+      "address": "Synthetic development address",
+      "checkin_time": "15:00",
+      "checkout_time": "10:00",
+      "max_guests": 4
+    },
+    "room_types": [
+      {
+        "id": "room1",
+        "name": "Apartment",
+        "code": "apartment",
+        "inventory_count": 1,
+        "max_guests": 4,
+        "active": 1
+      }
+    ]
+  },
+  "/api/properties/p1/rate-plans": {
+    "property": {
+      "id": "p1",
+      "name": "Test House",
+      "address": "Synthetic development address",
+      "checkin_time": "15:00",
+      "checkout_time": "10:00",
+      "max_guests": 4
+    },
+    "rate_plans": []
+  },
+  "/api/reservations/r1/detail": {
+    "reservation": {
+      "id": "r1",
+      "property_id": "p1",
+      "property_name": "Test House",
+      "guest_name": "Synthetic Guest",
+      "arrival_date": "2032-05-10",
+      "departure_date": "2032-05-12",
+      "arrival_time": "16:00",
+      "checkin_time": "15:00",
+      "checkout_time": "10:00",
+      "status": "confirmed",
+      "registration_status": "incomplete",
+      "guest_count": 2,
+      "source": "Direct",
+      "total_huf": 98000,
+      "payment_status": "unpaid",
+      "special_requests": "[\"Prepare cot\"]",
+      "external_ref": "TEST-001",
+      "address": "Synthetic development address"
+    },
+    "guest": null,
+    "guest_profile": null,
+    "registration": [],
+    "cleaning": [
+      {
+        "id": "t1",
+        "property_id": "p1",
+        "property_name": "Test House",
+        "status": "pending",
+        "priority": "high",
+        "scheduled_date": "2032-05-10",
+        "earliest_time": "10:00",
+        "deadline_time": "14:00",
+        "assigned_name": "Development Cleaner",
+        "assigned_to": "user-cleaner",
+        "worker_note": "",
+        "previous_reservation_id": "r0",
+        "next_reservation_id": "r1",
+        "checklist": [
+          {
+            "id": "check1",
+            "label": "Final readiness check",
+            "completed": 0
+          }
+        ],
+        "checklist_done": 0,
+        "checklist_total": 1,
+        "next_guest_count": 2,
+        "special_requests": [
+          "Prepare cot"
+        ]
+      }
+    ],
+    "maintenance": [
+      {
+        "id": "m1",
+        "property_id": "p1",
+        "property_name": "Test House",
+        "title": "Bathroom tap is loose",
+        "detail": "Synthetic development maintenance case.",
+        "severity": "high",
+        "status": "assigned",
+        "assigned_to": "user-maintenance",
+        "assigned_name": "Development Maintenance",
+        "created_at": "2032-05-10T08:00:00"
+      }
+    ],
+    "messages": [],
+    "notes": [],
+    "events": []
+  },
+  "/api/team/overview": {
+    "members": [
+      {
+        "id": "user-cleaner",
+        "full_name": "Development Cleaner",
+        "email": "cleaner@visual.invalid",
+        "phone": "",
+        "job_title": "Housekeeper",
+        "role": "cleaner",
+        "active": 1,
+        "email_verified": 0,
+        "mfa_enabled": 0,
+        "active_sessions": 1,
+        "upcoming_cleaning": 1,
+        "open_maintenance": 0,
+        "in_progress": 0,
+        "completed_30d": 0,
+        "last_login_at": null
+      }
+    ],
+    "roles": {
+      "owner": {
+        "groups": [
+          {
+            "label": "Business & people",
+            "enabled": true
+          },
+          {
+            "label": "Reservations & guests",
+            "enabled": true
+          },
+          {
+            "label": "Guest communication",
+            "enabled": true
+          },
+          {
+            "label": "Operations",
+            "enabled": true
+          },
+          {
+            "label": "Maintenance",
+            "enabled": true
+          },
+          {
+            "label": "Supplies",
+            "enabled": true
+          },
+          {
+            "label": "Rosa knowledge",
+            "enabled": true
+          },
+          {
+            "label": "Security & integrations",
+            "enabled": true
+          }
+        ]
+      },
+      "manager": {
+        "groups": [
+          {
+            "label": "Business & people",
+            "enabled": true
+          },
+          {
+            "label": "Reservations & guests",
+            "enabled": true
+          },
+          {
+            "label": "Guest communication",
+            "enabled": true
+          },
+          {
+            "label": "Operations",
+            "enabled": true
+          },
+          {
+            "label": "Maintenance",
+            "enabled": true
+          },
+          {
+            "label": "Supplies",
+            "enabled": true
+          },
+          {
+            "label": "Rosa knowledge",
+            "enabled": true
+          },
+          {
+            "label": "Security & integrations",
+            "enabled": true
+          }
+        ]
+      },
+      "cleaner": {
+        "groups": [
+          {
+            "label": "Business & people",
+            "enabled": false
+          },
+          {
+            "label": "Reservations & guests",
+            "enabled": false
+          },
+          {
+            "label": "Guest communication",
+            "enabled": false
+          },
+          {
+            "label": "Operations",
+            "enabled": true
+          },
+          {
+            "label": "Maintenance",
+            "enabled": true
+          },
+          {
+            "label": "Supplies",
+            "enabled": false
+          },
+          {
+            "label": "Rosa knowledge",
+            "enabled": false
+          },
+          {
+            "label": "Security & integrations",
+            "enabled": false
+          }
+        ]
+      },
+      "maintenance": {
+        "groups": [
+          {
+            "label": "Business & people",
+            "enabled": false
+          },
+          {
+            "label": "Reservations & guests",
+            "enabled": false
+          },
+          {
+            "label": "Guest communication",
+            "enabled": false
+          },
+          {
+            "label": "Operations",
+            "enabled": true
+          },
+          {
+            "label": "Maintenance",
+            "enabled": true
+          },
+          {
+            "label": "Supplies",
+            "enabled": false
+          },
+          {
+            "label": "Rosa knowledge",
+            "enabled": false
+          },
+          {
+            "label": "Security & integrations",
+            "enabled": false
+          }
+        ]
+      }
+    },
+    "can_manage": true,
+    "stats": {
+      "active": 1,
+      "cleaners": 1,
+      "maintenance": 0,
+      "unverified": 1,
+      "active_sessions": 1
+    },
+    "workload": []
+  },
+  "/api/inventory": {
+    "upcoming_stays": 1,
+    "items": [
+      {
+        "id": "stock1",
+        "name": "Coffee capsules",
+        "quantity": 6,
+        "unit": "capsules",
+        "par_level": 10,
+        "estimated_need": 2,
+        "low": true
+      }
+    ]
+  },
+  "/api/knowledge": {
+    "properties": [
+      {
+        "id": "p1",
+        "name": "Test House",
+        "address": "Synthetic development address",
+        "checkin_time": "15:00",
+        "checkout_time": "10:00",
+        "max_guests": 4
+      },
+      {
+        "id": "p2",
+        "name": "Garden Apartment",
+        "address": "Synthetic development address",
+        "checkin_time": "15:00",
+        "checkout_time": "10:00",
+        "max_guests": 2
+      }
+    ],
+    "fields": [
+      {
+        "key": "parking",
+        "label": "Parking",
+        "category": "Arrival"
+      },
+      {
+        "key": "wifi",
+        "label": "Wi-Fi",
+        "category": "Stay"
+      }
+    ],
+    "scopes": {
+      "shared": {
+        "parking": "Parking at the property.",
+        "wifi": "Ask reception for access."
+      },
+      "p1": {},
+      "p2": {}
+    },
+    "authority": {
+      "update_arrival_time": {
+        "label": "Update guest arrival time",
+        "mode": "ask",
+        "category": "Reservation changes"
+      }
+    }
+  },
+  "/api/rosa/actions": [],
+  "/api/memory": {
+    "business": [],
+    "guest_preferences": []
+  },
+  "/api/notifications/preferences": {
+    "new_booking": true,
+    "registration_due": true
+  },
+  "/api/security": {
+    "sessions": [],
+    "active_users": 1,
+    "email_verified_users": 0,
+    "mfa_enabled_users": 0,
+    "secure_cookie_required": false,
+    "permissions": {
+      "owner": [
+        "reservations.read",
+        "users.manage"
+      ],
+      "manager": [
+        "reservations.read"
+      ],
+      "cleaner": [
+        "maintenance.read"
+      ],
+      "maintenance": [
+        "maintenance.read"
+      ]
+    },
+    "password_scheme": "scrypt"
+  },
+  "/api/audit": [],
+  "/api/retention": [],
+  "/api/system/runtime": {
+    "version": "synthetic-visual",
+    "schema_version": 0,
+    "environment": "isolated-visual",
+    "database_backend": "fixture"
+  },
+  "/api/integrations": [
+    {
+      "id": "int1",
+      "property_id": "p1",
+      "property_name": "Test House",
+      "provider": "Booking.com",
+      "status": "sandbox",
+      "connection_stage": "not_connected",
+      "receiver_state": "setup_required",
+      "distribution_state": "setup_required",
+      "public_config": {
+        "sandbox": true
+      },
+      "ari_pending_count": 0,
+      "unacknowledged_count": 0
+    }
+  ],
+  "/api/integration-sync/summary": {},
+  "/api/integration-sync/runs": [],
+  "/api/integration-events": [],
+  "/api/government/status": {
+    "rosa_mtu_certified": false,
+    "queue": []
+  }
 }

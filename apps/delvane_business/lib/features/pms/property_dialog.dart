@@ -142,7 +142,9 @@ class _PropertyWorkspaceState extends State<PropertyWorkspace>
                         ListTile(
                           contentPadding: EdgeInsets.zero,
                           title: Text(
-                            key == 'arriving_today' ? 'Arrival' : 'Departure',
+                            key == 'arriving_today'
+                                ? 'Arrival · ${text(optionalObject(d[key]), 'arrival_time', text(p, 'checkin_time'))}'
+                                : 'Departure · ${text(p, 'checkout_time')}',
                           ),
                           subtitle: Text(
                             text(optionalObject(d[key]), 'guest_name'),
@@ -180,11 +182,30 @@ class _PropertyWorkspaceState extends State<PropertyWorkspace>
             ),
             primary.isEmpty
                 ? const PmsEmpty('No upcoming reservation.')
-                : ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(text(primary, 'guest_name')),
-                    subtitle: Text(
-                      '${text(primary, 'arrival_date')} → ${text(primary, 'departure_date')} · ${primary['guest_count'] ?? ''} guests',
+                : PmsCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        PmsEyebrow(
+                          '${text(primary, 'source')} · ${text(primary, 'external_ref')}',
+                        ),
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(text(primary, 'guest_name')),
+                          subtitle: Text(
+                            '${text(primary, 'arrival_date')} → ${text(primary, 'departure_date')} · ${primary['guest_count'] ?? ''} guests',
+                          ),
+                        ),
+                        PmsBadge(
+                          text(primary, 'registration_status') == 'complete'
+                              ? 'Registration complete'
+                              : 'Registration incomplete',
+                          tone:
+                              text(primary, 'registration_status') == 'complete'
+                              ? 'ready'
+                              : 'attention',
+                        ),
+                      ],
                     ),
                   ),
             const SizedBox(height: 24),

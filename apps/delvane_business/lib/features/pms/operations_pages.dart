@@ -35,14 +35,7 @@ class _MaintenancePageState extends State<MaintenancePage> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const PmsEyebrow('MAINTENANCE'),
-        const Text(
-          'Issues become owned work.',
-          style: TextStyle(
-            fontSize: 38,
-            fontWeight: FontWeight.w700,
-            letterSpacing: -1.5,
-          ),
-        ),
+        const PmsPageTitle('Issues become owned work.'),
         const Text(
           'No WhatsApp archaeology. Every issue has a property, urgency, owner and resolution trail.',
         ),
@@ -118,17 +111,7 @@ class _MaintenancePageState extends State<MaintenancePage> {
           const SizedBox(height: 8),
           Text(text(m, 'detail')),
           const SizedBox(height: 20),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (var i = 0; i < stages.length; i++)
-                PmsBadge(
-                  '${i < index ? '✓' : i + 1} ${stages[i].replaceAll('_', ' ')}',
-                  tone: i == index ? 'attention' : 'neutral',
-                ),
-            ],
-          ),
+          PmsLifecycleRail(stages: stages, index: index),
           const SizedBox(height: 20),
           Text('Owner: ${text(m, 'assigned_name', 'Unassigned')}'),
           Text('Reported ${text(m, 'created_at')}'),
@@ -277,14 +260,7 @@ class SuppliesPage extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const PmsEyebrow('SUPPLIES'),
-        const Text(
-          'Delvane watches consumption.',
-          style: TextStyle(
-            fontSize: 38,
-            fontWeight: FontWeight.w700,
-            letterSpacing: -1.5,
-          ),
-        ),
+        const PmsPageTitle('Delvane watches consumption.'),
         Text(
           '${d['upcoming_stays'] ?? 0} upcoming stays are included in the current estimate.',
         ),

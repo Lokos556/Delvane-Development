@@ -1,12 +1,34 @@
 # Delvane Business feature parity inventory
 
-Updated 2026-11-11 after the distribution and remaining functional-parity pass.
+Updated 2026-11-12 after the visual and operational-desk continuation.
 All 125 original capability IDs were rechecked against the current native PMS
 sources, active web overrides and existing API contracts. The original web/backend
 columns are retained as the reference inventory; the Flutter location, status and
 follow-up evidence columns now describe the current authenticated implementation.
 The original mock-only inventory is superseded. FLUTTER_ROADMAP.md remains a
 historical plan; the actual original navigation is authoritative.
+
+## Latest review and acceptance boundary
+
+All 125 IDs remain in the ledger; no missing or blocked row was removed. Five
+supported workflows advanced: DY08/DY09 (missing to functional), AI09/AI11/SE08
+(partial to functional). Knowledge/registration/property visual depth improved
+without promoting source gaps or external limitations. Existing team creation,
+once-only setup credentials, reset access, suspension and revocation were retained
+and regression-tested rather than duplicated.
+
+The remaining 13 M rows are SH08; GU06/GU07/GU08/GU10/GU11; OP10;
+CH03/CH04; GV02/GV03; SE06/SE09. Some have API support but no complete active web
+control (credential configuration, commercial onboarding, sensitive vault,
+government developer configuration, recovery tokens, maintenance reassignment).
+They remain **client gaps**, not backend blockers. No invented editor or unsafe
+reset was added to disguise them. Public guest camera/OCR/check-in remains the
+existing separate browser journey; native camera/scanner acceptance is outstanding.
+
+See PORT_STATUS.md for the 160-test Flutter run, 48 isolated Python tests, Windows
+build and expanded screenshot evidence. Functional mapping tests plus ASGI API
+mutation tests are layered verification, not a complete native GUI-to-server test.
+Manual acceptance is still required before replacing the existing browser PMS.
 
 ## Reading the inventory
 
@@ -15,9 +37,9 @@ historical plan; the actual original navigation is authoritative.
 | Measure | Count |
 |---|---:|
 | Original capability rows retained | 125 |
-| Fully implemented reference client workflow (F) | 73 |
-| Partially implemented (P) | 24 |
-| Missing native workflow (M) | 15 |
+| Fully implemented reference client workflow (F) | 78 |
+| Partially implemented (P) | 21 |
+| Missing native workflow (M) | 13 |
 | Blocked by reference/backend limitations (B) | 11 |
 | Original simulation faithfully ported (S) | 2 |
 
@@ -68,7 +90,7 @@ Cleaners get My day, Schedule, Maintenance. Maintenance staff primarily get Main
 | ID | Feature | Web location | Backend/service | Web | Flutter location | Flutter | Recommended action | Priority |
 |---|---|---|---|---|---|---|---|---|
 | SH01 | Responsive primary navigation | shell, mobile menu | Client navigation | I | lib/features/pms/pms_shell.dart | F | Original primary/settings labels and restricted responsive shells; retain desktop/mobile acceptance checks. | P0 |
-| SH02 | Shared visual styling | styles.css, shared shell | Client styling | I | lib/features/pms/pms_style.dart | P | Source palette/components retained; pixel metrics, glass layers and full localization remain for visual pass. | P0 |
+| SH02 | Shared visual styling | styles.css, shared shell | Client styling | I | lib/features/pms/pms_style.dart | P | Source geometry and glass modal blur26/saturation1.55 plus settings blur42/saturation1.9 implemented; 38 paired page/expanded-state captures. Text rasterization, some mobile forms, dense tables and contextual states still differ. | P0 |
 | SH03 | Sign-in and sign-out | renderLogin, account panel | POST /login, /logout | I | lib/core/auth/auth_controller.dart | F | Real cookie login/logout, CSRF, secure session storage and expiry/revocation tests; no password persistence. | P0 |
 | SH04 | Current user, permissions and organization context | boot, shell | GET /me, /organization | I | lib/core/auth/auth_controller.dart | F | GET me identity, organization, permissions and session-keyed protected navigator are connected. | P0 |
 | SH05 | Cleaner/maintenance-specific home and navigation | shell role branches | GET /worker/dashboard, /maintenance | P: worker maintenance property-fetch mismatch | lib/features/pms/pms_shell.dart | F | Cleaner and maintenance routes/actions tested; narrow operations/properties contract fixes legacy worker fetch mismatch. | P0 |
@@ -89,8 +111,8 @@ Cleaners get My day, Schedule, Maintenance. Maintenance staff primarily get Main
 | DY05 | Cleaning/maintenance attention summary | Today, next-48 desk | GET /owner/dashboard, /intelligence | I | lib/features/pms/pms_shell.dart | F | Live cleaning/maintenance attention rows and status/severity; no simulated task completion. | P0 |
 | DY06 | Current guest journey stage and next step | guestJourneyBoard, Today | GET /guest-journeys | P: computed stage; legacy scheduled labels not delivery proof | lib/features/pms/pms_shell.dart | P | Current/next journey stages, eight-row paging and stay links; detailed tracker presentation still incomplete. | P1 |
 | DY07 | Operational activity timeline | ownerOperations, operations desk | GET /operations/timeline | P: persisted activity mixed with synthetic system events | lib/features/pms/pms_shell.dart | P | Persisted timeline shown; backend can include seeded/synthetic system events, not provider-delivery proof. | P1 |
-| DY08 | Business decision approval/decline | Intelligence desk decisions | POST /approvals/{id}/resolve | P: resolves record/logs choice, not commercial execution | lib/features/pms/pms_shell.dart | M | Generic approval_items resolve workflow remains separate from connected chat proposals and is not ported. | P1 |
-| DY09 | Next 48-hour operational desk | v264OpenDesk tabs | GET /intelligence, /operations/timeline, /guest-journeys | I for aggregated reads | lib/features/pms/pms_shell.dart | M | Dedicated original next-48-hour operational desk overlay/tabs are not ported. | P1 |
+| DY08 | Business decision approval/decline | Intelligence desk decisions | POST /approvals/{id}/resolve | P: resolves record/logs choice, not commercial execution | lib/features/pms/operational_desk.dart | F | Needs you desk tab resolves Approved/Declined through the existing approval_items endpoint with CSRF and operator checks; closes accepted actions before refresh. Isolated API and widget tests pass. This logs a decision, not commercial execution. | P1 |
+| DY09 | Next 48-hour operational desk | v264OpenDesk tabs | GET /intelligence, /operations/timeline, /guest-journeys | I for aggregated reads | lib/features/pms/operational_desk.dart | F | Active v264 Live context desk: At a glance, Needs you, Exceptions, Next 48h; backend briefing/tasks/arrivals and empty/error states, responsive scroll and close controls. Four expanded tabs captured at desktop/mobile sizes. | P1 |
 | DY10 | Cleaning/day contextual special requests | task/property/stay summaries | GET /worker/dashboard, reservation detail | I | lib/features/pms/pms_shell.dart | F | Assigned task preparation requests, guest count and timing from worker dashboard are displayed. | P1 |
 
 ### Reservations and calendar
@@ -151,7 +173,7 @@ Cleaners get My day, Schedule, Maintenance. Maintenance staff primarily get Main
 | GU06 | Public guest pre-check-in form and confirmation | separate guest-checkin.html | GET/POST /public/checkin/{token}; /guest/checkin/{token} | I: expiring bearer flow, manual review follows | No native implementation | M | Public guest form remains the existing browser journey; no native guest-facing port. | P1 |
 | GU07 | Camera capture, front/back OCR, MRZ and manual correction | guest-checkin.js | Browser Tesseract; structured public submission | P: real extraction code; device/accuracy limits; not authenticity/liveness | No native implementation | M | Public browser camera/OCR/MRZ/correction flow remains outside native client; no invented native scanner. | P2 |
 | GU08 | OCR diagnostics, retry/timeouts and camera cleanup | guest scanner details/error states | Local browser diagnostics | P: raw OCR diagnostic visibility is privacy-sensitive | No native implementation | M | Original browser OCR diagnostics and camera cleanup not ported to native. | P2 |
-| GU09 | Owner verify/reject and review method/note | reservation Verify guest identity dialog | POST /reservations/{r}/guests/{g}/verify | I: verification records; queue after all verified | lib/features/pms/reservation_dialogs.dart | F | Owner/manager verify/reject uses real guest review endpoint and notes; worker UI is restricted. | P1 |
+| GU09 | Owner verify/reject and review method/note | reservation Verify guest identity dialog | POST /reservations/{r}/guests/{g}/verify | I: verification records; queue after all verified | lib/features/pms/reservation_dialogs.dart | F | Real owner identity verify/reject, method and note, submitted-only controls; loading/empty/retry feedback and original 1000-character note limit added. Server remains authorization and verification authority; no document images logged. | P1 |
 | GU10 | Sensitive registration vault read/write | Backend boundary; no active full vault editor found | GET /registration/{r}/sensitive; PUT /registration/records/{g}/sensitive | P: field encryption, not all identity data encrypted | No native implementation | M | Sensitive vault administration not exposed in native; minimizing identity data remains deliberate. | P1 |
 | GU11 | Authenticated scanner ingestion | API-only developer boundary | POST /government/viza/id-scan | P: stores fields; requires owner review, not certified VIZA | No native implementation | M | Authenticated id-scan backend exists but native scanner ingestion UI is missing. | P2 |
 | GU12 | Unified standalone registration center | old ownerRegistration; current route redirects Today | GET /registration | P: retained endpoint/render function, not active destination | lib/features/pms/pms_shell.dart | P | Current web redirects standalone registration to Today; native risk queue/stay review retained, no obsolete extra page invented. | P1 |
@@ -196,10 +218,10 @@ Cleaners get My day, Schedule, Maintenance. Maintenance staff primarily get Main
 | AI05 | Actual cleaning reassignment by AI command | proposal executor | _execute_proposal reassign_cleaning | I for narrow supported action | lib/features/pms/pms_shell.dart | P | Same chat/proposal APIs can invoke server reassignment; no dedicated native reassignment acceptance test completed. | P1 |
 | AI06 | Observe/Assist/Autonomous mode | mode badge, v283 Simulation | PATCH /organization/mode | I: backend mode gates | lib/features/pms/administration_pages.dart | F | Real observe/assist/autonomous with owner-only mode changes and confirmation; server gates persist. | P1 |
 | AI07 | Per-action automatic/ask/never authority | Train Delvane authority cards | PATCH /authority/{action_type} | I; declared actions exceed executor coverage | lib/features/pms/administration_pages.dart | F | Existing authority auto/ask/never PATCH for authorized owners/managers; no arbitrary executor added. | P1 |
-| AI08 | Shared/property knowledge editing and completeness | v283 ownerTrainRosa | GET /knowledge; PUT /knowledge/{scope} | I: structured operational fields | lib/features/pms/administration_pages.dart | P | Shared/property knowledge and authority edit persist; full completeness score and exact tab presentation remain. | P1 |
-| AI09 | Action history, simulated/awaiting/executed counts | Simulation activity | GET /rosa/actions | I: includes simulated records | lib/features/pms/administration_pages.dart | P | Real action ledger/statuses shown; complete source counts and payload treatments remain. | P2 |
+| AI08 | Shared/property knowledge editing and completeness | v283 ownerTrainRosa | GET /knowledge; PUT /knowledge/{scope} | I: structured operational fields | lib/features/pms/administration_pages.dart | P | Scope tabs, configured-field indicators, persisted completeness count, prototype warning and shared/property saves/authority supported. Exact localized fields, authority legend and savebar presentation still need acceptance; no full localization claim. | P1 |
+| AI09 | Action history, simulated/awaiting/executed counts | Simulation activity | GET /rosa/actions | I: includes simulated records | lib/features/pms/administration_pages.dart | F | Server action ledger with simulated/awaiting/executed counts, payload label, mode/time, first 30 actions and existing eligible Undo. Counts and label mapping verified by widget test; simulated remains distinct from executed. | P2 |
 | AI10 | Undo eligible actions | Simulation undo button | POST /rosa/actions/{id}/undo | I for implemented reversible action types only | lib/features/pms/administration_pages.dart | F | Only eligible executed reversible actions expose existing undo; server revalidates eligibility. | P2 |
-| AI11 | Business memory and guest preference overview | Simulation memory panels | GET /memory | P: structured stored records, not general learning engine | lib/features/pms/administration_pages.dart | P | Real business/guest memory shown; complete structured-value presentation remains incomplete. | P2 |
+| AI11 | Business memory and guest preference overview | Simulation memory panels | GET /memory | P: structured stored records, not general learning engine | lib/features/pms/administration_pages.dart | F | Stored business facts now preserve note/topic or structured JSON fallback, subject type and confidence, plus guest preference key/value/source. Mapping test verifies non-note structured values; no general learning engine implied. | P2 |
 | AI12 | Unlimited autonomous financial/maintenance/government execution | Authority labels may mention broader actions | No complete executor for those labels | M | No native implementation | B | Authority vocabulary does not implement unlimited autonomous financial/government/maintenance execution. | P3 |
 
 ### Channels and integrations
@@ -208,8 +230,8 @@ Cleaners get My day, Schedule, Maintenance. Maintenance staff primarily get Main
 |---|---|---|---|---|---|---|---|---|
 | CH01 | Integration cards, status and sync summary | Settings Integrations | GET /integrations, /integration-sync/summary | I: status is configuration, not independent connectivity proof | lib/features/pms/integrations_page.dart | F | Live cards, queue counts, environment/configuration states, history and truthful government lock notice. | P2 |
 | CH02 | Add integration slot | integration-create dialog | POST /integrations | S: creates sandbox slot | lib/features/pms/integrations_page.dart | F | Owner-only local integration slot form; manager has no create action. | P2 |
-| CH03 | Encrypted technical credentials/configuration | technical API, developer setup; not full active UI | GET /integrations/{i}/technical-status; PATCH /integrations/integrations/{i}/technical-config | P: backend support | No native implementation | M | Encrypted credentials/technical-config API exists; dedicated native credential configuration not implemented. | P2 |
-| CH04 | Booking.com commercial/property authorization | commercial-connect control | POST /integrations/integrations/{i}/commercial-connect | P: staging/onboarding intent; commercial authorization external | No native implementation | M | Commercial authorization API/backend instructions exist; no complete current native onboarding UI. | P2 |
+| CH03 | Encrypted technical credentials/configuration | technical API, developer setup; not full active UI | GET /integrations/{i}/technical-status; PATCH /integrations/{i}/technical-config | P: backend support | No native implementation | M | Encrypted credentials/technical-config API exists; dedicated native credential configuration not implemented. | P2 |
+| CH04 | Booking.com commercial/property authorization | commercial-connect control | POST /integrations/{i}/commercial-connect | P: staging/onboarding intent; commercial authorization external | No native implementation | M | Commercial authorization API/backend instructions exist; no complete current native onboarding UI. | P2 |
 | CH05 | Channex link/discover or map existing inventory | integration dialogs | POST /integrations/{i}/channex/link; GET/PUT /integrations/{i}/channex/inventory-mapping | P: real remote adapter; staging/certification boundary | lib/features/pms/channex_mapping_dialog.dart | P | Active map-existing-inventory flow connected and tested; legacy discovery/link/staging creation not exposed as a new workflow. | P2 |
 | CH06 | Check bookings, inbound polling/webhook and ack retry | Check for bookings / receiver status | POST /integrations/{i}/channex/receive, /integrations/{i}/channex/bookings/{revision}/ack-retry; POST /channel-bridge/webhooks/{i}; workers | P: durable receiver implemented, live approval unverified | lib/features/pms/integrations_page.dart | P | Explicit receive and acknowledgement result UI connected; background receiver stays backend-owned, individual ack retry UI missing. | P2 |
 | CH07 | Room/rate-plan mappings | inventory mapping and ARI dialogs | GET/POST /integrations/{i}/channex/rate-mappings; room mappings | I local mappings with remote dependencies | lib/features/pms/channex_mapping_dialog.dart | F | Property/active room/rate mappings with room-dependent rate options; failed reads clear stale choices and block writes. | P2 |
@@ -244,7 +266,7 @@ Cleaners get My day, Schedule, Maintenance. Maintenance staff primarily get Main
 | SE05 | Audit events and retention-policy visibility | Security Center audit/retention panels | GET /audit, /retention | P: audit reads/policy display; no automatic retention enforcement | lib/features/pms/administration_pages.dart | F | Audit/retention read paths connected; displaying a policy is not enforcement. | P2 |
 | SE06 | Reset password / email verification token flows | Backend security endpoints, not complete browser recovery UI | POST /security/password-reset/request, /confirm; /security/email-verification/request, /security/email-verification/confirm | P: hashed tokens; production email delivery absent | No native implementation | M | Backend reset/email token flows have no complete native client form; transactional delivery remains absent. | P1 |
 | SE07 | MFA/passkeys enrollment and enforcement | Team/security counts mention MFA | Stored fields only; no working MFA flow found | M | No native implementation | B | Working MFA/passkeys enrollment/enforcement missing in reference backend, not supplied by state indicators. | P3 |
-| SE08 | Runtime/health/configuration diagnostics | Security runtime panel | GET /system/runtime, /health/live, /health/ready | P: real checks; conflicting release/schema metadata | lib/features/pms/pms_controller.dart | P | Runtime API loaded; full original developer diagnostics/configuration display remains incomplete. | P2 |
+| SE08 | Runtime/health/configuration diagnostics | Security runtime panel | GET /system/runtime, /health/live, /health/ready | P: real checks; conflicting release/schema metadata | lib/features/pms/administration_pages.dart | F | Original Security runtime panel displays server environment/database/schema/version and permission matrix; no hard-coded release metadata or data-path exposure. Health endpoints remain backend diagnostics, not a new native control. Isolated metadata mapping test passes. | P2 |
 | SE09 | Demo workspace reset | legacy/local demo settings action; not ordinary production nav | POST /demo/reset, DEMO_MODE guard | I: destructive demo-only reset | No native implementation | M | No native reset button; existing dangerous demo reset is not introduced into ordinary development navigation. | P3 |
 | SE10 | OS push, durable offline writes and synchronization | Minimal web manifest/service worker only | No full push/offline conflict service found | M for durable workflow; P for installable web shell | No native implementation | B | No push adapter or durable offline write/conflict-sync engine. Failures never fall back to demo data. | P3 |
 

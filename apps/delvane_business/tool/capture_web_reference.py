@@ -117,7 +117,8 @@ class CDP:
     def evaluate(self, expression):
         result = self.call("Runtime.evaluate",{"expression":expression,"awaitPromise":True,"returnByValue":True})
         if "exceptionDetails" in result:
-            raise RuntimeError("Reference page evaluation failed")
+            detail = result["exceptionDetails"].get("exception",{}).get("description", "").splitlines()
+            raise RuntimeError("Synthetic reference page evaluation failed: " + (detail[0] if detail else "unknown error"))
         return result.get("result",{}).get("value")
 
 
@@ -168,6 +169,7 @@ def capture():
               try{return [k,eval(k)]}catch(_){return [k,{}]}}))})""")
             (output / "web-locales.json").write_text(catalogs,encoding="utf-8")
             results = []
+            all_pages = []
             for width,height in ((1440,1000),(390,844)):
                 cdp.call("Emulation.setDeviceMetricsOverride",{"width":width,"height":height,"deviceScaleFactor":1,"mobile":False})
                 cdp.evaluate("ownerToday()")
@@ -177,11 +179,38 @@ def capture():
                 selectors = ["body",".side",".main",".side .nav",".top h1",".v25-metric-row",".v25-metric-row article",".v25-today-board",".v281-registration-strip",".property",".eyebrow",".v22-utility"]
                 measurements = cdp.evaluate("""JSON.stringify(Object.fromEntries(%s.map(k=>{const e=document.querySelector(k);if(!e)return [k,null];const s=getComputedStyle(e),r=e.getBoundingClientRect();return [k,{x:r.x,y:r.y,width:r.width,height:r.height,background:s.background,color:s.color,font:s.font,fontFamily:s.fontFamily,fontSize:s.fontSize,padding:s.padding,border:s.border,borderRadius:s.borderRadius,gap:s.gap,display:s.display,columns:s.gridTemplateColumns}]})))""" % json.dumps(selectors))
                 results.append({"viewport":[width,height],"measurements":json.loads(measurements)})
-                for page, expression in (("intelligence","ownerIntelligence()"),("calendar","ownerReservations()"),("reception","ownerInbox()")):
-                    cdp.evaluate(expression)
+                for page, expression in (("today","ownerToday()"),("intelligence","ownerIntelligence()"),
+                    ("desk-overview","ownerIntelligence().then(()=>v264OpenDesk('overview'))"),
+                    ("desk-decisions","ownerIntelligence().then(()=>v264OpenDesk('decisions'))"),
+                    ("desk-exceptions","ownerIntelligence().then(()=>v264OpenDesk('exceptions'))"),
+                    ("desk-next48","ownerIntelligence().then(()=>v264OpenDesk('next48'))"),
+                    ("calendar","reservationCalendarMonth='2032-05';ownerReservations()"),("reception","ownerInbox()"),
+                    ("operations","ownerOperations()"),("team","ownerTeam()"),
+                    ("maintenance","ownerMaintenance()"),("supplies","ownerSupplies()"),
+                    ("knowledge","ownerTrainRosa()"),("simulation","ownerSimulation()"),
+                    ("security","ownerSecurity()"),("integrations","ownerIntegrations()"),
+                    ("property","ownerToday().then(()=>propertyOverviewModal('p1'))"),
+                    ("settings","ownerToday().then(()=>openSettingsPanel())"),
+                    ("worker","me={...me,role:'cleaner',full_name:'Development Cleaner'};workerToday(false)")):
+                    # Previous dialog/sheet must not cover the next reference view.
+                    cdp.evaluate("document.querySelectorAll('.modal,#settingsPanel').forEach(e=>e.remove())")
+                    page_error = None
+                    try:
+                        cdp.evaluate(expression)
+                    except RuntimeError as exc:
+                        # Record a real reference bug, never shim/rewrite its JS.
+                        selector = {"team":".v282-team-pane", "knowledge":".knowledge-editor"}.get(page)
+                        if not selector or not cdp.evaluate("Boolean(document.querySelector(%s))" % json.dumps(selector)):
+                            raise
+                        page_error = str(exc)
                     cdp.evaluate("new Promise(resolve=>setTimeout(resolve,100))")
                     (output / f"web-{page}-{width}x{height}.png").write_bytes(base64.b64decode(cdp.call("Page.captureScreenshot",{"format":"png","captureBeyondViewport":False})["data"]))
+                    probe_selectors = selectors + [".v264-ops-desk",".v264-ops-layer",".v264-ops-backdrop",".v264-desk-head",".v264-desk-tabs",".v264-desk-scroll",".rosa-bar",".v264-workspace",".v264-topbar",".v264-pulse",".v264-brief-card",".v264-pulse-metric",".v264-composer",".v21110-calendar-header h1",".v21110-calendar-toolbar",".v21110-calendar-day",".v21110-calendar-stay",".brand b",".brand span",".account-launch",".btn",".btn.primary","input","select","textarea",".state",".empty",".modal-card",".modal-title h2",".modal-actions",".settings-drawer",".settings-nav-item",".v25-today-column",".v25-action-row",".v25-time",".v281-registration-strip header",".v281-registration-strip header strong",".v281-registration-list button",".property h3",".command-hero h1",".intel-metrics article",".intel-metrics article span",".intel-metrics article strong",".intel-metrics article small",".v26-chat-layout",".v28-reception-tabs",".gmail-reception-workspace",".gmail-reception-list",".gmail-reception-main",".calendar-day",".v282-person-card",".v25-maint-card",".v25-cleaning-card"]
+                    specs = cdp.evaluate("""JSON.stringify(Object.fromEntries(%s.map(k=>{const e=document.querySelector(k);if(!e)return [k,null];const s=getComputedStyle(e),r=e.getBoundingClientRect();return [k,{x:r.x,y:r.y,width:r.width,height:r.height,text:e.textContent.slice(0,180),background:s.background,color:s.color,font:s.font,fontFamily:s.fontFamily,fontSize:s.fontSize,fontWeight:s.fontWeight,lineHeight:s.lineHeight,letterSpacing:s.letterSpacing,padding:s.padding,margin:s.margin,border:s.border,borderRadius:s.borderRadius,gap:s.gap,shadow:s.boxShadow,blur:s.backdropFilter,display:s.display,columns:s.gridTemplateColumns,position:s.position,overflow:s.overflow}]})))""" % json.dumps(probe_selectors))
+                    all_pages.append({"page":page,"viewport":[width,height],"reference_handler_error":page_error,"measurements":json.loads(specs)})
+                cdp.evaluate("me={...me,role:'owner',full_name:'Development Owner'}")
             (output / "computed-styles.json").write_text(json.dumps(results,indent=2),encoding="utf-8")
+            (output / "computed-styles-by-page.json").write_text(json.dumps(all_pages,indent=2),encoding="utf-8")
             print("Original web Today screenshots, computed CSS and catalogs captured with synthetic GET fixtures.")
         finally:
             if cdp:

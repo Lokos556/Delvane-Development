@@ -475,6 +475,7 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
       canPop: !busy,
       child: PmsModal(
         title: text(r, 'guest_name', 'Reservation'),
+        mobileSheet: true,
         eyebrow: text(r, 'source'),
         canClose: !busy,
         width: 1040,
@@ -1018,6 +1019,9 @@ class _IdentityReviewState extends State<IdentityReview>
           ),
           errors(),
           if (guests == null && !busy) PmsButton('Retry', onPressed: load),
+          if (guests == null && busy) const LinearProgressIndicator(),
+          if (guests != null && guests!.isEmpty)
+            const PmsEmpty('No guest registration records.'),
           for (final guest in guests ?? <Json>[])
             PmsCard(
               child: Column(
@@ -1051,6 +1055,7 @@ class _IdentityReviewState extends State<IdentityReview>
                     ),
                     PmsField(
                       'Review note',
+                      maxLength: 1000,
                       controller: notes.putIfAbsent(
                         text(guest, 'id'),
                         () => TextEditingController(),

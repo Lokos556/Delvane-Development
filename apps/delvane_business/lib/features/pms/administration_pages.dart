@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../workspace/workspace_models.dart';
 import 'pms_controller.dart';
@@ -14,96 +15,173 @@ class SecurityPage extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const PmsEyebrow('SECURITY'),
+        const PmsEyebrow('PRODUCTION CORE'),
+        const PmsPageTitle('Security center'),
         const Text(
-          'Security Center',
-          style: TextStyle(fontSize: 38, fontWeight: FontWeight.w700),
+          'Sessions, tenant boundaries, access controls and audit evidence in one place.',
         ),
         const SizedBox(height: 20),
-        const PmsCard(
+        PmsCard(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                'Production-shaped, still local.',
+              const Text(
+                'Production core',
                 style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
               ),
-              Text(
-                'Tenant isolation, server-side roles, scrypt passwords, hashed session tokens, CSRF protection, security headers and audit evidence are active. MFA and production HTTPS are intentionally not claimed as complete in this local build.',
+              const Text(
+                'Production deployments require PostgreSQL, secure cookies, encryption keys and demo mode disabled.',
               ),
+              const SizedBox(height: 16),
+              PmsColumns([
+                for (final entry in {
+                  'environment': 'Environment',
+                  'database_backend': 'Database',
+                  'schema_version': 'Schema',
+                  'version': 'Version',
+                }.entries)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        entry.value,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: PmsStyle.muted,
+                        ),
+                      ),
+                      SelectableText(
+                        '${c.object('runtime')[entry.key] ?? 'Unknown'}',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ],
+                  ),
+              ], columns: 4),
             ],
           ),
         ),
         const SizedBox(height: 20),
         PmsColumns([
-          for (final e in {
-            'active_users': 'Active users',
-            'email_verified_users': 'Verified email',
-            'mfa_enabled_users': 'MFA enabled',
+          for (final entry in {
+            'Active sessions': '${optionalRows(sec['sessions']).length}',
+            'MFA users':
+                '${sec['mfa_enabled_users'] ?? 0}/${sec['active_users'] ?? 0}',
+            'Passwords': text(sec, 'password_scheme', 'Unknown'),
+            'CSRF': 'ACTIVE',
+            'Tenant isolation': 'SERVER',
+            'Secure cookie': sec['secure_cookie_required'] == true
+                ? 'ON'
+                : 'LOCAL OFF',
           }.entries)
             PmsCard(
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Text(entry.key, style: const TextStyle(fontSize: 12)),
                   Text(
-                    '${sec[e.key] ?? 0}',
+                    entry.value,
                     style: const TextStyle(
-                      fontSize: 32,
+                      fontSize: 22,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  Text(e.value),
                 ],
               ),
             ),
         ], columns: 3),
         const SizedBox(height: 24),
-        const PmsEyebrow('ACTIVE SESSIONS'),
-        for (final s in optionalRows(sec['sessions']))
+        PmsColumns([
           PmsCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  text(s, 'full_name'),
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                Text('${text(s, 'role')} · ${text(s, 'ip_address')}'),
-                Text(text(s, 'user_agent')),
-                Text(
-                  'Last seen ${text(s, 'last_seen_at')} · expires ${text(s, 'expires_at')}',
-                ),
-                if (c.user.role == 'owner')
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: PmsButton(
-                      'Revoke session',
-                      onPressed: c.saving
-                          ? null
-                          : () async {
-                              if (await pmsConfirm(
-                                    context,
-                                    'Revoke this active session?',
-                                    'The selected session will be signed out.',
-                                  ) &&
-                                  c.auth.user?.role == 'owner') {
-                                await c.act(() async {
-                                  await c.mutate(
-                                    'DELETE',
-                                    '/api/security/sessions/${idPath(text(s, 'id'))}',
-                                  );
-                                });
-                              }
-                            },
+                const PmsEyebrow('ACTIVE SESSIONS'),
+                for (final s in optionalRows(sec['sessions']))
+                  PmsCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          text(s, 'full_name'),
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        Text('${text(s, 'role')} · ${text(s, 'ip_address')}'),
+                        Text(text(s, 'user_agent')),
+                        Text(
+                          'Last seen ${text(s, 'last_seen_at')} · expires ${text(s, 'expires_at')}',
+                        ),
+                        if (c.user.role == 'owner')
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: PmsButton(
+                              'Revoke session',
+                              onPressed: c.saving
+                                  ? null
+                                  : () async {
+                                      if (await pmsConfirm(
+                                            context,
+                                            'Revoke this active session?',
+                                            'The selected session will be signed out.',
+                                          ) &&
+                                          c.auth.user?.role == 'owner') {
+                                        await c.act(() async {
+                                          await c.mutate(
+                                            'DELETE',
+                                            '/api/security/sessions/${idPath(text(s, 'id'))}',
+                                          );
+                                        });
+                                      }
+                                    },
+                            ),
+                          ),
+                      ],
                     ),
                   ),
+                if (optionalRows(sec['sessions']).isEmpty)
+                  const PmsEmpty('No active sessions.'),
+                const SizedBox(height: 24),
               ],
             ),
           ),
-        if (optionalRows(sec['sessions']).isEmpty)
-          const PmsEmpty('No active sessions.'),
+          PmsCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const PmsEyebrow('LEAST PRIVILEGE'),
+                const Text(
+                  'Role permissions',
+                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
+                ),
+                PmsColumns([
+                  for (final role in optionalObject(sec['permissions']).entries)
+                    PmsCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            role.key,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          Text(
+                            '${role.value is List ? (role.value as List).length : 0} permissions',
+                          ),
+                          if (role.value is List)
+                            Text(
+                              (role.value as List).take(5).join(' \u00b7 '),
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                        ],
+                      ),
+                    ),
+                ], columns: 2),
+                const SizedBox(height: 24),
+              ],
+            ),
+          ),
+        ], columns: 2),
         const SizedBox(height: 24),
         PmsColumns([
           PmsCard(
@@ -214,40 +292,82 @@ class _KnowledgePageState extends State<KnowledgePage>
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const PmsEyebrow('TRAIN DELVANE'),
-        const Text(
-          'Train Delvane',
-          style: TextStyle(fontSize: 38, fontWeight: FontWeight.w700),
-        ),
+        const PmsPageTitle('Train Delvane'),
         const Text(
           'Shared knowledge applies across properties. Property-specific knowledge overrides shared guidance.',
         ),
         const SizedBox(height: 24),
         errors(),
-        PmsSelect(
-          'Knowledge scope',
-          value: scope,
-          items: {
-            'shared': 'Shared knowledge',
-            for (final p in optionalRows(d['properties']))
-              text(p, 'id'): text(p, 'name'),
-          },
+        const PmsCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Prototype knowledge',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+              Text(
+                'The seeded entries marked "DEMO ONLY" are placeholders, not real Casa Rosa policies. Replace them before guest messaging goes live.',
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        PmsTabs(
+          labels: [
+            'Casa Rosa',
+            for (final p in optionalRows(d['properties'])) text(p, 'name'),
+          ],
+          selected: [
+            'shared',
+            for (final p in optionalRows(d['properties'])) text(p, 'id'),
+          ].indexOf(scope),
           onChanged: busy
-              ? null
-              : (v) async {
-                  if (!await pmsConfirm(
+              ? (_) {}
+              : (index) async {
+                  final next = [
+                    'shared',
+                    for (final p in optionalRows(d['properties']))
+                      text(p, 'id'),
+                  ][index];
+                  if (next == scope) return;
+                  if (!saved &&
+                      !await pmsConfirm(
                         context,
                         'Change knowledge scope?',
                         'Unsaved changes in this scope will be discarded.',
-                      ) ||
-                      !mounted) {
+                      )) {
                     return;
                   }
+                  if (!mounted) return;
                   setState(() {
-                    scope = v;
+                    scope = next;
                     populate();
                     saved = false;
                   });
                 },
+        ),
+        const SizedBox(height: 20),
+        const PmsEyebrow('EDITING'),
+        Text(
+          scope == 'shared'
+              ? 'Casa Rosa \u00b7 shared'
+              : text(
+                  optionalRows(
+                    d['properties'],
+                  ).firstWhere((p) => p['id'] == scope, orElse: () => {}),
+                  'name',
+                ),
+          style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
+        ),
+        Text(
+          scope == 'shared'
+              ? 'Used as a fallback for every apartment.'
+              : 'Overrides shared answers for this apartment.',
+        ),
+        Text(
+          '${optionalObject(optionalObject(d['scopes'])[scope]).values.where((v) => v.toString().trim().isNotEmpty).length} of ${optionalRows(d['fields']).length} configured',
+          style: const TextStyle(fontWeight: FontWeight.w700),
         ),
         for (final category in optionalRows(
           d['fields'],
@@ -260,10 +380,13 @@ class _KnowledgePageState extends State<KnowledgePage>
             ).where((f) => f['category'] == category))
               PmsField(
                 text(f, 'label'),
+                status: inputs[text(f, 'key')]!.text.trim().isEmpty
+                    ? 'Not configured'
+                    : 'Configured',
                 controller: inputs[text(f, 'key')]!,
                 lines: 3,
                 onChanged: (_) {
-                  if (saved) setState(() => saved = false);
+                  setState(() => saved = false);
                 },
               ),
           ], columns: 2),
@@ -376,10 +499,7 @@ class _OperatingModePageState extends State<OperatingModePage>
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const PmsEyebrow('PRODUCTION PILOT CONTROL'),
-        const Text(
-          'Simulation / Operating mode',
-          style: TextStyle(fontSize: 38, fontWeight: FontWeight.w700),
-        ),
+        const PmsPageTitle('Simulation / Operating mode'),
         errors(),
         const SizedBox(height: 24),
         Text('Current mode: $current'),
@@ -410,14 +530,44 @@ class _OperatingModePageState extends State<OperatingModePage>
         ], columns: 3),
         const SizedBox(height: 24),
         const PmsEyebrow('SIMULATION LEDGER'),
+        PmsColumns([
+          for (final entry in {
+            'simulated': 'Simulated',
+            'awaiting_approval': 'Awaiting approval',
+            'executed': 'Executed',
+          }.entries)
+            PmsCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(entry.value),
+                  Text(
+                    '${c.rows('actions').where((a) => a['status'] == entry.key).length}',
+                    style: const TextStyle(fontFamily: 'Georgia', fontSize: 28),
+                  ),
+                ],
+              ),
+            ),
+        ], columns: 3),
+        const SizedBox(height: 16),
         for (final a in c.rows('actions').take(30))
           PmsCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 PmsBadge(text(a, 'status')),
-                Text(text(a, 'summary', text(a, 'action_type'))),
-                Text(text(a, 'created_at')),
+                Text(
+                  text(
+                    optionalObject(a['payload']),
+                    'label',
+                    text(
+                      a,
+                      'summary',
+                      text(a, 'action_type').replaceAll('_', ' '),
+                    ),
+                  ),
+                ),
+                Text('${text(a, 'created_at')} · ${text(a, 'operating_mode')}'),
                 if (a['reversible'] == 1 &&
                     a['status'] == 'executed' &&
                     a['undone_at'] == null)
@@ -474,11 +624,9 @@ class _OperatingModePageState extends State<OperatingModePage>
             contentPadding: EdgeInsets.zero,
             title: Text(text(m, 'memory_key').replaceAll('_', ' ')),
             subtitle: Text(
-              text(
-                optionalObject(m['value']),
-                'note',
-                text(optionalObject(m['value']), 'topic'),
-              ),
+              '${text(optionalObject(m['value']), 'note', text(optionalObject(m['value']), 'topic', jsonEncode(m['value'])))}\n'
+              '${text(m, 'subject_type')} · confidence '
+              '${m['confidence'] is num ? ((m['confidence'] as num) * 100).round() : 'Unknown'}%',
             ),
           ),
         for (final m in optionalRows(memory['guest_preferences']))
