@@ -1,5 +1,9 @@
 # Web-fidelity port in progress
 
+For USB-connected Android debug testing of this same application, use
+[ANDROID_TESTING.md](ANDROID_TESTING.md). It includes the isolated Windows backend,
+`adb reverse`, debug APK installation and Xiaomi acceptance checklist.
+
 The authenticated default now uses the source-shaped PMS shell. See [PORT_STATUS.md](PORT_STATUS.md) for implemented screens, substantial remaining gaps and visual differences. The Milestone 1 instructions below still describe the secure isolated launcher, but its UI inventory is historical. This build is not full web parity.
 
 Reservations, Reception, property rates, worker maintenance/cleaning, stock,

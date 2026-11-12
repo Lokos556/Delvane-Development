@@ -1,3 +1,4 @@
 {
-    "cmake.sourceDirectory": "C:/Delvane/Delvane-Development/apps/delvane_business/windows"
+    "cmake.sourceDirectory": "C:/Delvane/Delvane-Development/apps/delvane_business/windows",
+    "java.configuration.updateBuildConfiguration": "automatic"
 }

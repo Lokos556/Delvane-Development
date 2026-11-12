@@ -8,7 +8,8 @@ plugins {
 android {
     namespace = "com.delvane.delvane_business"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    // Existing secure-storage/path-provider plugins require this installed NDK.
+    ndkVersion = "27.0.12077973"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11

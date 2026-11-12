@@ -1,5 +1,87 @@
 # Delvane PMS Flutter port: current status
 
+## Latest pass — Android USB development readiness
+
+Updated 2026-11-12. The existing Git tree was clean at the start. An IDE-generated
+`.vscode/settings.json` change appeared during the work and was left untouched.
+This is the same Flutter client, not a second Android codebase. Backend source,
+operational databases, provider integrations, dependencies and Windows source
+configuration were preserved. No commits/publication.
+
+### Configuration and runtime changes
+
+- Android debug APK builds with Gradle 8.12, existing AGP 8.7.3 / Kotlin 2.1.0,
+  configured JDK 17 and installed NDK 27.0.12077973. Gradle 9.7.1 failed compiling
+  Flutter 3.32.2's Gradle plugin; Flutter's default NDK 26.3 mismatched the existing
+  secure-storage/path-provider requirements. No SDK/plugin upgrade was performed.
+- Debug-only Network Security Configuration permits HTTP for exactly loopback
+  `127.0.0.1` / `localhost`. Main profile/release policy denies cleartext. The
+  default API remains `http://127.0.0.1:8765`, forwarded over USB to Windows loopback.
+  No LAN listener, firewall opening or production bypass was added.
+- `tool/connect_android.ps1` selects an authorized device, verifies the local
+  isolated-workspace marker without HTTP redirects, refuses conflicting forwards,
+  configures `adb reverse`, and optionally installs/launches the debug APK. It does
+  not start the backend, uninstall an existing app or clear device data.
+- Session cookies, CSRF, server roles, expiration/logout and the workspace marker
+  remain unchanged. Existing Android encrypted preferences/Keystore session storage
+  is retained; passwords are never persisted. Cloud backup is disabled; Android 12+
+  device-transfer/cloud rules also exclude shared preferences to prevent keyless
+  restoration of encrypted sessions.
+- Intelligence's fixed workspace height now subtracts keyboard insets, preserving
+  composer access with the Android IME open. Existing responsive navigation, forms,
+  `adjustResize`, SafeArea, tables and page APIs remain in place. No visual redesign.
+
+### Files changed
+
+All within `apps/delvane_business/`:
+
+- `android/gradle/wrapper/gradle-wrapper.properties`, `android/app/build.gradle.kts`.
+- `android/app/src/main/AndroidManifest.xml`, `android/app/src/debug/AndroidManifest.xml`.
+- New `android/app/src/debug/res/xml/development_network_security.xml` and
+  `android/app/src/main/res/xml/session_data_extraction_rules.xml`.
+- `lib/features/pms/intelligence_workspace.dart`.
+- New `test/android_readiness_test.dart`, `tool/connect_android.ps1`,
+  `ANDROID_TESTING.md`; updated `README.md` and `PORT_STATUS.md`.
+
+### Validation
+
+- `flutter --no-version-check analyze`: **no issues**.
+- Complete `flutter test`: **168 passed, 0 failed, 0 skipped**. Eight new host
+  Android-theme tests cover seven principal page families, system insets, drawer
+  opening and a keyboard-resized Intelligence composer. Existing session/logout,
+  role, reservation, Reception, operations/staff and desktop tests remain passing.
+  These are simulated Android widget layouts, not actual phone execution.
+- `flutter --no-version-check build apk --debug`: **succeeded** after final NDK and
+  policy changes. APK: `build/app/outputs/flutter-apk/app-debug.apk`, 94,421,196 bytes;
+  application `com.delvane.delvane_business`, version 0.1.0+1, min SDK 21 / target and
+  compile SDK 35, including `arm64-v8a` for Xiaomi 15.
+- Packaged manifest/XML inspected using SDK `aapt`: backup disabled, extraction
+  exclusions, loopback-only cleartext exception and `adjustResize` confirmed.
+  `zipalign -c -P 16 4` passed; packaged ARM64 libraries have 65536-byte ELF LOAD
+  alignment. No physical 16 KB device compatibility claim is made.
+- `.venv` isolated `tests/test_flutter_workspace.py`: **9 passed**, with two existing
+  Starlette/httpx/AnyIO deprecation warnings. No ordinary backend was launched.
+- No Android device was listed by `adb devices -l`. No APK installation, launch,
+  actual USB API request, Keystore device round trip or HyperOS acceptance occurred.
+  The helper's safe no-device refusal was verified.
+- Windows release regression: **succeeded** using installed VS 2026 CMake/MSBuild
+  in `build/windows-android-regression/x64/runner/Release/`. The ordinary wrapper
+  reached the expected VS fallback but linking failed with LNK1104 because the
+  standard release executable was running. That user application was not stopped
+  or replaced; the separate ignored output tree avoids its lock. Logs are in
+  `build/android-windows-regression-build.txt` and
+  `build/android-windows-regression-alternate.txt`.
+
+### Testing next
+
+Use [ANDROID_TESTING.md](ANDROID_TESTING.md): start the guarded temporary backend,
+connect/authorize the Xiaomi, then run the USB helper with `-Install`. All four
+synthetic role accounts are supported. Reapply forwarding after USB reconnect.
+HyperOS permissions, Keystore restore, gesture bars, fonts/scaling, landscape/IME,
+system Back and GPU rendering still require real-device acceptance. Keep provider
+credentials absent and use only disposable data. Existing parity limitations and
+backend-blocked/simulated workflows remain as documented below.
+
 ## Latest continuation — Operational desk, administration and visual depth
 
 Updated 2026-11-12. Previous uncommitted work, including the original visual pass,

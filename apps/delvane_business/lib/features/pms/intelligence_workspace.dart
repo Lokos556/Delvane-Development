@@ -49,10 +49,11 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
     final messages = optionalRows(conversation['messages']),
         proposals = optionalRows(conversation['proposals']);
     return SizedBox(
-      height: (MediaQuery.sizeOf(context).height - (mobile ? 94 : 34)).clamp(
-        360,
-        100000,
-      ),
+      height:
+          (MediaQuery.sizeOf(context).height -
+                  MediaQuery.viewInsetsOf(context).bottom -
+                  (mobile ? 94 : 34))
+              .clamp(360, 100000),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

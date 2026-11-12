@@ -4,4 +4,7 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- USB adb reverse forwards this device's loopback to Windows loopback.
+         This exception is absent from profile/release and never permits LAN HTTP. -->
+    <application android:networkSecurityConfig="@xml/development_network_security" />
 </manifest>
