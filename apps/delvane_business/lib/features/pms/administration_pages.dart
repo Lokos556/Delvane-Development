@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import '../../core/localization/system_labels.dart';
 
 import 'package:material_ui/material_ui.dart';
@@ -59,7 +60,9 @@ class SecurityPage extends StatelessWidget {
                       ),
                       SelectableText(
                         entry.key == 'environment'
-                            ? ui('${c.object('runtime')[entry.key] ?? 'Unknown'}')
+                            ? ui(
+                                '${c.object('runtime')[entry.key] ?? 'Unknown'}',
+                              )
                             : '${c.object('runtime')[entry.key] ?? ui('Unknown')}',
                         style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
@@ -430,7 +433,12 @@ class _KnowledgePageState extends State<KnowledgePage>
             child: Wrap(
               spacing: 20,
               children: [
-                Text(authorityLabel(entry.key, text(optionalObject(entry.value), 'label'))),
+                Text(
+                  authorityLabel(
+                    entry.key,
+                    text(optionalObject(entry.value), 'label'),
+                  ),
+                ),
                 SizedBox(
                   width: 260,
                   child: PmsSelect(
@@ -648,7 +656,7 @@ class _OperatingModePageState extends State<OperatingModePage>
             title: Text(text(m, 'memory_key').replaceAll('_', ' ')),
             subtitle: Text(
               '${text(optionalObject(m['value']), 'note', text(optionalObject(m['value']), 'topic', jsonEncode(m['value'])))}\n'
-              '${text(m, 'subject_type')} · confidence '
+              '${text(m, 'subject_type')} · ${ui('Confidence')} '
               '${m['confidence'] is num ? ((m['confidence'] as num) * 100).round() : 'Unknown'}%',
             ),
           ),

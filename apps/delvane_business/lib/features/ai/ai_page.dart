@@ -73,7 +73,7 @@ class _AiPageState extends State<AiPage> {
               'What tasks are open?',
             ])
               ActionChip(
-                label: Text(prompt),
+                label: Text(ui(prompt)),
                 onPressed: () => ask(prompt),
                 avatar: const Icon(Icons.north_east, size: 15),
               ),
@@ -98,7 +98,10 @@ class _AiPageState extends State<AiPage> {
                     color: DelvaneColors.yellowSoft,
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: Text(message.$2, style: const TextStyle(height: 1.7)),
+                  child: Text(
+                    ui(message.$2),
+                    style: const TextStyle(height: 1.7),
+                  ),
                 ),
               ],
             ),

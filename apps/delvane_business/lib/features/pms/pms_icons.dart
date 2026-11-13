@@ -18,10 +18,12 @@ class PmsVectorIcon extends StatelessWidget {
     child: SizedBox(
       width: size,
       height: size,
-      child: Center(child: AspectRatio(
-        aspectRatio: 1,
-        child: CustomPaint(painter: _Symbol(name, color)),
-      )),
+      child: Center(
+        child: AspectRatio(
+          aspectRatio: 1,
+          child: CustomPaint(painter: _Symbol(name, color)),
+        ),
+      ),
     ),
   );
 }

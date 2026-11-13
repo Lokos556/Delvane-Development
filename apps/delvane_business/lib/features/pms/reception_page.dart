@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+
 import '../../core/localization/system_labels.dart';
 
 import '../workspace/workspace_models.dart';
@@ -178,7 +179,9 @@ class _ReceptionPageState extends State<ReceptionPage>
                       style: const TextStyle(fontSize: 10, letterSpacing: .8),
                     ),
                     Text(
-                      entry.key == 'Live external sending' ? t('OFF') : '${entry.value ?? 0}',
+                      entry.key == 'Live external sending'
+                          ? t('OFF')
+                          : '${entry.value ?? 0}',
                       style: const TextStyle(
                         fontFamily: 'Georgia',
                         fontSize: 28,
@@ -564,13 +567,13 @@ class _ReceptionPageState extends State<ReceptionPage>
     runSpacing: 6,
     children: [
       if (extracted['property_name'] != null)
-        PmsBadge(text(extracted, 'property_name')),
+        PmsBadge(text(extracted, 'property_name'), localizeLabel: false),
       if (extracted['arrival_time'] != null)
         PmsBadge(ui('Arrival ${text(extracted, 'arrival_time')}')),
       if (extracted['guest_count'] != null)
         PmsBadge(ui('${extracted['guest_count']} guests')),
       for (final request in extracted['special_requests'] as List? ?? [])
-        PmsBadge(request.toString()),
+        PmsBadge(request.toString(), localizeLabel: false),
     ],
   );
   Widget scheduled() {
@@ -614,7 +617,8 @@ class _ReceptionPageState extends State<ReceptionPage>
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           PmsEyebrow(
-            x['rule_label'] == null ? text(x, 'subject', t('Guest message'))
+            x['rule_label'] == null
+                ? text(x, 'subject', t('Guest message'))
                 : automationText(x, 'rule_label'),
           ),
           Text(

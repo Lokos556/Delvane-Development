@@ -560,10 +560,12 @@ class PmsBadge extends StatelessWidget {
     this.tone = 'neutral',
     this.large = false,
     this.compact = false,
+    this.localizeLabel = true,
   });
   final String label, tone;
   final bool large;
   final bool compact;
+  final bool localizeLabel;
   @override
   Widget build(BuildContext context) {
     final colors = switch (tone) {
@@ -598,7 +600,7 @@ class PmsBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
       ),
       child: Text(
-        ui(label),
+        localizeLabel ? ui(label) : label,
         style: TextStyle(
           fontSize: compact ? 10 : 11,
           fontWeight: FontWeight.w800,

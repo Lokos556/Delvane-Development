@@ -72,6 +72,12 @@ class _PmsAskBarState extends State<PmsAskBar> with PmsActions<PmsAskBar> {
               ),
             ),
           ),
+        if (busy)
+          Semantics(
+            label: ui('Loading…'),
+            liveRegion: true,
+            child: const LinearProgressIndicator(minHeight: 2),
+          ),
         SizedBox(
           height: mobile ? 74 : 84,
           child: PmsCard(

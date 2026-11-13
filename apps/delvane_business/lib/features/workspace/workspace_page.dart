@@ -48,7 +48,7 @@ class _WorkspacePageState extends State<WorkspacePage>
     super.dispose();
   }
 
-  String _label(WorkspaceTab tab) => switch (tab) {
+  String _label(WorkspaceTab tab) => ui(switch (tab) {
     WorkspaceTab.today =>
       widget.auth.user!.role == 'maintenance'
           ? 'My cases'
@@ -59,7 +59,7 @@ class _WorkspacePageState extends State<WorkspacePage>
     WorkspaceTab.properties => 'Properties',
     WorkspaceTab.work => 'Work',
     WorkspaceTab.account => 'Account',
-  };
+  });
   IconData _icon(WorkspaceTab tab) => switch (tab) {
     WorkspaceTab.today => Icons.grid_view_rounded,
     WorkspaceTab.reservations => Icons.calendar_month_outlined,

@@ -149,7 +149,7 @@ class DashboardPage extends StatelessWidget {
                               children: [
                                 Expanded(
                                   child: Text(
-                                    s.$1,
+                                    ui(s.$1),
                                     style: const TextStyle(
                                       color: DelvaneColors.muted,
                                       fontSize: 12,
@@ -177,7 +177,7 @@ class DashboardPage extends StatelessWidget {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              s.$3,
+                              ui(s.$3),
                               style: const TextStyle(
                                 color: DelvaneColors.muted,
                                 fontSize: 10,

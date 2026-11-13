@@ -216,7 +216,9 @@ class _DistributionDialogState extends State<DistributionDialog>
                     ui('CONFIGURED DAYS  ${optionalRows(d['values']).length}'),
                   ),
                   Text(
-                    ui('LAST DELIVERED  ${uiDateTime(text(d, 'last_sent_at', ui('Never')))}'),
+                    ui(
+                      'LAST DELIVERED  ${uiDateTime(text(d, 'last_sent_at', ui('Never')))}',
+                    ),
                   ),
                 ],
               ),

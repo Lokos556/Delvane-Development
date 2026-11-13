@@ -1,5 +1,7 @@
 import 'package:material_ui/material_ui.dart';
+
 import '../../core/localization/system_labels.dart';
+
 import 'package:flutter/services.dart';
 
 import '../workspace/workspace_models.dart';
@@ -334,7 +336,9 @@ class _TeamPageState extends State<TeamPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        e.key == 'last sign-in' ? uiDateTime(ui(e.value)) : e.value,
+                        e.key == 'last sign-in'
+                            ? uiDateTime(ui(e.value))
+                            : e.value,
                         style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
