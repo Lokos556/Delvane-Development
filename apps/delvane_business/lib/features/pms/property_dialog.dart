@@ -1,5 +1,5 @@
-import 'package:delvane_business/core/localization/web_strings.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
+
 import '../workspace/workspace_models.dart';
 import 'pms_controller.dart';
 import 'pms_dialogs.dart';

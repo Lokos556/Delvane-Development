@@ -1,5 +1,5 @@
-import 'package:delvane_business/core/localization/web_strings.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
+
 import 'pms_controller.dart';
 import 'pms_style.dart';
 import 'pms_workflows.dart';
@@ -35,7 +35,7 @@ mixin PmsActions<T extends StatefulWidget> on State<T> {
           child: Semantics(
             liveRegion: true,
             child: Text(
-              failure!,
+              ui(failure!),
               style: const TextStyle(color: Color(0xFFAA3139)),
             ),
           ),
@@ -161,7 +161,7 @@ class PmsDateField extends StatelessWidget {
     required: true,
     hint: ui('YYYY-MM-DD'),
     suffix: IconButton(
-      tooltip: 'Choose $label',
+      tooltip: ui('Choose $label'),
       icon: const Icon(Icons.calendar_today_outlined, size: 18),
       onPressed: () async {
         final selected = await showDialog<DateTime>(
@@ -221,7 +221,9 @@ class _PmsDatePickerState extends State<PmsDatePicker> {
     ];
     final start = month.subtract(Duration(days: month.weekday - 1));
     return PmsModal(
-      title: '${names[month.month - 1]} ${month.year}',
+      title: WebStrings.current.language == 'hu'
+          ? '${month.year}. ${ui(names[month.month - 1])}'
+          : '${names[month.month - 1]} ${month.year}',
       width: 390,
       child: Column(
         children: [
@@ -272,7 +274,10 @@ class _PmsDatePickerState extends State<PmsDatePicker> {
               ])
                 Expanded(
                   child: Center(
-                    child: Text(label, style: const TextStyle(fontSize: 10)),
+                    child: Text(
+                      ui(label),
+                      style: const TextStyle(fontSize: 10),
+                    ),
                   ),
                 ),
             ],
@@ -349,11 +354,13 @@ class PmsKeyValues extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                entry.key,
+                ui(entry.key),
                 style: const TextStyle(fontSize: 11, color: PmsStyle.muted),
               ),
               SelectableText(
-                entry.value.isEmpty ? '—' : entry.value,
+                entry.value.isEmpty
+                    ? '—'
+                    : uiFieldValue(entry.key, entry.value),
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
             ],

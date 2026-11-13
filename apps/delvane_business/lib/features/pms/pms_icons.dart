@@ -1,6 +1,6 @@
-import 'package:delvane_business/core/localization/web_strings.dart';
 import 'dart:math' as math;
-import 'package:flutter/material.dart';
+
+import 'package:material_ui/material_ui.dart';
 
 /// Brand-neutral outlined UI symbols. No platform emoji/font dependency.
 class PmsVectorIcon extends StatelessWidget {
@@ -18,7 +18,10 @@ class PmsVectorIcon extends StatelessWidget {
     child: SizedBox(
       width: size,
       height: size,
-      child: CustomPaint(painter: _Symbol(name, color)),
+      child: Center(child: AspectRatio(
+        aspectRatio: 1,
+        child: CustomPaint(painter: _Symbol(name, color)),
+      )),
     ),
   );
 }
@@ -29,7 +32,9 @@ class _Symbol extends CustomPainter {
   final Color color;
   @override
   void paint(Canvas c, Size size) {
-    c.scale(size.width / 24, size.height / 24);
+    final scale = math.min(size.width, size.height) / 24;
+    c.translate((size.width - 24 * scale) / 2, (size.height - 24 * scale) / 2);
+    c.scale(scale);
     final p = Paint()
       ..color = color
       ..style = PaintingStyle.stroke
@@ -170,8 +175,25 @@ class _Symbol extends CustomPainter {
           p,
         );
         line(6, 12, 15, 12);
-      case '›':
       case '⌄':
+      case 'chevron_down':
+        line(6, 9, 12, 15);
+        line(12, 15, 18, 9);
+      case 'notifications':
+        c.drawPath(
+          Path()
+            ..moveTo(6, 17)
+            ..lineTo(6.8, 15)
+            ..lineTo(6.8, 10)
+            ..cubicTo(6.8, 3.5, 17.2, 3.5, 17.2, 10)
+            ..lineTo(17.2, 15)
+            ..lineTo(18, 17)
+            ..close(),
+          p,
+        );
+        c.drawArc(Rect.fromLTWH(10, 18, 4, 3), 0, math.pi, false, p);
+        line(12, 3, 12, 4.5);
+      case '›':
       case 'chevron':
         line(9, 6, 15, 12);
         line(15, 12, 9, 18);
@@ -196,12 +218,13 @@ class PmsMobileBrand extends StatelessWidget {
       Image.asset('assets/delvane-icon.png', width: 32, height: 32),
       const SizedBox(width: 8),
       Text(
-        ui('DELVANE'),
+        'DELVANE',
         style: TextStyle(
-          fontFamily: 'sans-serif',
-          fontSize: 18,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 1.5,
+          fontFamily: 'Inter',
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
+          fontSize: 19.2,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1.728,
           height: 1,
         ),
       ),

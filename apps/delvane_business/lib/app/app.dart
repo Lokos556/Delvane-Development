@@ -1,7 +1,8 @@
 import 'package:delvane_business/core/localization/web_strings.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
+
 import 'dart:async';
-import 'package:flutter_localizations/flutter_localizations.dart';
+
 import '../data/mock_business_repository.dart';
 import '../domain/business_repository.dart';
 import '../shared/app_shell.dart';
@@ -32,6 +33,7 @@ class _DelvaneBusinessAppState extends State<DelvaneBusinessApp> {
   BusinessController? controller;
   AuthController? auth;
   late bool showDemo;
+  bool _localeReady = false;
   String? navigatorIdentity;
   GlobalKey<NavigatorState> workspaceNavigator = GlobalKey<NavigatorState>();
   @override
@@ -39,9 +41,11 @@ class _DelvaneBusinessAppState extends State<DelvaneBusinessApp> {
     super.initState();
     WebStrings.current.addListener(_languageChanged);
     unawaited(
-      WebStrings.current.initialize(
-        widget.auth?.store ?? const PlatformSessionStore(),
-      ),
+      WebStrings.current
+          .initialize(widget.auth?.store ?? const PlatformSessionStore())
+          .then((_) {
+            if (mounted) setState(() => _localeReady = true);
+          }),
     );
     showDemo = widget.demoMode;
     if (showDemo) {
@@ -84,7 +88,9 @@ class _DelvaneBusinessAppState extends State<DelvaneBusinessApp> {
     title: 'Delvane Business',
     debugShowCheckedModeBanner: false,
     theme: delvaneTheme(),
-    home: showDemo
+    home: !_localeReady
+        ? const Scaffold(body: Center(child: CircularProgressIndicator()))
+        : showDemo
         ? (widget.demoMode
               ? AppShell(controller: controller!)
               : Scaffold(

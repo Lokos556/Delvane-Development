@@ -1,5 +1,5 @@
-import 'package:delvane_business/core/localization/web_strings.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
+
 import '../workspace/workspace_models.dart';
 import 'channel_api.dart';
 import 'pms_controller.dart';
@@ -216,7 +216,7 @@ class _DistributionDialogState extends State<DistributionDialog>
                     ui('CONFIGURED DAYS  ${optionalRows(d['values']).length}'),
                   ),
                   Text(
-                    ui('LAST DELIVERED  ${text(d, 'last_sent_at', 'Never')}'),
+                    ui('LAST DELIVERED  ${uiDateTime(text(d, 'last_sent_at', ui('Never')))}'),
                   ),
                 ],
               ),
@@ -251,7 +251,7 @@ class _DistributionDialogState extends State<DistributionDialog>
                           children: [
                             Text(
                               ui(
-                                '${text(item, 'endpoint_label')} · ${text(item, 'status')} · attempt ${item['attempts'] ?? 0}',
+                                '${text(item, 'endpoint_label')} · ${ui(text(item, 'status'))} · attempt ${item['attempts'] ?? 0}',
                               ),
                             ),
                             Text(
@@ -328,8 +328,7 @@ class _DistributionDialogState extends State<DistributionDialog>
                           final price = int.tryParse(base.text.trim());
                           if (price == null || price <= 0) {
                             setState(
-                              () => failure =
-                                  'The base-rate endpoint requires a positive whole-unit price.',
+                              () => failure = 'The base-rate endpoint requires a positive whole-unit price.',
                             );
                             return;
                           }
@@ -542,7 +541,7 @@ class DistributionResult extends StatelessWidget {
         delivered = optionalRows(delivery['delivered']),
         failed = optionalRows(delivery['failed']);
     return PmsModal(
-      title: deliveryTitle(result),
+      title: ui(deliveryTitle(result)),
       eyebrow: ui('CHANNEL DISTRIBUTION'),
       width: 650,
       actions: [

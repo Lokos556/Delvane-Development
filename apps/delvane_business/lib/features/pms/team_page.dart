@@ -1,6 +1,7 @@
-import 'package:delvane_business/core/localization/web_strings.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
+import '../../core/localization/system_labels.dart';
 import 'package:flutter/services.dart';
+
 import '../workspace/workspace_models.dart';
 import 'operations_workflows.dart';
 import 'pms_controller.dart';
@@ -82,7 +83,7 @@ class _TeamPageState extends State<TeamPage> {
                     ),
                   ),
                   Text(
-                    e.value.toUpperCase(),
+                    ui(e.value).toUpperCase(),
                     style: const TextStyle(fontSize: 10, letterSpacing: .5),
                   ),
                 ],
@@ -127,7 +128,7 @@ class _TeamPageState extends State<TeamPage> {
                       Padding(
                         padding: const EdgeInsets.only(top: 12),
                         child: Text(
-                          '${group['enabled'] == true ? '✓' : '—'} ${text(group, 'label')}',
+                          '${group['enabled'] == true ? '✓' : '—'} ${permissionGroup(text(group, 'label'))}',
                         ),
                       ),
                   ],
@@ -248,9 +249,7 @@ class _TeamPageState extends State<TeamPage> {
                       ),
                     ),
                     Text(
-                      text(m, 'job_title').isEmpty
-                          ? text(m, 'role')
-                          : text(m, 'job_title'),
+                      staffJobTitle(m),
                       style: const TextStyle(fontSize: 14),
                     ),
                   ],
@@ -266,7 +265,7 @@ class _TeamPageState extends State<TeamPage> {
               for (final e in {
                 'EMAIL': text(m, 'email'),
                 'PHONE': text(m, 'phone').isEmpty
-                    ? 'Not added'
+                    ? ui('Not added')
                     : text(m, 'phone'),
               }.entries)
                 Container(
@@ -279,7 +278,7 @@ class _TeamPageState extends State<TeamPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        e.key,
+                        ui(e.key),
                         style: const TextStyle(fontSize: 10, letterSpacing: .5),
                       ),
                       const SizedBox(height: 3),
@@ -335,14 +334,14 @@ class _TeamPageState extends State<TeamPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        e.value,
+                        e.key == 'last sign-in' ? uiDateTime(ui(e.value)) : e.value,
                         style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
                       const SizedBox(height: 3),
-                      Text(e.key, style: const TextStyle(fontSize: 10)),
+                      Text(ui(e.key), style: const TextStyle(fontSize: 10)),
                     ],
                   ),
                 ),
@@ -489,7 +488,7 @@ class _TeamMemberEditorState extends State<TeamMemberEditor>
               text(credential!, 'setup_password'),
               style: const TextStyle(fontSize: 24, fontFamily: 'monospace'),
             ),
-            if (copyState != null) Text(copyState!),
+            if (copyState != null) Text(ui(copyState!)),
           ],
         ),
       );
@@ -557,7 +556,7 @@ class _TeamMemberEditorState extends State<TeamMemberEditor>
                   for (final group in optionalRows(
                     optionalObject(widget.roles[role])['groups'],
                   ).where((g) => g['enabled'] == true))
-                    Text('✓ ${text(group, 'label')}'),
+                    Text('✓ ${permissionGroup(text(group, 'label'))}'),
                   if (role == 'owner')
                     Text(
                       ui(

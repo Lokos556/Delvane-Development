@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/material.dart';
+
+import 'package:flutter/foundation.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:delvane_business/app/app.dart';
 import 'package:delvane_business/core/network/api_client.dart';
@@ -8,13 +10,14 @@ import 'package:delvane_business/features/pms/pms_controller.dart';
 import 'package:delvane_business/features/pms/pms_shell.dart';
 import 'package:delvane_business/features/pms/pms_style.dart';
 import 'package:delvane_business/features/pms/ask_bar.dart';
+
 import 'support/fake_pms.dart';
 
 FakePms visualPms() {
   final pms = FakePms();
-  final fixture =
-      jsonDecode(File('test/fixtures/web_reference.json').readAsStringSync())
-          as Map<String, dynamic>;
+  final fixture = jsonDecode(
+    File('test/fixtures/web_reference.json').readAsStringSync(),
+  ) as Map<String, dynamic>;
   for (final e in fixture.entries) {
     pms.overrides[e.key] = pms.json(e.value);
   }
@@ -133,6 +136,8 @@ void main() {
   testWidgets(
     'settings uses the right-side sheet and is removed on session revocation',
     (t) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
       t.view.physicalSize = const Size(1440, 1000);
       t.view.devicePixelRatio = 1;
       addTearDown(t.view.resetPhysicalSize);

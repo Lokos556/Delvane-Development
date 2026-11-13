@@ -1,5 +1,5 @@
-import 'package:delvane_business/core/localization/web_strings.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
+
 import '../workspace/workspace_models.dart';
 import 'channel_api.dart';
 import 'pms_controller.dart';
@@ -92,7 +92,7 @@ class _PropertyRatesDialogState extends State<PropertyRatesDialog>
                   ),
                   Text(
                     ui(
-                      'Base rate ${plan['base_rate_huf'] ?? 'Not set'} HUF · ${text(plan, 'meal_type')} · ${text(plan, 'cancellation_policy')}',
+                      'Base rate ${plan['base_rate_huf'] == null ? ui('Not set') : uiDecimal('${plan['base_rate_huf']}')} HUF · ${text(plan, 'meal_type')} · ${text(plan, 'cancellation_policy')}',
                     ),
                   ),
                   for (final mapping in optionalRows(plan['channex_mappings']))

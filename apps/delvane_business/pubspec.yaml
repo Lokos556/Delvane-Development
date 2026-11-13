@@ -4,7 +4,8 @@ publish_to: 'none'
 version: 0.1.0+1
 
 environment:
-  sdk: ^3.8.1
+  sdk: ^3.13.0
+  flutter: '>=3.50.0'
 
 dependencies:
   flutter:
@@ -12,7 +13,8 @@ dependencies:
   flutter_secure_storage: 9.2.4
   flutter_localizations:
     sdk: flutter
-  intl: 0.20.2
+  intl: 0.20.3
+  material_ui: 1.11.0
 
 dev_dependencies:
   flutter_test:
@@ -21,7 +23,13 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Variable.ttf
+          weight: 800
   assets:
+    - assets/fonts/Inter-OFL.txt
     - assets/delvane-icon.png
     - assets/web-locales.json
     - assets/native-hu.json

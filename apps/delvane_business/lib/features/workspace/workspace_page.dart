@@ -1,6 +1,9 @@
 import 'package:delvane_business/core/localization/web_strings.dart';
+
 import 'dart:async';
-import 'package:flutter/material.dart';
+
+import 'package:material_ui/material_ui.dart';
+
 import '../../app/theme.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/network/api_client.dart';
@@ -137,16 +140,19 @@ class _WorkspacePageState extends State<WorkspacePage>
                       for (final tab in tabs)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 6),
-                          child: ListTile(
-                            key: ValueKey('live-nav-${tab.name}'),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                          child: Material(
+                            type: MaterialType.transparency,
+                            child: ListTile(
+                              key: ValueKey('live-nav-${tab.name}'),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              selected: tab == controller.tab,
+                              selectedTileColor: DelvaneColors.yellow,
+                              leading: Icon(_icon(tab)),
+                              title: Text(_label(tab)),
+                              onTap: () => controller.navigate(tab),
                             ),
-                            selected: tab == controller.tab,
-                            selectedTileColor: DelvaneColors.yellow,
-                            leading: Icon(_icon(tab)),
-                            title: Text(_label(tab)),
-                            onTap: () => controller.navigate(tab),
                           ),
                         ),
                       const Spacer(),
@@ -186,9 +192,9 @@ class _WorkspacePageState extends State<WorkspacePage>
                                   user.organization,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(
-                                    context,
-                                  ).textTheme.titleMedium,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium,
                                 ),
                                 Text(
                                   ui(
@@ -203,7 +209,7 @@ class _WorkspacePageState extends State<WorkspacePage>
                             ),
                           ),
                           IconButton(
-                            tooltip: 'Refresh workspace',
+                            tooltip: ui('Refresh workspace'),
                             onPressed:
                                 controller.phase == WorkspacePhase.loading ||
                                     signingOut
@@ -235,10 +241,10 @@ class _WorkspacePageState extends State<WorkspacePage>
                           key: ValueKey(
                             'live-property-${controller.propertyId}',
                           ),
-                          value: controller.propertyId ?? '',
+                          initialValue: controller.propertyId ?? '',
                           isExpanded: true,
-                          decoration: const InputDecoration(
-                            labelText: 'Property scope',
+                          decoration: InputDecoration(
+                            labelText: ui('Property scope'),
                           ),
                           items: [
                             DropdownMenuItem(
@@ -288,9 +294,9 @@ class _WorkspacePageState extends State<WorkspacePage>
                                 children: [
                                   Text(
                                     _label(controller.tab),
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.headlineMedium,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .headlineMedium,
                                   ),
                                   Text(
                                     ui(
@@ -450,7 +456,7 @@ class _WorkspacePageState extends State<WorkspacePage>
             style: TextStyle(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 8),
-          Text(controller.error!, textAlign: TextAlign.center),
+          Text(ui(controller.error!), textAlign: TextAlign.center),
           const SizedBox(height: 8),
           Text(ui('No demo data has been substituted.')),
           const SizedBox(height: 16),
@@ -591,8 +597,9 @@ class _ReservationsViewState extends State<_ReservationsView> {
           Text(ui('Real backend records · Read-only')),
           const SizedBox(height: 16),
           TextField(
+            onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
             key: const ValueKey('live-reservation-search'),
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Search guest, reference, dates or source',
               prefixIcon: Icon(Icons.search),
             ),

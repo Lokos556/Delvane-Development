@@ -1,4 +1,5 @@
 import '../../core/auth/auth_controller.dart';
+import '../../core/localization/web_strings.dart';
 import '../../core/network/api_client.dart';
 import 'workspace_models.dart';
 
@@ -226,12 +227,12 @@ class WorkspaceRepository {
           },
           links: [
             (
-              label: 'Open property',
+              label: ui('Open property'),
               ref: RecordRef(RecordKind.property, recordId(r, 'property_id')),
             ),
             ...jsonRows(response['cleaning']).map(
               (t) => (
-                label: 'Cleaning · ${text(t, 'scheduled_date')}',
+                label: ui('Cleaning · ${uiDate(text(t, 'scheduled_date'))}'),
                 ref: RecordRef(RecordKind.cleaning, recordId(t)),
               ),
             ),
@@ -283,7 +284,7 @@ class WorkspaceRepository {
             ])
               if (body[key] is Map<String, dynamic>)
                 (
-                  label: '${key.replaceAll('_', ' ')} stay',
+                  label: ui('${key.replaceAll('_', ' ')} stay'),
                   ref: RecordRef(
                     RecordKind.reservation,
                     recordId(jsonObject(body[key])),
@@ -291,7 +292,7 @@ class WorkspaceRepository {
                 ),
             if (body['cleaning'] is Map<String, dynamic>)
               (
-                label: 'Cleaning turnover',
+                label: ui('Cleaning turnover'),
                 ref: RecordRef(
                   RecordKind.cleaning,
                   recordId(jsonObject(body['cleaning'])),
@@ -344,7 +345,7 @@ class WorkspaceRepository {
               .toList(),
           links: [
             (
-              label: 'Open property',
+              label: ui('Open property'),
               ref: RecordRef(RecordKind.property, task.propertyId),
             ),
           ],
@@ -364,7 +365,7 @@ class WorkspaceRepository {
           {'Status': item.status, ...item.fields},
           links: [
             (
-              label: 'Open property',
+              label: ui('Open property'),
               ref: RecordRef(RecordKind.property, item.propertyId),
             ),
           ],

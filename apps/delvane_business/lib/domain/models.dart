@@ -1,3 +1,5 @@
+import '../core/localization/web_strings.dart';
+
 enum StayStatus { confirmed, arriving, inHouse, departing }
 
 extension StayStatusLabel on StayStatus {
@@ -86,6 +88,9 @@ class BusinessSnapshot {
 }
 
 String shortDate(DateTime date) {
+  if (WebStrings.current.language == 'hu') {
+    return uiDate(date.toIso8601String());
+  }
   const months = [
     'Jan',
     'Feb',
@@ -104,6 +109,7 @@ String shortDate(DateTime date) {
 }
 
 String money(int huf) {
+  if (WebStrings.current.language == 'hu') return '${uiNumber(huf)} Ft';
   final digits = huf.toString().replaceAllMapped(
     RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
     (m) => '${m[1]},',

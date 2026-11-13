@@ -1,7 +1,8 @@
-import 'package:delvane_business/core/localization/web_strings.dart';
 import 'dart:convert';
-import 'package:flutter/material.dart';
+
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
+
 import '../workspace/workspace_models.dart';
 import 'pms_controller.dart';
 import 'pms_dialogs.dart';
@@ -303,7 +304,7 @@ class _ReservationEditorState extends State<ReservationEditor>
                         child: Text(
                           nights > 0
                               ? ui(
-                                  '$nights night${nights == 1 ? '' : 's'}. Occupied nights: ${fields['arrival_date']!.text} through ${isoDate(end!.subtract(const Duration(days: 1)))}. Checkout: ${fields['departure_date']!.text}; that night remains available.',
+                                  '$nights nights. Occupied nights: ${fields['arrival_date']!.text} through ${isoDate(end!.subtract(const Duration(days: 1)))}. Checkout: ${fields['departure_date']!.text}; that night remains available.',
                                 )
                               : ui(
                                   'Choose a valid stay. Departure must be after arrival.',
@@ -521,7 +522,11 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
               const SizedBox(height: 16),
               PmsColumns(
                 [
-                  stat('Payment', payment, '${text(r, 'total_huf', '—')} Ft'),
+                  stat(
+                    'Payment',
+                    payment,
+                    '${uiDecimal(text(r, 'total_huf', '—'))} Ft',
+                  ),
                   stat(
                     'Registration',
                     registration,
@@ -568,7 +573,10 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
           t(title),
           style: const TextStyle(fontSize: 11, color: PmsStyle.muted),
         ),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
+        Text(
+          uiFieldValue(title, value),
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
         Text(small, style: const TextStyle(fontSize: 11)),
       ],
     ),
@@ -583,9 +591,8 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
             'Address': text(r, 'address'),
             'Check-in': text(r, 'checkin_time'),
             'Checkout': text(r, 'checkout_time'),
-            'Special requests': reservationRequests(
-              r['special_requests'],
-            ).join(' · '),
+            'Special requests': reservationRequests(r['special_requests'])
+                .join(' · '),
           }),
         ),
         guestContext(),
@@ -700,7 +707,7 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
           PmsEyebrow(ui('CHANNEL DISTRIBUTION')),
           Text(ui('Availability update')),
           if (deliveryError != null) ...[
-            Text(deliveryError!),
+            Text(ui(deliveryError!)),
             PmsButton(
               ui('Retry status'),
               onPressed: busy ? null : loadDelivery,
@@ -938,7 +945,9 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
             ListTile(
               contentPadding: EdgeInsets.zero,
               title: Text(text(n, 'author_name', 'Delvane')),
-              subtitle: Text('${text(n, 'created_at')}\n${text(n, 'body')}'),
+              subtitle: Text(
+                '${uiDateTime(text(n, 'created_at'))}\n${text(n, 'body')}',
+              ),
             ),
           if (optionalRows(data?['notes']).isEmpty)
             PmsEmpty(t('No internal notes yet.')),
@@ -955,7 +964,7 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
           ListTile(
             title: Text(text(event, 'summary')),
             subtitle: Text(
-              '${text(event, 'created_at')} · ${text(event, 'event_type')}',
+              '${uiDateTime(text(event, 'created_at'))} · ${text(event, 'event_type')}',
             ),
           ),
         if (optionalRows(data?['events']).isEmpty)
@@ -1054,9 +1063,13 @@ class _IdentityReviewState extends State<IdentityReview>
                     text(guest, 'verification_status', 'not_submitted'),
                     tone: text(guest, 'verification_status'),
                   ),
-                  Text(ui('Registration data: ${text(guest, 'completeness')}')),
+                  Text(
+                    ui('Registration data: ${ui(text(guest, 'completeness'))}'),
+                  ),
                   if (guest['verified_at'] != null)
-                    Text(ui('Verified ${text(guest, 'verified_at')}')),
+                    Text(
+                      ui('Verified ${uiDateTime(text(guest, 'verified_at'))}'),
+                    ),
                   if (text(guest, 'review_note').isNotEmpty)
                     Text(text(guest, 'review_note')),
                   if (guest['completeness'] == 'complete' &&

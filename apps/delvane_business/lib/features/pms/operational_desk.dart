@@ -1,6 +1,7 @@
-import 'package:delvane_business/core/localization/web_strings.dart';
 import 'dart:math' as math;
-import 'package:flutter/material.dart';
+
+import 'package:material_ui/material_ui.dart';
+
 import '../workspace/workspace_models.dart';
 import 'pms_controller.dart';
 import 'pms_dialogs.dart';
@@ -75,9 +76,9 @@ class _OperationalDeskState extends State<OperationalDesk>
     final approvals = optionalRows(d['approvals']);
     final exceptions = optionalRows(d['exceptions']);
     final arrivals = optionalRows(d['arrivals']);
-    final tasks = optionalRows(
-      d['tasks'],
-    ).where((t) => t['status'] != 'complete').take(8);
+    final tasks = optionalRows(d['tasks'])
+        .where((t) => t['status'] != 'complete')
+        .take(8);
     final viewport = MediaQuery.sizeOf(context);
     final mobile = viewport.width <= 850;
     final workspace = math.max(

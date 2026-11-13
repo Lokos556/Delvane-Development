@@ -1,5 +1,6 @@
 import 'package:delvane_business/core/localization/web_strings.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
+
 import '../../app/controller.dart';
 import '../../app/theme.dart';
 import '../../shared/components.dart';
@@ -38,8 +39,30 @@ class SettingsPage extends StatelessWidget {
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: Icon(Icons.language_rounded),
-            title: Text(ui('English')),
-            subtitle: Text(ui('Additional languages are planned.')),
+            title: Text(ui('Language')),
+            trailing: DropdownButton<String>(
+              value: WebStrings.current.language,
+              items: [
+                for (final item in WebStrings.current.languages)
+                  DropdownMenuItem(value: item[0], child: Text(item[1])),
+              ],
+              onChanged: (value) async {
+                if (value == null) return;
+                try {
+                  await WebStrings.current.select(value);
+                } catch (_) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          ui('Language preference could not be saved.'),
+                        ),
+                      ),
+                    );
+                  }
+                }
+              },
+            ),
           ),
           ListTile(
             contentPadding: EdgeInsets.zero,

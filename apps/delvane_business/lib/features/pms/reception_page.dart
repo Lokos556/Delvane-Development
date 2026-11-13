@@ -1,5 +1,6 @@
-import 'package:delvane_business/core/localization/web_strings.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
+import '../../core/localization/system_labels.dart';
+
 import '../workspace/workspace_models.dart';
 import 'pms_controller.dart';
 import 'pms_dialogs.dart';
@@ -31,7 +32,7 @@ class _ReceptionPageState extends State<ReceptionPage>
   bool get locked => busy || stale;
   int get tab => widget.controller.receptionTab;
   String t(String s) => widget.controller.t(s);
-  String status(String code) => (switch (code) {
+  String status(String code) => t(switch (code) {
     'new' => 'NEW',
     'analyzed' => 'UNDERSTOOD',
     'actioned' => 'ACTIONED',
@@ -177,7 +178,7 @@ class _ReceptionPageState extends State<ReceptionPage>
                       style: const TextStyle(fontSize: 10, letterSpacing: .8),
                     ),
                     Text(
-                      '${entry.value ?? 0}',
+                      entry.key == 'Live external sending' ? t('OFF') : '${entry.value ?? 0}',
                       style: const TextStyle(
                         fontFamily: 'Georgia',
                         fontSize: 28,
@@ -258,6 +259,7 @@ class _ReceptionPageState extends State<ReceptionPage>
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           TextField(
+            onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
             controller: search,
             decoration: InputDecoration(hintText: ui('Search in mail')),
             onChanged: (_) => setState(() {}),
@@ -269,11 +271,11 @@ class _ReceptionPageState extends State<ReceptionPage>
               ui('Your inbox is clear. Guest messages will appear here.'),
             ),
           for (final m in filtered)
-            Container(
-              decoration: BoxDecoration(
-                color: active?['id'] == m['id'] ? PmsStyle.soft : null,
-                borderRadius: BorderRadius.circular(16),
-              ),
+            Material(
+              color: active?['id'] == m['id']
+                  ? PmsStyle.soft
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
               child: ListTile(
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 8,
@@ -515,6 +517,8 @@ class _ReceptionPageState extends State<ReceptionPage>
               ),
             ),
             TextField(
+              onTapOutside: (_) =>
+                  FocusManager.instance.primaryFocus?.unfocus(),
               controller: editor,
               maxLines: 6,
               onChanged: (v) => widget.controller.receptionDrafts[key] = v,
@@ -610,18 +614,20 @@ class _ReceptionPageState extends State<ReceptionPage>
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           PmsEyebrow(
-            text(x, 'rule_label', text(x, 'subject', 'Guest message')),
+            x['rule_label'] == null ? text(x, 'subject', t('Guest message'))
+                : automationText(x, 'rule_label'),
           ),
           Text(
             '${text(x, 'guest_name', 'Guest')} · ${text(x, 'property_name')}',
             style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
           ),
-          Text(text(x, 'scheduled_for', 'Unscheduled')),
+          Text(uiDateTime(text(x, 'scheduled_for', t('Unscheduled')))),
           Align(
             alignment: Alignment.centerLeft,
             child: PmsBadge(status(text(x, 'status')), tone: text(x, 'status')),
           ),
           TextField(
+            onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
             controller: editor,
             maxLines: 4,
             onChanged: (v) => widget.controller.receptionDrafts[key] = v,
@@ -732,15 +738,15 @@ class _ReceptionPageState extends State<ReceptionPage>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                PmsEyebrow(text(rule, 'trigger_key').replaceAll('_', ' ')),
+                PmsEyebrow(automationTrigger(text(rule, 'trigger_key'))),
                 Text(
-                  text(rule, 'label'),
+                  automationText(rule, 'label'),
                   style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                Text(text(rule, 'description')),
+                Text(automationText(rule, 'description')),
                 Row(
                   children: [
                     Expanded(child: Text(t('Enabled'))),

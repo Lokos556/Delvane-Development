@@ -1,5 +1,6 @@
 import 'package:delvane_business/core/localization/web_strings.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
+
 import '../../core/auth/auth_controller.dart';
 import '../../core/network/api_client.dart';
 import '../../shared/components.dart';
@@ -55,7 +56,7 @@ class _RecordPageState extends State<RecordPage> {
       title: Text(ui('${widget.ref.kind.name} record')),
       actions: [
         IconButton(
-          tooltip: 'Refresh record',
+          tooltip: ui('Refresh record'),
           onPressed: () => setState(() {
             result = _guardedLoad();
           }),
@@ -78,7 +79,7 @@ class _RecordPageState extends State<RecordPage> {
                 children: [
                   Text(
                     snapshot.error is ApiException
-                        ? (snapshot.error as ApiException).message
+                        ? ui((snapshot.error as ApiException).message)
                         : ui('Record unavailable.'),
                   ),
                   const SizedBox(height: 12),
@@ -120,7 +121,7 @@ class _RecordPageState extends State<RecordPage> {
                         child: LayoutBuilder(
                           builder: (context, constraints) {
                             final label = Text(
-                              entry.key,
+                              ui(entry.key),
                               style: const TextStyle(
                                 fontWeight: FontWeight.w600,
                               ),
@@ -128,7 +129,7 @@ class _RecordPageState extends State<RecordPage> {
                             final value = SelectableText(
                               entry.value.isEmpty
                                   ? ui('Not provided')
-                                  : entry.value,
+                                  : uiFieldValue(entry.key, entry.value),
                             );
                             return constraints.maxWidth < 480
                                 ? Column(

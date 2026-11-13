@@ -1,12 +1,14 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
-import 'package:flutter/material.dart';
+
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:delvane_business/features/pms/pms_controller.dart';
 import 'package:delvane_business/features/pms/pms_shell.dart';
 import 'package:delvane_business/features/pms/pms_style.dart';
+
 import 'support/fake_pms.dart';
 import 'support/visual_fonts.dart';
 
@@ -44,11 +46,9 @@ void main() {
           tester.view.devicePixelRatio = 1;
           addTearDown(tester.view.resetPhysicalSize);
           addTearDown(tester.view.resetDevicePixelRatio);
-          final fixtures =
-              jsonDecode(
-                    File('test/fixtures/web_reference.json').readAsStringSync(),
-                  )
-                  as Map<String, dynamic>;
+          final fixtures = jsonDecode(
+            File('test/fixtures/web_reference.json').readAsStringSync(),
+          ) as Map<String, dynamic>;
           final pms = FakePms();
           for (final e in fixtures.entries) {
             pms.overrides[e.key] = pms.json(e.value);
@@ -70,7 +70,11 @@ void main() {
                 key: key,
                 child: MaterialApp(
                   debugShowCheckedModeBanner: false,
-                  theme: pmsTheme(),
+                  theme: pmsTheme().copyWith(
+                    platform: size.width > 760
+                        ? TargetPlatform.windows
+                        : TargetPlatform.android,
+                  ),
                   home: PmsShell(auth: auth, initialPage: entry.value),
                 ),
               ),
@@ -151,9 +155,8 @@ void main() {
                   };
                 }
               }
-              File(
-                '$prefix.geometry.json',
-              ).writeAsStringSync(jsonEncode(geometry));
+              File('$prefix.geometry.json')
+                  .writeAsStringSync(jsonEncode(geometry));
               image.dispose();
             });
           } finally {

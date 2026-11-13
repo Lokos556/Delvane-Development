@@ -1,6 +1,8 @@
-import 'package:delvane_business/core/localization/web_strings.dart';
 import 'dart:convert';
-import 'package:flutter/material.dart';
+import '../../core/localization/system_labels.dart';
+
+import 'package:material_ui/material_ui.dart';
+
 import '../workspace/workspace_models.dart';
 import 'pms_controller.dart';
 import 'pms_dialogs.dart';
@@ -49,14 +51,16 @@ class SecurityPage extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        entry.value,
+                        ui(entry.value),
                         style: const TextStyle(
                           fontSize: 12,
                           color: PmsStyle.muted,
                         ),
                       ),
                       SelectableText(
-                        '${c.object('runtime')[entry.key] ?? 'Unknown'}',
+                        entry.key == 'environment'
+                            ? ui('${c.object('runtime')[entry.key] ?? 'Unknown'}')
+                            : '${c.object('runtime')[entry.key] ?? ui('Unknown')}',
                         style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
                     ],
@@ -82,9 +86,9 @@ class SecurityPage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(entry.key, style: const TextStyle(fontSize: 12)),
+                  Text(ui(entry.key), style: const TextStyle(fontSize: 12)),
                   Text(
-                    entry.value,
+                    ui(entry.value),
                     style: const TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w700,
@@ -113,11 +117,13 @@ class SecurityPage extends StatelessWidget {
                             fontWeight: FontWeight.w700,
                           ),
                         ),
-                        Text('${text(s, 'role')} · ${text(s, 'ip_address')}'),
+                        Text(
+                          '${ui(text(s, 'role'))} · ${text(s, 'ip_address')}',
+                        ),
                         Text(text(s, 'user_agent')),
                         Text(
                           ui(
-                            'Last seen ${text(s, 'last_seen_at')} · expires ${text(s, 'expires_at')}',
+                            'Last seen ${uiDateTime(text(s, 'last_seen_at'))} · expires ${uiDateTime(text(s, 'expires_at'))}',
                           ),
                         ),
                         if (c.user.role == 'owner')
@@ -171,7 +177,7 @@ class SecurityPage extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            role.key,
+                            ui(role.key),
                             style: const TextStyle(fontWeight: FontWeight.w700),
                           ),
                           Text(
@@ -209,7 +215,7 @@ class SecurityPage extends StatelessWidget {
                     contentPadding: EdgeInsets.zero,
                     title: Text(text(a, 'summary')),
                     subtitle: Text(
-                      '${text(a, 'event_type')} · ${text(a, 'actor_name', text(a, 'actor_type'))}\n${text(a, 'created_at')}',
+                      '${text(a, 'event_type')} · ${text(a, 'actor_name', text(a, 'actor_type'))}\n${uiDateTime(text(a, 'created_at'))}',
                     ),
                   ),
               ],
@@ -227,9 +233,9 @@ class SecurityPage extends StatelessWidget {
                 for (final r in c.rows('retention'))
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: Text(text(r, 'data_class').replaceAll('_', ' ')),
+                    title: Text(retentionLabel(text(r, 'data_class'))),
                     subtitle: Text(
-                      '${r['retention_days'] == null ? 'Not configured' : '${r['retention_days']} days'}\n${text(r, 'description')}',
+                      '${r['retention_days'] == null ? ui('Not configured') : ui('${uiDecimal('${r['retention_days']}')} days')}\n${retentionDescription(text(r, 'data_class'), text(r, 'description'))}',
                     ),
                   ),
               ],
@@ -329,6 +335,7 @@ class _KnowledgePageState extends State<KnowledgePage>
         ),
         const SizedBox(height: 16),
         PmsTabs(
+          localizeLabels: false,
           labels: [
             'Casa Rosa',
             for (final p in optionalRows(d['properties'])) text(p, 'name'),
@@ -368,9 +375,8 @@ class _KnowledgePageState extends State<KnowledgePage>
           scope == 'shared'
               ? ui('Casa Rosa \u00b7 shared')
               : text(
-                  optionalRows(
-                    d['properties'],
-                  ).firstWhere((p) => p['id'] == scope, orElse: () => {}),
+                  optionalRows(d['properties'])
+                      .firstWhere((p) => p['id'] == scope, orElse: () => {}),
                   'name',
                 ),
           style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
@@ -390,13 +396,14 @@ class _KnowledgePageState extends State<KnowledgePage>
           d['fields'],
         ).map((f) => text(f, 'category')).toSet()) ...[
           const SizedBox(height: 16),
-          PmsEyebrow(category),
+          PmsEyebrow(knowledgeCategory(category)),
           PmsColumns([
             for (final f in optionalRows(
               d['fields'],
             ).where((f) => f['category'] == category))
               PmsField(
-                text(f, 'label'),
+                knowledgeLabel(text(f, 'key'), text(f, 'label')),
+                localizeLabel: false,
                 status: inputs[text(f, 'key')]!.text.trim().isEmpty
                     ? 'Not configured'
                     : 'Configured',
@@ -423,7 +430,7 @@ class _KnowledgePageState extends State<KnowledgePage>
             child: Wrap(
               spacing: 20,
               children: [
-                Text(text(optionalObject(entry.value), 'label')),
+                Text(authorityLabel(entry.key, text(optionalObject(entry.value), 'label'))),
                 SizedBox(
                   width: 260,
                   child: PmsSelect(
@@ -483,12 +490,9 @@ class _OperatingModePageState extends State<OperatingModePage>
     'maintenance_risk': 'Maintenance risk',
   };
   static const descriptions = {
-    'observe':
-        'Real data may be analyzed, but Delvane records proposed actions instead of changing operational records.',
-    'assist':
-        'Delvane prepares actions. A human approval is required before operational changes.',
-    'autonomous':
-        'Only actions explicitly allowed by Train Delvane may execute automatically. High-risk authority rules remain blocked.',
+    'observe': 'Real data may be analyzed, but Delvane records proposed actions instead of changing operational records.',
+    'assist': 'Delvane prepares actions. A human approval is required before operational changes.',
+    'autonomous': 'Only actions explicitly allowed by Train Delvane may execute automatically. High-risk authority rules remain blocked.',
   };
   Future<void> mode(String mode) async {
     if (widget.c.user.role != 'owner') return;
@@ -519,7 +523,7 @@ class _OperatingModePageState extends State<OperatingModePage>
         PmsPageTitle(ui('Simulation / Operating mode')),
         errors(),
         const SizedBox(height: 24),
-        Text(ui('Current mode: $current')),
+        Text(ui('Current mode: ${ui(current)}')),
         const SizedBox(height: 16),
         PmsColumns([
           for (final e in descriptions.entries)
@@ -529,10 +533,10 @@ class _OperatingModePageState extends State<OperatingModePage>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    e.key.toUpperCase(),
+                    ui(e.key).toUpperCase(),
                     style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
-                  Text(e.value),
+                  Text(ui(e.value)),
                   const SizedBox(height: 16),
                   if (c.user.role == 'owner')
                     PmsButton(
@@ -557,7 +561,7 @@ class _OperatingModePageState extends State<OperatingModePage>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(entry.value),
+                  Text(ui(entry.value)),
                   Text(
                     '${c.rows('actions').where((a) => a['status'] == entry.key).length}',
                     style: const TextStyle(fontFamily: 'Georgia', fontSize: 28),
@@ -584,7 +588,9 @@ class _OperatingModePageState extends State<OperatingModePage>
                     ),
                   ),
                 ),
-                Text('${text(a, 'created_at')} · ${text(a, 'operating_mode')}'),
+                Text(
+                  '${uiDateTime(text(a, 'created_at'))} · ${text(a, 'operating_mode')}',
+                ),
                 if (a['reversible'] == 1 &&
                     a['status'] == 'executed' &&
                     a['undone_at'] == null)
@@ -614,7 +620,7 @@ class _OperatingModePageState extends State<OperatingModePage>
         for (final e in events.entries)
           CheckboxListTile(
             contentPadding: EdgeInsets.zero,
-            title: Text(e.value),
+            title: Text(ui(e.value)),
             value: preferences[e.key],
             onChanged: busy
                 ? null

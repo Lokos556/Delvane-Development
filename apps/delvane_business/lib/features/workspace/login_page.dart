@@ -1,5 +1,6 @@
 import 'package:delvane_business/core/localization/web_strings.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
+
 import '../../app/theme.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../shared/components.dart';
@@ -83,7 +84,7 @@ class _LoginPageState extends State<LoginPage> {
                       Semantics(
                         liveRegion: true,
                         child: Text(
-                          widget.auth.error!,
+                          ui(widget.auth.error!),
                           key: const ValueKey('auth-error'),
                           style: TextStyle(
                             color: Theme.of(context).colorScheme.error,
@@ -94,17 +95,21 @@ class _LoginPageState extends State<LoginPage> {
                     ],
                     const SizedBox(height: 12),
                     TextFormField(
+                      onTapOutside: (_) =>
+                          FocusManager.instance.primaryFocus?.unfocus(),
                       key: const ValueKey('login-email'),
                       controller: email,
                       enabled: !widget.auth.busy,
                       keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(labelText: 'Email'),
+                      decoration: InputDecoration(labelText: ui('Email')),
                       validator: (v) => v == null || !v.contains('@')
-                          ? 'Enter your account email.'
+                          ? ui('Enter your account email.')
                           : null,
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
+                      onTapOutside: (_) =>
+                          FocusManager.instance.primaryFocus?.unfocus(),
                       key: const ValueKey('login-password'),
                       controller: password,
                       enabled: !widget.auth.busy,
@@ -113,9 +118,11 @@ class _LoginPageState extends State<LoginPage> {
                       autocorrect: false,
                       onFieldSubmitted: (_) => _signIn(),
                       decoration: InputDecoration(
-                        labelText: 'Password',
+                        labelText: ui('Password'),
                         suffixIcon: IconButton(
-                          tooltip: hidden ? 'Show password' : 'Hide password',
+                          tooltip: ui(
+                            hidden ? 'Show password' : 'Hide password',
+                          ),
                           onPressed: () => setState(() => hidden = !hidden),
                           icon: Icon(
                             hidden
@@ -125,7 +132,7 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
                       validator: (v) => v == null || v.isEmpty
-                          ? 'Enter your password.'
+                          ? ui('Enter your password.')
                           : null,
                     ),
                     const SizedBox(height: 18),

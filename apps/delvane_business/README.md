@@ -1,5 +1,9 @@
 # Web-fidelity port in progress
 
+The validated SDK baseline is now **Flutter 3.50.0 / Dart 3.14.0**, with intl 0.20.3.
+See [FLUTTER_UPGRADE.md](FLUTTER_UPGRADE.md) for exact dependency/toolchain versions,
+Android/Windows validation and the proposed pinned Codemagic iOS configuration.
+
 For USB-connected Android debug testing of this same application, use
 [ANDROID_TESTING.md](ANDROID_TESTING.md). It includes the isolated Windows backend,
 `adb reverse`, debug APK installation and Xiaomi acceptance checklist.

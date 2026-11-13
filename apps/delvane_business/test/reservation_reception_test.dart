@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:delvane_business/app/app.dart';
 import 'package:delvane_business/core/network/api_client.dart';
@@ -254,7 +254,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Overflow guest 4'), findsOneWidget);
       expect(tester.takeException(), isNull);
-      await tester.tap(find.text('×'));
+      await tester.tap(find.byTooltip('Close dialog'));
       await tester.pumpAndSettle();
       final cell = find.byKey(ValueKey('calendar-day-$day'));
       await tester.ensureVisible(cell);
@@ -301,7 +301,7 @@ void main() {
             .length,
         1,
       );
-      await tester.tap(find.text('×').last);
+      await tester.tap(find.byTooltip('Close dialog').last);
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('Review identity verification'));
       await tester.tap(find.text('Review identity verification'));

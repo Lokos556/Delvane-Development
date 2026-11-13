@@ -59,10 +59,8 @@ class PmsWorkflows {
 String workflowError(Object error) {
   if (error is ApiException) {
     return switch (error.statusCode) {
-      400 =>
-        'The server rejected these values. Check dates, capacity and required fields.',
-      409 =>
-        'This change conflicts with the current record or availability. Refresh and review before retrying.',
+      400 => 'The server rejected these values. Check dates, capacity and required fields.',
+      409 => 'This change conflicts with the current record or availability. Refresh and review before retrying.',
       422 => 'Some fields have invalid values. Check the form and try again.',
       _ => error.message,
     };

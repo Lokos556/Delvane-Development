@@ -1,5 +1,6 @@
 import 'package:delvane_business/core/localization/web_strings.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
+
 import '../../app/controller.dart';
 import '../../app/theme.dart';
 import '../../domain/models.dart';
@@ -72,9 +73,9 @@ class _ReceptionPageState extends State<ReceptionPage> {
                                   children: [
                                     Text(
                                       message.sender,
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.titleMedium,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleMedium,
                                     ),
                                     Text(
                                       message.time,
@@ -138,6 +139,8 @@ class _ReceptionPageState extends State<ReceptionPage> {
                   ),
                   const SizedBox(height: 16),
                   TextField(
+                    onTapOutside: (_) =>
+                        FocusManager.instance.primaryFocus?.unfocus(),
                     controller: draft,
                     maxLines: 6,
                     decoration: InputDecoration(

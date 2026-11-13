@@ -1,5 +1,5 @@
-import 'package:delvane_business/core/localization/web_strings.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
+
 import '../workspace/workspace_models.dart';
 import 'pms_controller.dart';
 import 'pms_dialogs.dart';
@@ -27,9 +27,8 @@ class _PmsAskBarState extends State<PmsAskBar> with PmsActions<PmsAskBar> {
     if (busy || input.text.trim().isEmpty) return;
     await perform(() async {
       final reply = jsonObject(
-        await PmsWorkflows(
-          widget.c,
-        ).change('POST', '/api/rosa/ask', {'message': input.text}),
+        await PmsWorkflows(widget.c)
+            .change('POST', '/api/rosa/ask', {'message': input.text}),
       );
       if (mounted) {
         setState(() {
@@ -88,6 +87,8 @@ class _PmsAskBarState extends State<PmsAskBar> with PmsActions<PmsAskBar> {
                 ),
                 Expanded(
                   child: TextField(
+                    onTapOutside: (_) =>
+                        FocusManager.instance.primaryFocus?.unfocus(),
                     controller: input,
                     textInputAction: TextInputAction.send,
                     onSubmitted: (_) => ask(),
@@ -106,10 +107,13 @@ class _PmsAskBarState extends State<PmsAskBar> with PmsActions<PmsAskBar> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                SizedBox(
-                  width: 64,
-                  height: 64,
-                  child: PmsButton(ui('Ask'), onPressed: busy ? null : ask),
+                PmsIconButton(
+                  'send',
+                  key: const ValueKey('pms-ask-send'),
+                  label: ui('Send message'),
+                  size: mobile ? 44 : 48,
+                  surface: true,
+                  onPressed: busy ? null : ask,
                 ),
               ],
             ),

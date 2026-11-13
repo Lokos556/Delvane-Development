@@ -1,6 +1,11 @@
 import 'package:delvane_business/core/localization/web_strings.dart';
-import 'dart:ui' as ui;
-import 'package:flutter/material.dart';
+
+import 'dart:ui' as canvas_ui;
+
+import 'package:flutter/foundation.dart';
+
+import 'package:material_ui/material_ui.dart';
+
 import 'pms_icons.dart';
 
 // Source: final computed static/styles.css cascade, not the older theme layers.
@@ -17,11 +22,11 @@ abstract final class PmsStyle {
   static const logo = 'assets/delvane-icon.png';
   // CSS backdrop-filter: blur(...) saturate(...). Applied only to actual glass
   // layers, not every nested card (which would repeatedly filter the backdrop).
-  static ui.ImageFilter glassFilter(double blur, double saturation) {
+  static canvas_ui.ImageFilter glassFilter(double blur, double saturation) {
     final r = .2126 * (1 - saturation),
         g = .7152 * (1 - saturation),
         b = .0722 * (1 - saturation);
-    return ui.ImageFilter.compose(
+    return canvas_ui.ImageFilter.compose(
       outer: ColorFilter.matrix([
         r + saturation,
         g,
@@ -44,7 +49,7 @@ abstract final class PmsStyle {
         1,
         0,
       ]),
-      inner: ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+      inner: canvas_ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
     );
   }
 
@@ -56,6 +61,14 @@ abstract final class PmsStyle {
 }
 
 ThemeData pmsTheme() => ThemeData(
+  scrollbarTheme: ScrollbarThemeData(
+    thickness: WidgetStatePropertyAll(
+      defaultTargetPlatform == TargetPlatform.android ||
+              defaultTargetPlatform == TargetPlatform.iOS
+          ? 2.5
+          : 9,
+    ),
+  ),
   useMaterial3: true,
   fontFamily: PmsStyle.font,
   fontFamilyFallback: const ['Segoe UI Symbol', 'Arial', 'sans-serif'],
@@ -168,7 +181,7 @@ class PmsButton extends StatelessWidget {
                   if (leading != null) ...[leading!, const SizedBox(width: 7)],
                   Flexible(
                     child: Text(
-                      label,
+                      ui(label),
                       style: TextStyle(
                         fontSize: small ? 12 : 16,
                         fontWeight: FontWeight.w700,
@@ -235,7 +248,7 @@ class PmsNavItem extends StatelessWidget {
             child: Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                label,
+                ui(label),
                 style: TextStyle(
                   fontSize: mobile ? 18 : 16,
                   fontWeight: selected ? FontWeight.w800 : FontWeight.w700,
@@ -265,9 +278,9 @@ class PmsIconButton extends StatelessWidget {
   final VoidCallback? onPressed;
   @override
   Widget build(BuildContext context) => Tooltip(
-    message: label,
+    message: ui(label),
     child: Semantics(
-      label: label,
+      label: ui(label),
       button: true,
       child: SizedBox(
         width: size,
@@ -511,7 +524,7 @@ class PmsCard extends StatelessWidget {
         border: Border.all(color: PmsStyle.line),
         boxShadow: shadow ? const [PmsStyle.shadow] : null,
       ),
-      child: child,
+      child: Material(type: MaterialType.transparency, child: child),
     );
     if (backdropBlur == 0) return surface;
     return ClipRRect(
@@ -585,7 +598,7 @@ class PmsBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
       ),
       child: Text(
-        label,
+        ui(label),
         style: TextStyle(
           fontSize: compact ? 10 : 11,
           fontWeight: FontWeight.w800,
@@ -687,7 +700,7 @@ class PmsEmpty extends StatelessWidget {
     padding: EdgeInsets.symmetric(vertical: tall ? 64 : 24, horizontal: 12),
     child: Center(
       child: Text(
-        label,
+        ui(label),
         textAlign: TextAlign.center,
         style: const TextStyle(color: PmsStyle.muted),
       ),
@@ -702,11 +715,13 @@ class PmsTabs extends StatelessWidget {
     required this.selected,
     required this.onChanged,
     this.plain = false,
+    this.localizeLabels = true,
   });
   final List<String> labels;
   final int selected;
   final ValueChanged<int> onChanged;
   final bool plain;
+  final bool localizeLabels;
   @override
   Widget build(BuildContext context) => Container(
     padding: plain ? EdgeInsets.zero : const EdgeInsets.all(2),
@@ -742,7 +757,7 @@ class PmsTabs extends StatelessWidget {
                         vertical: plain ? 12 : 13,
                       ),
                       child: Text(
-                        labels[i],
+                        localizeLabels ? ui(labels[i]) : labels[i],
                         style: TextStyle(
                           fontSize: plain ? 14 : 16,
                           fontWeight: FontWeight.w700,
@@ -816,7 +831,7 @@ class PmsLifecycleRail extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                stages[i].replaceAll('_', ' '),
+                ui(stages[i].replaceAll('_', ' ')),
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 9, color: PmsStyle.muted),
               ),
@@ -841,6 +856,7 @@ class PmsField extends StatelessWidget {
     this.suffix,
     this.maxLength,
     this.status,
+    this.localizeLabel = true,
   });
   final String label;
   final TextEditingController controller;
@@ -853,6 +869,7 @@ class PmsField extends StatelessWidget {
   final Widget? suffix;
   final int? maxLength;
   final String? status;
+  final bool localizeLabel;
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: 12),
@@ -860,29 +877,31 @@ class PmsField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          label,
+          localizeLabel ? ui(label) : label,
           style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
         ),
         if (status != null)
           Text(
-            status!,
+            ui(status!),
             style: const TextStyle(fontSize: 11, color: PmsStyle.muted),
           ),
         const SizedBox(height: 5),
         TextFormField(
+          onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
           controller: controller,
           maxLines: lines,
           maxLength: maxLength,
           keyboardType: keyboard,
           onChanged: onChanged,
           decoration: InputDecoration(hintText: hint, suffixIcon: suffix),
-          validator:
-              validator ??
-              (required
-                  ? (value) => value == null || value.trim().isEmpty
-                        ? 'Required'
-                        : null
-                  : null),
+          validator: (value) {
+            final error = validator != null
+                ? validator!(value)
+                : required && (value == null || value.trim().isEmpty)
+                ? 'Required'
+                : null;
+            return error == null ? null : ui(error);
+          },
         ),
       ],
     ),
@@ -907,18 +926,15 @@ class PmsSelect extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          label,
+          ui(label),
           style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 5),
         DropdownButtonFormField<String>(
           borderRadius: BorderRadius.circular(18),
           dropdownColor: const Color(0xFFFFFDF8),
-          icon: const Text(
-            '⌄',
-            style: TextStyle(fontFamily: 'Segoe UI Symbol', fontSize: 18),
-          ),
-          value: items.containsKey(value) ? value : null,
+          icon: const PmsVectorIcon('chevron_down', size: 18),
+          initialValue: items.containsKey(value) ? value : null,
           isExpanded: true,
           items: items.entries
               .map(

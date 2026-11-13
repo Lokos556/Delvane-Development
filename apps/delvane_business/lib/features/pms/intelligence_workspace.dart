@@ -1,5 +1,5 @@
-import 'package:delvane_business/core/localization/web_strings.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
+
 import '../workspace/workspace_models.dart';
 import 'pms_controller.dart';
 import 'pms_style.dart';
@@ -12,10 +12,12 @@ class IntelligenceWorkspace extends StatefulWidget {
     required this.c,
     required this.input,
     required this.openSearch,
+    this.viewportHeight,
   });
   final PmsController c;
   final TextEditingController input;
   final VoidCallback openSearch;
+  final double? viewportHeight;
   @override
   State<IntelligenceWorkspace> createState() => _IntelligenceWorkspaceState();
 }
@@ -51,10 +53,16 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
         proposals = optionalRows(conversation['proposals']);
     return SizedBox(
       height:
-          (MediaQuery.sizeOf(context).height -
-                  MediaQuery.viewInsetsOf(context).bottom -
+          ((widget.viewportHeight ??
+                      (MediaQuery.sizeOf(context).height -
+                          MediaQuery.viewInsetsOf(context).bottom -
+                          (mobile ? MediaQuery.viewPaddingOf(context).top : 0) -
+                          (mobile &&
+                                  MediaQuery.viewInsetsOf(context).bottom == 0
+                              ? MediaQuery.viewPaddingOf(context).bottom
+                              : 0))) -
                   (mobile ? 94 : 34))
-              .clamp(360, 100000),
+              .clamp(mobile ? 180 : 360, 100000),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -106,7 +114,7 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
                   TextButton(
                     onPressed: () => c.navigate(PmsPage.simulation),
                     child: Text(
-                      c.mode.toUpperCase(),
+                      ui(c.mode).toUpperCase(),
                       style: const TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
@@ -128,9 +136,9 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
                 ? SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: Row(
-                      children: metrics(
-                        d,
-                      ).map((w) => SizedBox(width: 160, child: w)).toList(),
+                      children: metrics(d)
+                          .map((w) => SizedBox(width: 160, child: w))
+                          .toList(),
                     ),
                   )
                 : Row(
@@ -168,9 +176,9 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
                       Expanded(
                         flex: 6,
                         child: Row(
-                          children: metrics(
-                            d,
-                          ).map((w) => Expanded(child: w)).toList(),
+                          children: metrics(d)
+                              .map((w) => Expanded(child: w))
+                              .toList(),
                         ),
                       ),
                     ],
@@ -327,6 +335,8 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
                     children: [
                       Expanded(
                         child: TextField(
+                          onTapOutside: (_) =>
+                              FocusManager.instance.primaryFocus?.unfocus(),
                           key: const ValueKey('intelligence-composer'),
                           controller: widget.input,
                           focusNode: focus,

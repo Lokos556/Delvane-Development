@@ -1,5 +1,6 @@
-import 'package:delvane_business/core/localization/web_strings.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
+import '../../core/localization/system_labels.dart';
+
 import '../workspace/workspace_models.dart';
 import 'operations_workflows.dart';
 import 'pms_controller.dart';
@@ -289,7 +290,7 @@ class SuppliesPage extends StatelessWidget {
                         : ui('STOCK HEALTHY'),
                   ),
                   Text(
-                    text(item, 'name'),
+                    inventoryName(item),
                     style: const TextStyle(
                       fontSize: 23,
                       fontWeight: FontWeight.w700,
@@ -297,7 +298,7 @@ class SuppliesPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    '${item['quantity']} ${text(item, 'unit')}',
+                    '${uiDecimal('${item['quantity']}')} ${inventoryUnit(item)}',
                     style: const TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.w700,
@@ -339,7 +340,7 @@ class SuppliesPage extends StatelessWidget {
               ),
               for (final item in low)
                 Text(
-                  '${text(item, 'name')} · ${shoppingQuantity(item)} ${text(item, 'unit')}',
+                  '${inventoryName(item)} · ${uiDecimal('${shoppingQuantity(item)}')} ${inventoryUnit(item)}',
                 ),
               if (low.isEmpty) Text(ui('Nothing to buy.')),
             ],
@@ -385,9 +386,9 @@ class _StockEditorState extends State<StockEditor>
   Future<void> save() async {
     if (!form.currentState!.validate()) return;
     final ok = await perform(
-      () => OperationsWorkflows(
-        widget.c,
-      ).stock(text(widget.item, 'id'), num.parse(quantity.text)),
+      () =>
+          OperationsWorkflows(widget.c)
+              .stock(text(widget.item, 'id'), num.parse(quantity.text)),
     );
     if (ok && mounted) Navigator.pop(context, true);
   }
@@ -395,7 +396,7 @@ class _StockEditorState extends State<StockEditor>
   @override
   Widget build(BuildContext context) => PmsModal(
     title: ui('Adjust stock'),
-    eyebrow: text(widget.item, 'name'),
+    eyebrow: inventoryName(widget.item),
     width: 480,
     canClose: !busy,
     actions: [

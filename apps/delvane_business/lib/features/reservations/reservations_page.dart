@@ -1,5 +1,6 @@
 import 'package:delvane_business/core/localization/web_strings.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
+
 import '../../app/controller.dart';
 import '../../domain/models.dart';
 import '../../shared/components.dart';
@@ -18,6 +19,7 @@ class ReservationsPage extends StatelessWidget {
               'Synthetic reservations · Select a stay to preview its details',
         ),
         TextFormField(
+          onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
           key: const ValueKey('reservation-search'),
           initialValue: controller.search,
           decoration: InputDecoration(
@@ -38,7 +40,7 @@ class ReservationsPage extends StatelessWidget {
             ),
             for (final status in StayStatus.values)
               ChoiceChip(
-                label: Text(status.label),
+                label: Text(ui(status.label)),
                 selected: controller.status == status,
                 onSelected: (_) => controller.filterStatus(status),
               ),

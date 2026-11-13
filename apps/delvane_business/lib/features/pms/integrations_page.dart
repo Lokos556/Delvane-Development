@@ -1,5 +1,5 @@
-import 'package:delvane_business/core/localization/web_strings.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
+
 import '../workspace/workspace_models.dart';
 import 'channel_api.dart';
 import 'channex_mapping_dialog.dart';
@@ -80,7 +80,7 @@ class IntegrationsPage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  PmsEyebrow(e.key),
+                  PmsEyebrow(ui(e.key)),
                   Text(
                     '${e.value}',
                     style: const TextStyle(
@@ -141,7 +141,7 @@ class IntegrationsPage extends StatelessWidget {
               ),
               for (final row in optionalRows(government['queue']))
                 Text(
-                  '${text(row, 'system')} · ${text(row, 'status')} · ${row['count']}',
+                  '${text(row, 'system')} · ${ui(text(row, 'status'))} · ${row['count']}',
                 ),
             ],
           ),
@@ -155,7 +155,7 @@ class IntegrationsPage extends StatelessWidget {
               '${text(event, 'property_name')} · ${text(event, 'provider')}',
             ),
             subtitle: Text(
-              '${text(event, 'event_type')} · ${text(event, 'created_at')}',
+              '${text(event, 'event_type')} · ${uiDateTime(text(event, 'created_at'))}',
             ),
           ),
         if (c.rows('integrationEvents').isEmpty)
@@ -222,7 +222,7 @@ class IntegrationsPage extends StatelessWidget {
           Text(ui('OUTGOING QUEUE  ${i['ari_pending_count'] ?? 0}')),
           Text(
             ui(
-              'LAST DISTRIBUTION UPDATE  ${text(i, 'last_ari_sent_at', 'Never')}',
+              'LAST DISTRIBUTION UPDATE  ${uiDateTime(text(i, 'last_ari_sent_at', ui('Never')))}',
             ),
           ),
           if (i['status'] == 'error')
@@ -318,13 +318,12 @@ class _IntegrationSlotDialogState extends State<IntegrationSlotDialog>
                   if (widget.c.user.role != 'owner') {
                     throw StateError('Owner required');
                   }
-                  await PmsWorkflows(
-                    widget.c,
-                  ).change('POST', '/api/integrations', {
-                    'property_id': property,
-                    'provider': provider,
-                    'connection_type': type.text,
-                  });
+                  await PmsWorkflows(widget.c)
+                      .change('POST', '/api/integrations', {
+                        'property_id': property,
+                        'provider': provider,
+                        'connection_type': type.text,
+                      });
                 });
                 if (ok && context.mounted) Navigator.pop(context, true);
               },

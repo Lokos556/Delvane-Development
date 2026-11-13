@@ -1,5 +1,5 @@
-import 'package:delvane_business/core/localization/web_strings.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
+
 import '../workspace/workspace_models.dart';
 import 'channel_api.dart';
 import 'pms_controller.dart';
@@ -50,12 +50,14 @@ class _ChannexMappingDialogState extends State<ChannexMappingDialog>
     });
   }
 
-  List<Json> get localRooms => optionalRows(
-    data?['local_room_types'],
-  ).where((r) => enabled(r['active'])).toList();
-  List<Json> get localRates => optionalRows(
-    data?['local_rate_plans'],
-  ).where((r) => enabled(r['active'])).toList();
+  List<Json> get localRooms =>
+      optionalRows(data?['local_room_types'])
+          .where((r) => enabled(r['active']))
+          .toList();
+  List<Json> get localRates =>
+      optionalRows(data?['local_rate_plans'])
+          .where((r) => enabled(r['active']))
+          .toList();
   Future<void> save() async {
     if (saved || data == null) return;
     if (property.isEmpty ||

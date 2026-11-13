@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+
 import '../../core/auth/auth_controller.dart';
 import '../../core/localization/web_strings.dart';
 export '../../core/localization/web_strings.dart';
@@ -269,6 +270,7 @@ String displayDate(String? value) {
   if (value == null || value.isEmpty) return '—';
   final date = DateTime.tryParse(value);
   if (date == null) return value;
+  if (WebStrings.current.language == 'hu') return uiDate(value);
   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   const months = [
     'Jan',

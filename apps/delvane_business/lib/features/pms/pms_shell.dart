@@ -1,7 +1,10 @@
-import 'package:delvane_business/core/localization/web_strings.dart';
+import 'mobile_calendar_day.dart';
+
 import 'dart:async';
-import 'package:flutter/material.dart';
+
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
+
 import '../../core/auth/auth_controller.dart';
 import '../workspace/workspace_models.dart';
 import '../workspace/workspace_repository.dart';
@@ -121,9 +124,8 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(safeError(e))));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(ui(safeError(e)))));
       }
     }
   }
@@ -226,7 +228,7 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
             color: Colors.transparent,
             child: InkWell(
               key: const ValueKey('pms-account'),
-              onTap: MediaQuery.sizeOf(context).width <= 760
+              onTap: Theme.of(context).platform == TargetPlatform.android
                   ? null
                   : () {
                       settings();
@@ -285,14 +287,17 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
                             ),
                           ),
                           Text(
-                            c.user.role[0].toUpperCase() +
-                                c.user.role.substring(1),
+                            ui(
+                              c.user.role[0].toUpperCase() +
+                                  c.user.role.substring(1),
+                            ),
                             style: const TextStyle(fontSize: 11),
                           ),
                         ],
                       ),
                     ),
-                    const Text('⌄', style: TextStyle(fontSize: 12)),
+                    if (Theme.of(context).platform != TargetPlatform.android)
+                      const PmsVectorIcon('chevron', size: 12),
                   ],
                 ),
               ),
@@ -303,7 +308,7 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
             c.user.name,
             style: const TextStyle(fontWeight: FontWeight.w700),
           ),
-          Text(c.user.role, style: const TextStyle(fontSize: 12)),
+          Text(ui(c.user.role), style: const TextStyle(fontSize: 12)),
           PmsButton(
             c.t('Sign out'),
             small: true,
@@ -317,7 +322,7 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
     context: context,
     useRootNavigator: false,
     barrierDismissible: true,
-    barrierLabel: 'Close settings',
+    barrierLabel: ui('Close settings'),
     barrierColor: const Color(0x142D2719),
     transitionDuration: const Duration(milliseconds: 180),
     pageBuilder: (context, _, __) => PmsSideSheet(
@@ -340,7 +345,7 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                Text(c.user.role, style: const TextStyle(fontSize: 12)),
+                Text(ui(c.user.role), style: const TextStyle(fontSize: 12)),
               ],
             ),
           ),
@@ -414,9 +419,21 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
             c.t('Language'),
             value: c.strings.language,
             items: {for (final l in c.strings.languages) l[0]: l[1]},
-            onChanged: (v) {
-              c.language(v);
-              Navigator.pop(context);
+            onChanged: (v) async {
+              try {
+                await c.language(v);
+                if (context.mounted) Navigator.pop(context);
+              } catch (_) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        ui('Language preference could not be saved.'),
+                      ),
+                    ),
+                  );
+                }
+              }
             },
           ),
           PmsButton(
@@ -445,6 +462,8 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
           child: Column(
             children: [
               TextField(
+                onTapOutside: (_) =>
+                    FocusManager.instance.primaryFocus?.unfocus(),
                 controller: input,
                 decoration: InputDecoration(hintText: ui('Search Delvane')),
                 onSubmitted: (q) async {
@@ -465,7 +484,7 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
                   }
                 },
               ),
-              if (error != null) Text(error!),
+              if (error != null) Text(ui(error!)),
               for (final r in results)
                 ListTile(
                   title: Text(text(r, 'title')),
@@ -546,9 +565,8 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(safeError(e))));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(ui(safeError(e)))));
       }
     }
   }
@@ -598,141 +616,146 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
                       children: [
                         if (!mobile) sidebar(),
                         Expanded(
-                          child: RawScrollbar(
-                            controller: scroll,
-                            thumbVisibility: !mobile,
-                            thumbColor: PmsStyle.yellow,
-                            thickness: mobile ? 2.5 : 9,
-                            radius: const Radius.circular(6),
-                            crossAxisMargin: 3,
-                            child: SingleChildScrollView(
-                              key: const ValueKey('pms-main-scroll'),
+                          child: LayoutBuilder(
+                            builder: (context, viewport) => RawScrollbar(
                               controller: scroll,
-                              child: Padding(
-                                padding: EdgeInsets.fromLTRB(
-                                  gap,
-                                  mobile
-                                      ? 12
-                                      : intelligencePage
-                                      ? 16
-                                      : 14,
-                                  gap + (intelligencePage ? 0 : 15),
-                                  intelligencePage ? 18 : 100,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    if (mobile)
-                                      Padding(
-                                        padding: EdgeInsets.only(
-                                          bottom: intelligencePage ? 20 : 24,
-                                        ),
-                                        child: SizedBox(
-                                          height: intelligencePage ? 44 : 56,
-                                          child: Stack(
-                                            alignment: Alignment.center,
-                                            children: [
-                                              const Center(
-                                                child: PmsMobileBrand(
-                                                  key: ValueKey(
-                                                    'mobile-wordmark',
+                              thumbVisibility: !mobile,
+                              thumbColor: PmsStyle.yellow,
+                              thickness: mobile ? 2.5 : 9,
+                              radius: const Radius.circular(6),
+                              crossAxisMargin: 3,
+                              child: SingleChildScrollView(
+                                key: const ValueKey('pms-main-scroll'),
+                                controller: scroll,
+                                child: Padding(
+                                  padding: EdgeInsets.fromLTRB(
+                                    gap,
+                                    mobile
+                                        ? 12
+                                        : intelligencePage
+                                        ? 16
+                                        : 14,
+                                    gap + (mobile || intelligencePage ? 0 : 15),
+                                    intelligencePage ? 18 : 100,
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      if (mobile)
+                                        Padding(
+                                          padding: EdgeInsets.only(
+                                            bottom: intelligencePage ? 20 : 24,
+                                          ),
+                                          child: SizedBox(
+                                            height: intelligencePage ? 44 : 56,
+                                            child: Stack(
+                                              alignment: Alignment.center,
+                                              children: [
+                                                const Center(
+                                                  child: PmsMobileBrand(
+                                                    key: ValueKey(
+                                                      'mobile-wordmark',
+                                                    ),
                                                   ),
                                                 ),
-                                              ),
-                                              Align(
-                                                alignment: Alignment.centerLeft,
-                                                child: Builder(
-                                                  builder: (context) =>
-                                                      PmsIconButton(
-                                                        ui('menu'),
-                                                        label: ui(
-                                                          'Open main menu',
+                                                Align(
+                                                  alignment:
+                                                      Alignment.centerLeft,
+                                                  child: Builder(
+                                                    builder: (context) =>
+                                                        PmsIconButton(
+                                                          'menu',
+                                                          label: ui(
+                                                            'Open main menu',
+                                                          ),
+                                                          surface: true,
+                                                          onPressed: () =>
+                                                              Scaffold.of(
+                                                                context,
+                                                              ).openDrawer(),
                                                         ),
-                                                        surface: true,
-                                                        onPressed: () =>
-                                                            Scaffold.of(
-                                                              context,
-                                                            ).openDrawer(),
+                                                  ),
+                                                ),
+                                                Align(
+                                                  alignment:
+                                                      Alignment.centerRight,
+                                                  child: Row(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    children: [
+                                                      if (c.user.isOperator)
+                                                        PmsIconButton(
+                                                          'search',
+                                                          label: ui(
+                                                            'Search Delvane',
+                                                          ),
+                                                          onPressed: search,
+                                                        ),
+                                                      PmsIconButton(
+                                                        'settings',
+                                                        key: const ValueKey(
+                                                          'pms-mobile-settings',
+                                                        ),
+                                                        label: ui(
+                                                          'Open settings',
+                                                        ),
+                                                        onPressed: settings,
                                                       ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        )
+                                      else if (!intelligencePage)
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            bottom: 28,
+                                          ),
+                                          child: SizedBox(
+                                            height: 41,
+                                            child: utility(),
+                                          ),
+                                        ),
+                                      if (c.actionError != null)
+                                        Text(
+                                          ui(c.actionError!),
+                                          style: const TextStyle(
+                                            color: Colors.red,
+                                          ),
+                                        ),
+                                      if (c.loading)
+                                        const Padding(
+                                          padding: EdgeInsets.all(48),
+                                          child: Center(
+                                            child: CircularProgressIndicator(),
+                                          ),
+                                        )
+                                      else if (c.error != null)
+                                        PmsCard(
+                                          child: Column(
+                                            children: [
+                                              Text(ui(c.error!)),
+                                              Text(
+                                                ui(
+                                                  'No demo data has been substituted.',
                                                 ),
                                               ),
-                                              Align(
-                                                alignment:
-                                                    Alignment.centerRight,
-                                                child: Row(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  children: [
-                                                    if (c.user.isOperator)
-                                                      PmsIconButton(
-                                                        ui('search'),
-                                                        label: ui(
-                                                          'Search Delvane',
-                                                        ),
-                                                        onPressed: search,
-                                                      ),
-                                                    PmsIconButton(
-                                                      ui('settings'),
-                                                      key: const ValueKey(
-                                                        'pms-mobile-settings',
-                                                      ),
-                                                      label: ui(
-                                                        'Open settings',
-                                                      ),
-                                                      onPressed: settings,
-                                                    ),
-                                                  ],
-                                                ),
+                                              PmsButton(
+                                                ui('Retry'),
+                                                onPressed: c.load,
                                               ),
                                             ],
                                           ),
+                                        )
+                                      else
+                                        content(
+                                          viewportHeight: viewport.maxHeight,
                                         ),
-                                      )
-                                    else if (!intelligencePage)
-                                      Padding(
-                                        padding: const EdgeInsets.only(
-                                          bottom: 28,
-                                        ),
-                                        child: SizedBox(
-                                          height: 41,
-                                          child: utility(),
-                                        ),
-                                      ),
-                                    if (c.actionError != null)
-                                      Text(
-                                        c.actionError!,
-                                        style: const TextStyle(
-                                          color: Colors.red,
-                                        ),
-                                      ),
-                                    if (c.loading)
-                                      const Padding(
-                                        padding: EdgeInsets.all(48),
-                                        child: Center(
-                                          child: CircularProgressIndicator(),
-                                        ),
-                                      )
-                                    else if (c.error != null)
-                                      PmsCard(
-                                        child: Column(
-                                          children: [
-                                            Text(c.error!),
-                                            Text(
-                                              ui(
-                                                'No demo data has been substituted.',
-                                              ),
-                                            ),
-                                            PmsButton(
-                                              ui('Retry'),
-                                              onPressed: c.load,
-                                            ),
-                                          ],
-                                        ),
-                                      )
-                                    else
-                                      content(),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
@@ -789,7 +812,7 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('⌕', style: TextStyle(fontSize: 14)),
+              const PmsVectorIcon('search', size: 14),
               if (MediaQuery.sizeOf(context).width >= 1100) ...[
                 const SizedBox(width: 8),
                 Text(
@@ -818,10 +841,7 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
             onPressed: notifications,
             child: Row(
               children: [
-                const Text(
-                  '◌',
-                  style: TextStyle(fontSize: 12, color: Colors.black),
-                ),
+                const PmsVectorIcon('notifications', size: 16),
                 const SizedBox(width: 6),
                 Container(
                   width: 18,
@@ -843,7 +863,7 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
         TextButton(
           onPressed: () => c.navigate(PmsPage.simulation),
           child: Text(
-            c.mode.toUpperCase(),
+            ui(c.mode).toUpperCase(),
             style: const TextStyle(
               fontSize: 14,
               letterSpacing: 2,
@@ -866,7 +886,7 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
         title: c.t(title),
         description: c.t(description),
       );
-  Widget content() {
+  Widget content({double? viewportHeight}) {
     switch (c.page) {
       case PmsPage.today:
         return c.user.isOperator ? today() : workers(false);
@@ -875,7 +895,7 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
       case PmsPage.reservations:
         return calendar();
       case PmsPage.intelligence:
-        return intelligence();
+        return intelligence(viewportHeight: viewportHeight);
       case PmsPage.operations:
         return operations();
       case PmsPage.inbox:
@@ -904,7 +924,9 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
       children: [
         PmsPageHeader(
           key: const ValueKey('today-header'),
-          eyebrow: text(cmd, 'date'),
+          eyebrow: WebStrings.current.language == 'hu'
+              ? uiDate(text(cmd, 'date'))
+              : text(cmd, 'date'),
           title: c.t("Today's command center"),
           description: ui('$urgent urgent'),
           actions: [
@@ -1281,7 +1303,7 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
                                   ? ui(
                                       '${text(r, 'property_name')} · ${r['guest_count'] ?? ''} guests',
                                     )
-                                  : '${text(r, 'assigned_name', text(r, 'property_name'))} · ${text(r, 'status')}',
+                                  : '${text(r, 'assigned_name', text(r, 'property_name'))} · ${ui(text(r, 'status'))}',
                               style: const TextStyle(fontSize: 11),
                             ),
                           ],
@@ -1332,7 +1354,7 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '${text(t, 'scheduled_date')} \u00b7 ${text(t, 'status')}',
+                      '${text(t, 'scheduled_date')} \u00b7 ${ui(text(t, 'status'))}',
                     ),
                     Text(
                       text(t, 'property_name'),
@@ -1528,7 +1550,9 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
                       ),
                     ),
                     Text(
-                      '${months[month.month - 1]} ${month.year}',
+                      WebStrings.current.language == 'hu'
+                          ? '${month.year}. ${ui(months[month.month - 1])}'
+                          : '${months[month.month - 1]} ${month.year}',
                       style: const TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.w700,
@@ -1573,7 +1597,7 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
                       Expanded(
                         child: Center(
                           child: Text(
-                            day.toUpperCase(),
+                            ui(day).toUpperCase(),
                             style: const TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w800,
@@ -1610,140 +1634,28 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
                                   )
                                   .toList();
                               if (MediaQuery.sizeOf(context).width <= 760) {
-                                return SizedBox(
+                                return MobileCalendarDay(
+                                  date: date,
+                                  inMonth: date.month == month.month,
                                   width: width,
-                                  height: 108,
-                                  child: Container(
-                                    margin: const EdgeInsets.all(1),
-                                    padding: const EdgeInsets.all(3),
-                                    decoration: BoxDecoration(
-                                      color: date.month == month.month
-                                          ? Colors.white
-                                          : const Color(0xFFF6F5F2),
-                                      border: Border.all(
-                                        color: const Color(0xFFECEAE5),
-                                      ),
-                                      borderRadius: BorderRadius.circular(9),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.stretch,
-                                      children: [
-                                        InkWell(
-                                          key: ValueKey('calendar-day-$iso'),
-                                          onTap: () => newReservation(iso),
-                                          child: SizedBox(
-                                            height: 32,
-                                            child: Center(
-                                              child: Text(
-                                                '${date.day}',
-                                                style: TextStyle(
-                                                  fontSize: 18,
-                                                  fontWeight: FontWeight.w800,
-                                                  color:
-                                                      date.month == month.month
-                                                      ? Colors.black
-                                                      : PmsStyle.muted,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                        for (final r in stays.take(3))
-                                          Padding(
-                                            padding: const EdgeInsets.only(
-                                              bottom: 3,
-                                            ),
-                                            child: Semantics(
-                                              button: true,
-                                              label:
-                                                  '${text(r, 'property_name')}, ${text(r, 'guest_name')}, $iso',
-                                              child: Tooltip(
-                                                message:
-                                                    '${text(r, 'property_name')} ? ${text(r, 'guest_name')}',
-                                                child: InkWell(
-                                                  key: ValueKey(
-                                                    'mobile-stay-${text(r, 'id')}-$iso',
-                                                  ),
-                                                  onTap: () => record(
-                                                    RecordKind.reservation,
-                                                    text(r, 'id'),
-                                                  ),
-                                                  child: Container(
-                                                    height: 14,
-                                                    decoration: BoxDecoration(
-                                                      color:
-                                                          colors[props
-                                                                  .indexWhere(
-                                                                    (p) =>
-                                                                        p['id'] ==
-                                                                        r['property_id'],
-                                                                  )
-                                                                  .clamp(
-                                                                    0,
-                                                                    100000,
-                                                                  ) %
-                                                              colors.length],
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            4,
-                                                          ),
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        if (stays.length > 3)
-                                          InkWell(
-                                            onTap: () => showDialog<void>(
-                                              context: context,
-                                              useRootNavigator: false,
-                                              builder: (_) => PmsModal(
-                                                title: iso,
-                                                child: Column(
-                                                  children: [
-                                                    for (final stay in stays)
-                                                      ListTile(
-                                                        title: Text(
-                                                          text(
-                                                            stay,
-                                                            'guest_name',
-                                                          ),
-                                                        ),
-                                                        subtitle: Text(
-                                                          text(
-                                                            stay,
-                                                            'property_name',
-                                                          ),
-                                                        ),
-                                                        onTap: () {
-                                                          Navigator.pop(
-                                                            context,
-                                                          );
-                                                          record(
-                                                            RecordKind
-                                                                .reservation,
-                                                            text(stay, 'id'),
-                                                          );
-                                                        },
-                                                      ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ),
-                                            child: Text(
-                                              '+${stays.length - 3}',
-                                              textAlign: TextAlign.center,
-                                              style: const TextStyle(
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.w700,
-                                              ),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
+                                  stays: stays,
+                                  arrivals: rows
+                                      .where((r) => r['arrival_date'] == iso)
+                                      .length,
+                                  departures: rows
+                                      .where((r) => r['departure_date'] == iso)
+                                      .length,
+                                  colorFor: (r) =>
+                                      colors[props
+                                              .indexWhere(
+                                                (p) =>
+                                                    p['id'] == r['property_id'],
+                                              )
+                                              .clamp(0, 100000) %
+                                          colors.length],
+                                  onCreate: () => newReservation(iso),
+                                  onReservation: (id) =>
+                                      record(RecordKind.reservation, id),
                                 );
                               }
                               return Container(
@@ -2021,8 +1933,12 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
     );
   }
 
-  Widget intelligence() =>
-      IntelligenceWorkspace(c: c, input: chat, openSearch: search);
+  Widget intelligence({double? viewportHeight}) => IntelligenceWorkspace(
+    c: c,
+    input: chat,
+    openSearch: search,
+    viewportHeight: viewportHeight,
+  );
 
   Widget operations() {
     final journeys = c.rows('journeys'),
@@ -2073,7 +1989,7 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
             child: ListTile(
               title: Text(text(r, 'guest_name')),
               subtitle: Text(
-                '${text(r, 'property_name')} \u00b7 ${text(r, 'current_stage')}',
+                '${text(r, 'property_name')} \u00b7 ${ui(text(r, 'current_stage'))}',
               ),
               trailing: Text('${r['current_stage_index']}/${r['stage_total']}'),
               onTap: () => record(RecordKind.reservation, text(r, 'id')),
@@ -2093,7 +2009,7 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
                   ListTile(
                     title: Text(text(r, 'message')),
                     subtitle: Text(
-                      '${text(r, 'created_at')} \u00b7 ${text(r, 'actor', 'Delvane')}',
+                      '${uiDateTime(text(r, 'created_at'))} \u00b7 ${text(r, 'actor', 'Delvane')}',
                     ),
                   ),
               ],

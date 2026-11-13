@@ -1,5 +1,6 @@
 import 'package:delvane_business/core/localization/web_strings.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
+
 import '../../app/controller.dart';
 import '../../app/theme.dart';
 import '../../shared/components.dart';
@@ -42,8 +43,7 @@ class _AiPageState extends State<AiPage> {
       children: [
         const SectionTitle(
           'A thoughtful second pair of eyes',
-          subtitle:
-              'Scripted demo · No AI provider, tools, or autonomous actions connected',
+          subtitle: 'Scripted demo · No AI provider, tools, or autonomous actions connected',
           action: Icon(Icons.auto_awesome_outlined),
         ),
         Container(
@@ -104,6 +104,7 @@ class _AiPageState extends State<AiPage> {
             ),
           ),
         TextField(
+          onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
           key: const ValueKey('ai-question'),
           controller: input,
           onSubmitted: ask,

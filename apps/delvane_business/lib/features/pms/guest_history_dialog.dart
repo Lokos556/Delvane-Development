@@ -1,5 +1,5 @@
-import 'package:delvane_business/core/localization/web_strings.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
+
 import '../workspace/workspace_models.dart';
 import 'pms_controller.dart';
 import 'pms_dialogs.dart';
@@ -59,7 +59,7 @@ class _GuestHistoryDialogState extends State<GuestHistoryDialog>
                 '${text(stay, 'property_name')} · ${text(stay, 'arrival_date')} → ${text(stay, 'departure_date')}',
               ),
               subtitle: Text(
-                '${text(stay, 'source')} · ${text(stay, 'status')}',
+                '${text(stay, 'source')} · ${ui(text(stay, 'status'))}',
               ),
             ),
           PmsEyebrow(ui('PREFERENCES')),

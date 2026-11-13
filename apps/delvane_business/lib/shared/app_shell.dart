@@ -1,5 +1,6 @@
 import 'package:delvane_business/core/localization/web_strings.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
+
 import '../app/controller.dart';
 import '../app/destination.dart';
 import '../app/theme.dart';
@@ -92,10 +93,10 @@ class AppShell extends StatelessWidget {
                         .map(
                           (d) => NavigationRailDestination(
                             icon: Tooltip(
-                              message: d.label,
+                              message: ui(d.label),
                               child: Icon(d.icon),
                             ),
-                            label: Text(d.label),
+                            label: Text(ui(d.label)),
                           ),
                         )
                         .toList(),
@@ -113,7 +114,7 @@ class AppShell extends StatelessWidget {
                                   : Column(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        Text(controller.loadError!),
+                                        Text(ui(controller.loadError!)),
                                         TextButton(
                                           onPressed: controller.load,
                                           child: Text(ui('Retry')),
@@ -138,14 +139,14 @@ class AppShell extends StatelessWidget {
                                         controller.destination ==
                                                 Destination.dashboard
                                             ? ui('Good morning, Alex.')
-                                            : controller.destination.label,
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.headlineLarge,
+                                            : ui(controller.destination.label),
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .headlineLarge,
                                       ),
                                       const SizedBox(height: 6),
                                       Text(
-                                        controller.destination.subtitle,
+                                        ui(controller.destination.subtitle),
                                         style: const TextStyle(
                                           color: DelvaneColors.muted,
                                         ),
@@ -288,7 +289,7 @@ class AppShell extends StatelessWidget {
                             : DelvaneColors.muted,
                       ),
                       title: Text(
-                        d.label,
+                        ui(d.label),
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: controller.destination == d
@@ -374,7 +375,7 @@ class AppShell extends StatelessWidget {
           ),
         Expanded(
           child: Text(
-            controller.destination.label,
+            ui(controller.destination.label),
             style: Theme.of(context).textTheme.titleMedium,
           ),
         ),
@@ -382,9 +383,8 @@ class AppShell extends StatelessWidget {
           DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: controller.propertyId ?? 'all',
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium!.copyWith(fontSize: 12),
+              style: Theme.of(context).textTheme.bodyMedium!
+                  .copyWith(fontSize: 12),
               items: [
                 DropdownMenuItem(
                   value: 'all',

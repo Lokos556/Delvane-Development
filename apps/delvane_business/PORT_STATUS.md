@@ -1,5 +1,173 @@
 # Delvane PMS Flutter port: current status
 
+## Current pass — mobile polish and Hungarian localization (2026-11-13)
+
+Flutter **3.50.0 / Dart 3.14.0** and the earlier SDK/platform upgrades are retained
+on `flutter-upgrade`. The backend, databases, integrations and authentication
+contracts were not changed. No commits, pushes or publication were performed.
+
+### Mobile UI and interaction results
+
+- Retained the existing removal of yellow metric-leading lines and grouped
+  calendar workspace navigation. Hungarian metric labels fit the two-column pills.
+- Corrected asymmetric mobile content padding: the original-asset/Inter wordmark
+  now centers on the viewport independently of menu/search/settings widths. The
+  desktop content padding remains unchanged. Bundled Inter at the reference CSS
+  size/weight/spacing for consistent Android rendering; no runtime font downloads.
+- Kept the existing official PNG on the login screen. Kept mobile Intelligence's
+  redundant secondary header removed, with larger metric labels and live actions.
+- Shared settings/integration symbols use the existing outlined vector system;
+  search, notifications and dropdown chevrons now also use vector drawing. Fixed
+  the down-chevron direction and stopped translating internal icon names.
+- All native text fields now explicitly unfocus on an outside touch. Intelligence
+  sizes itself from its actual SafeArea/IME viewport, keeping the composer visible
+  normally and above the keyboard. Draft text survives keyboard dismissal.
+- Android scrollbars are 2.5px; desktop scrolling retains its 9px treatment.
+- Android's bottom operator account display has no action or menu arrow. Windows
+  retains its account menu, including narrow windows. The mobile header settings
+  control retains language, account, authorized destinations and logout.
+
+### Calendar
+
+The phone uses 18px day numbers, 12px property-color bars, a 40px date-create area
+and a separate approximately 60px stay-selection area inside a compact 112px cell.
+Property/guest names are not squeezed into cells. The existing ordered property
+palette is supplied by the caller. Up to three bars and an overflow count are
+shown; a date with several stays opens a scrollable list with full names, dates,
+arrival/departure counts and real reservation navigation. Empty dates also expose
+their day summary and creation action. Single stays open the actual record.
+
+Confirmed-only filtering, checkout-exclusive occupied nights, month navigation,
+property IDs, reservation mutations and backend availability rules are preserved.
+Inquiry records do not contribute to occupied stays or arrival/departure counts.
+Desktop calendar cards remain unchanged.
+
+### Hungarian and English
+
+Added **703 native Hungarian translations/templates** to the previously empty
+`native-hu.json`, extending the existing `WebStrings`/web catalog architecture.
+Coverage includes main navigation, Today, Intelligence, Reservations, Reception,
+Operations, Team, settings, integrations, security, forms, confirmations, status
+enums, validation, safe client errors and explicit demo UI copy. Corrected inherited
+Rosa wording in key Delvane headings/composer prompts. Known status fields and
+record-link captions are localized at presentation, without changing wire values.
+
+Hungarian remains the production default. English is selectable in settings and
+explicit demo preferences; the choice persists in the platform secure store. App
+composition waits for preference initialization, and save failures are surfaced.
+Queued preference writes recover after failure. Tests use an in-memory credential
+vault rather than the host's secure store.
+
+Hungarian date symbols are initialized with the catalog; captions use Hungarian
+month/day order. Number and decimal-price display supports Hungarian separators.
+Decimal wire strings are formatted without floating-point conversion. Date/time
+and numeric form/API formats and validation rules are preserved. Compiled template
+patterns prioritize specific phrases; single-pass substitution preserves inserted
+names, braces and identifiers verbatim.
+
+**Localization limit:** this is not certification that every server-controlled
+string is Hungarian. Guest messages, property/person names, notes, editable
+knowledge, configurable checklist labels, provider diagnostics, audit summaries and
+server-owned automation labels/descriptions retain their source text. Unknown
+server enum codes also remain visible rather than receiving an invented meaning.
+Backend-owned English display copy needs an explicit localization contract or
+reviewed mappings. A source copy scan and 12 screen captures do not prove every
+possible dialog/data state. Brands, API identifiers and ISO/time entry hints are
+intentionally not translated as ordinary prose.
+
+### Validation and evidence
+
+- `flutter analyze`: **no issues**.
+- `flutter test --reporter expanded`: **193 passed, 0 failed, 0 skipped** (170
+  previous tests plus 23 mobile/localization regressions). Includes Hungarian
+  screens, header alignment, drawer selection, Android/Windows account behavior,
+  settings language persistence, write failure/recovery, decimal precision, template
+  captures, keyboard dismissal, checkout exclusion, inquiry exclusion and overflow
+  selection. Existing authentication/authorization/workflow tests are retained.
+- Android debug APK and Windows release: **both builds succeeded** using the
+  existing VS2026 compatibility workflow for Windows. Validation logs are
+  `build/mobile-hu-android-build.txt` and `build/mobile-hu-windows-build.txt`.
+  The SDK-upgrade Kotlin migration warning remains; no dependency downgrade.
+- Twelve **host-rendered** Hungarian 393x852 screenshots are generated in
+  `build/mobile-polish-hu/`. Existing paired 390x844 web/Flutter and 1440x1000
+  references remain in `build/visual-reference/`. Today and Intelligence were
+  visually inspected; these different-size/locale captures are not pixel-perfect
+  comparisons. The logical phone viewport is representative, not measured on the
+  user's Xiaomi. Windows baseline screenshot tests still run.
+- `adb devices -l`: no device connected during this pass. No phone install,
+  emulator launch or physical HyperOS verification is claimed. No live API was
+  contacted by these tests. No backend tests/migrations were needed because no
+  backend source changed.
+
+### Files changed in the UI/localization pass
+
+All paths below are relative to this Flutter project. Pre-existing SDK/platform
+changes remain separately listed in `FLUTTER_UPGRADE.md` and were preserved.
+
+- Assets/configuration: `assets/native-hu.json`, `assets/fonts/Inter-Variable.ttf`,
+  `assets/fonts/Inter-OFL.txt`, `pubspec.yaml` (font/asset registration only).
+- Composition/formatting: `lib/app/app.dart`,
+  `lib/core/localization/web_strings.dart`, `lib/domain/models.dart`,
+  `lib/shared/app_shell.dart`, `lib/shared/components.dart`.
+- PMS UI: `lib/features/pms/administration_pages.dart`, `ask_bar.dart`,
+  `distribution_dialog.dart`, `guest_history_dialog.dart`, `integrations_page.dart`,
+  `intelligence_workspace.dart`, **`mobile_calendar_day.dart` (new)**,
+  `operations_pages.dart`, `pms_controller.dart`, `pms_dialogs.dart`, `pms_icons.dart`,
+  `pms_shell.dart`, `pms_style.dart`, `property_rates_dialog.dart`,
+  `reception_page.dart`, `reservation_dialogs.dart`, `team_page.dart`.
+- Other client surfaces: `lib/features/ai/ai_page.dart`,
+  `lib/features/reception/reception_page.dart`,
+  `lib/features/reservations/reservations_page.dart`,
+  `lib/features/settings/settings_page.dart`,
+  `lib/features/workspace/login_page.dart`, `record_page.dart`,
+  `workspace_page.dart`, `workspace_repository.dart` (display captions only).
+- Tests: **`test/mobile_polish_test.dart` (new)**, `test/flutter_test_config.dart`,
+  `test/support/visual_fonts.dart`, `test/visual_interactions_test.dart`,
+  `test/visual_parity_test.dart`. Minor formatter changes also accompany preserved
+  SDK import changes in other existing UI files.
+- Documentation: `PORT_STATUS.md`, `ANDROID_TESTING.md`.
+
+Inter was obtained from the Google Fonts `ofl/inter` distribution with its SIL OFL
+license bundled. Font SHA-256:
+`29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031`.
+
+Remaining acceptance work: physical Xiaomi/HyperOS font scaling, GPU/glass rendering,
+keyboard types, landscape layouts, gesture insets, secure-store restore and lifecycle
+behavior. Existing backend-blocked features/parity limitations below remain.
+
+## Latest pass — Flutter 3.50 stable / Codemagic preparation
+
+Updated 2026-11-13 on `flutter-upgrade`. Local SDK upgraded in place from Flutter
+3.32.2 / Dart 3.8.1 to **Flutter 3.50.0 / Dart 3.14.0**, without force or discarding
+SDK source edits. Generated SDK Gradle output was preserved in an ignored backup.
+
+`intl` is now **0.20.3**, matching the new SDK localization constraint. Material
+imports/delegates moved to official `material_ui 1.11.0`; secure-storage 9.2.4 is
+retained. Existing Hungarian/English behavior and catalogs are preserved. Narrow
+SDK compatibility fixes cover dropdown initialization, ListTile ink surfaces and
+an existing import-alias collision. Tests use an explicit English fixture locale;
+new tests verify production Hungarian default and language persistence.
+
+Android uses Gradle 9.5.0 / AGP 9.3.1 / Kotlin 2.4.20, SDK 36, NDK 28.2.13676358,
+Java 17 and minimum SDK 24. Legacy plugin compatibility flags were added by Flutter;
+a non-fatal built-in-Kotlin migration warning remains. Existing loopback-only debug
+network policy, app identity, session storage and backend safeguards are preserved.
+
+iOS files already existed. Added missing CocoaPods wiring, aligned the minimum to
+iOS 15, and adopted the SDK scene lifecycle/plugin registration. Plists and source
+references pass static checks. iOS compilation, signing and device acceptance were
+**not** run on this Windows host. Recommend pinned Flutter 3.50.0, Xcode 27.2 and
+CocoaPods 1.17.0 for the first Codemagic validation build; no remote build was started.
+
+Validation: doctor clean, pub get passed, analysis clean, **170 Flutter tests passed**,
+Android debug APK built and Windows release built through the existing VS2026
+compatibility workflow. Full versions, commands, dependency changes, evidence,
+remaining limitations and the exact file list are in
+[FLUTTER_UPGRADE.md](FLUTTER_UPGRADE.md).
+
+No backend source or operational database changed; no production integrations,
+commits, pushes or publication. Functional parity counts below remain unchanged.
+
 ## Latest pass — Android USB development readiness
 
 Updated 2026-11-12. The existing Git tree was clean at the start. An IDE-generated

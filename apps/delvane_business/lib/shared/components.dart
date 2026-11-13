@@ -1,5 +1,6 @@
 import 'package:delvane_business/core/localization/web_strings.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
+
 import '../app/theme.dart';
 import '../domain/models.dart';
 
@@ -50,7 +51,7 @@ class Panel extends StatelessWidget {
         color: color == Colors.white ? DelvaneColors.line : color,
       ),
     ),
-    child: child,
+    child: Material(type: MaterialType.transparency, child: child),
   );
 }
 
@@ -69,12 +70,12 @@ class SectionTitle extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: Theme.of(context).textTheme.titleLarge),
+              Text(ui(title), style: Theme.of(context).textTheme.titleLarge),
               if (subtitle != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
                   child: Text(
-                    subtitle!,
+                    ui(subtitle!),
                     style: const TextStyle(
                       color: DelvaneColors.muted,
                       fontSize: 12,
@@ -107,7 +108,7 @@ class Tag extends StatelessWidget {
       borderRadius: BorderRadius.circular(8),
     ),
     child: Text(
-      label,
+      ui(label),
       style: TextStyle(
         color: foreground,
         fontSize: 11,
@@ -188,7 +189,7 @@ class EmptyState extends StatelessWidget {
           color: DelvaneColors.muted,
         ),
         const SizedBox(height: 14),
-        Text(title, style: Theme.of(context).textTheme.titleMedium),
+        Text(ui(title), style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
         Text(
           detail,
@@ -329,7 +330,7 @@ class StayList extends StatelessWidget {
                         ),
                       ],
                       Tag(
-                        stay.status.label,
+                        ui(stay.status.label),
                         color: stay.status == StayStatus.arriving
                             ? DelvaneColors.yellowSoft
                             : DelvaneColors.greenSoft,

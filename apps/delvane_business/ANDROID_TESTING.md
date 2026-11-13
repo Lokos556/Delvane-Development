@@ -1,5 +1,60 @@
 # Android USB development testing
 
+## Mobile UI and Hungarian update — 2026-11-13
+
+The app retains Flutter **3.50.0 / Dart 3.14.0**. Hungarian is the default; choose
+**Beállítások → Nyelv** to switch to English (or **Settings → Language** to switch
+back to Magyar). The choice persists securely. Demo mode remains separate.
+
+Mobile changes include the centered original-asset/Inter wordmark, clean Today
+metrics, consistent vector controls, a readable color-bar month calendar with full
+stay selection, touch-based keyboard dismissal, 2.5px scrollbars and a passive
+Android drawer account display. Open account/settings/logout through the header's
+gear. The Windows account menu is preserved.
+
+Validation: clean analysis; **193 Flutter tests passed** with no failures/skips;
+debug APK and VS2026 Windows release builds. The Kotlin migration warning from the
+SDK upgrade remains non-fatal. Latest logs are under `build/mobile-hu-*.txt`.
+
+```text
+APK: build/app/outputs/flutter-apk/app-debug.apk
+Windows: build/windows-vs2026/x64/runner/Release/delvane_business.exe
+Screenshots: build/mobile-polish-hu/*.png
+```
+
+The 12 Hungarian screenshots use a host widget-test viewport of 393x852 logical
+pixels with Android insets; this is not an actual device screenshot or a measured
+Xiaomi viewport. Existing web comparison screenshots use 390x844. Pixel-perfect
+device parity is not claimed. `adb devices -l` reported no device in this pass, so
+installation and physical testing were not performed. Use the existing USB helper
+below after connecting and authorizing the phone.
+
+For acceptance on the Xiaomi 15 / HyperOS 3:
+
+1. Use only the isolated backend and USB reverse instructions below.
+2. Verify default Magyar and persisted English/Magyar after app termination.
+3. Check centered branding and Today pills at the normal and enlarged system font
+   sizes. Check settings/integration/search/dropdown vectors on device.
+4. In Intelligence and reservation/Reception fields, show the keyboard, tap outside,
+   verify dismissal without losing drafts, and repeat in landscape.
+5. In the calendar, check property colors/legend, day creation, single and multiple
+   stays, overflow lists, month changes and checkout-exclusive rendering. Exercise
+   reservation mutations only against disposable records.
+6. Verify drawer navigation, passive bottom identity, header settings, role-restricted
+   actions, logout, session expiry, secure restore and HyperOS process lifecycle.
+
+Some backend-owned automation labels, audit/provider descriptions and configurable
+checklist/knowledge content can retain English. Names, guest/user text, technical
+identifiers and input wire formats are preserved intentionally. Full Hungarian
+coverage of arbitrary backend content is not certified; see `PORT_STATUS.md`.
+
+**2026-11-13 SDK update:** use Flutter 3.50.0 / Dart 3.14.0, Gradle 9.5.0,
+AGP 9.3.1, Kotlin 2.4.20, SDK/target 36, minimum SDK 24 and NDK 28.2.13676358.
+The USB commands, isolated API and authentication safeguards below are unchanged.
+The new debug APK and Windows release build pass; 170 Flutter tests pass. Earlier
+3.32.2/SDK35 validation details below are historical. See
+[FLUTTER_UPGRADE.md](FLUTTER_UPGRADE.md) for complete upgrade evidence and limits.
+
 This is the same Flutter application and FastAPI backend as Windows. No LAN API,
 production credentials or operational database is required. Use the debug APK for
 local testing only. The default client API remains `http://127.0.0.1:8765`.
