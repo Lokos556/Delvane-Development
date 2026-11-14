@@ -309,11 +309,7 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
             style: const TextStyle(fontWeight: FontWeight.w700),
           ),
           Text(ui(c.user.role), style: const TextStyle(fontSize: 12)),
-          PmsButton(
-            c.t('Sign out'),
-            small: true,
-            onPressed: widget.auth.logout,
-          ),
+          PmsButton(c.t('Sign out'), onPressed: widget.auth.logout),
         ],
       ],
     ),
@@ -374,41 +370,50 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
                 (e) => c.settings.contains(e.$1),
               ))
                 Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(18),
-                    onTap: () {
-                      Navigator.pop(context);
-                      c.navigate(entry.$1);
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 16,
-                      ),
-                      child: Row(
-                        children: [
-                          SizedBox(
-                            width: 36,
-                            child: entry.$2 == 'R'
-                                ? Image.asset(
-                                    PmsStyle.logo,
-                                    width: 24,
-                                    height: 24,
-                                  )
-                                : PmsVectorIcon(entry.$2),
-                          ),
-                          Expanded(
-                            child: Text(
-                              c.label(entry.$1),
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
+                  color: c.page == entry.$1
+                      ? const Color(0x55FFD500)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(18),
+                  child: Semantics(
+                    selected: c.page == entry.$1,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(18),
+                      onTap: () {
+                        Navigator.pop(context);
+                        c.navigate(entry.$1);
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 16,
+                        ),
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 36,
+                              child: entry.$2 == 'R'
+                                  ? Image.asset(
+                                      PmsStyle.logo,
+                                      width: 24,
+                                      height: 24,
+                                    )
+                                  : PmsVectorIcon(entry.$2),
+                            ),
+                            Expanded(
+                              child: Text(
+                                c.label(entry.$1),
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
-                          ),
-                          const Text('›'),
-                        ],
+                            if (c.page == entry.$1)
+                              const Icon(Icons.check, size: 18)
+                            else
+                              const Text('›'),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -1512,7 +1517,6 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
             actions: [
               PmsButton(
                 ui('+ New reservation'),
-                small: MediaQuery.sizeOf(context).width <= 760,
                 primary: true,
                 onPressed: () => newReservation(),
               ),

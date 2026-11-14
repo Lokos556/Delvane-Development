@@ -53,13 +53,24 @@ class _GuestHistoryDialogState extends State<GuestHistoryDialog>
         if (data == null && !busy) PmsButton(ui('Retry'), onPressed: load),
         if (data != null) ...[
           PmsEyebrow(ui('GUEST HISTORY')),
+          GuestHistorySummary(
+            summary: optionalObject(data!['history_summary']),
+          ),
+          Text(
+            ui('Only explicitly linked profiles contribute to history counts.'),
+          ),
+          Text(
+            ui(
+              'Completed stays are inferred from confirmed reservations whose departure date has passed.',
+            ),
+          ),
           for (final stay in optionalRows(data!['stays']))
             ListTile(
               title: Text(
                 '${text(stay, 'property_name')} · ${text(stay, 'arrival_date')} → ${text(stay, 'departure_date')}',
               ),
               subtitle: Text(
-                '${text(stay, 'source')} · ${ui(text(stay, 'status'))}',
+                '${text(stay, 'source')} · ${ui(text(stay, 'status'))}\n${ui(text(stay, 'cancellation_initiator', 'unknown'))} · ${text(stay, 'cancelled_at')}\n${text(stay, 'cancellation_reason')} · ${text(stay, 'cancellation_source')}\n${text(stay, 'association_source') == 'legacy_unverified' ? ui('Identity association requires review') : ''}',
               ),
             ),
           PmsEyebrow(ui('PREFERENCES')),
@@ -154,4 +165,34 @@ class _GuestPreferenceDialogState extends State<GuestPreferenceDialog>
       ),
     ),
   );
+}
+
+class GuestHistorySummary extends StatelessWidget {
+  const GuestHistorySummary({super.key, required this.summary});
+  final Json summary;
+  @override
+  Widget build(BuildContext context) => summary.isEmpty
+      ? const SizedBox.shrink()
+      : Wrap(
+          spacing: 12,
+          runSpacing: 6,
+          children: [
+            Text(
+              ui(
+                '${summary['previous_reservations'] ?? 0} previous reservations',
+              ),
+            ),
+            Text(
+              ui(
+                '${summary['past_confirmed_reservations'] ?? 0} past confirmed reservations',
+              ),
+            ),
+            Text(
+              ui('${summary['guest_cancellations'] ?? 0} guest cancellations'),
+            ),
+            Text(
+              ui('${summary['host_cancellations'] ?? 0} host cancellations'),
+            ),
+          ],
+        );
 }

@@ -37,9 +37,8 @@ class _TeamPageState extends State<TeamPage> {
 
   Future<void> edit([Json? member]) async {
     if (!canManage) return;
-    await showDialog<void>(
+    final route = DialogRoute<void>(
       context: context,
-      useRootNavigator: false,
       barrierDismissible: false,
       builder: (_) => TeamMemberEditor(
         c: c,
@@ -47,6 +46,8 @@ class _TeamPageState extends State<TeamPage> {
         roles: optionalObject(c.object('team')['roles']),
       ),
     );
+    await Navigator.of(context).push(route);
+    await route.completed;
     if (mounted && c.auth.user != null) await c.load();
   }
 

@@ -1,4 +1,20 @@
 # Delvane PMS Flutter port: current status
+## Post-acceptance improvements (2026-11-14)
+
+See POST_ACCEPTANCE_IMPROVEMENTS.md for the 14-item implementation report,
+changed files, migration 3072, exact launch/install commands and manual checks.
+Analysis clean; Flutter full suite 249 passed and final focused suite 19 passed;
+backend broader run 143 passed and overlapping final focused run 37 passed;
+10 guarded JavaScript files passed; persistent/disposable restart proof passed.
+Final Android debug APK and Windows release bundle built successfully.
+Flutter 3.50.0/Dart 3.14.0, app IDs, authentication and isolation preserved.
+
+Original staff-close flash did not reproduce; close lifecycle regression passes
+but device recheck remains. Guest-browser preview was blocked by origin approval;
+browser/camera/Xiaomi checks remain manual. Apple builds/GPU performance unverified.
+Legacy guest associations remain unverified; past confirmed reservations are not
+physical completion/no-show evidence. No production/staging data or services
+accessed, commits or pushes. NTAK/VIZA transport remains outside this change.
 
 ## Persistent local acceptance data (2026-11-14)
 

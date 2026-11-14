@@ -226,7 +226,7 @@ class PmsController extends ChangeNotifier {
       'POST' => api.post(path, body ?? const {}),
       'PATCH' => api.patch(path, body ?? const {}),
       'PUT' => api.put(path, body ?? const {}),
-      'DELETE' => api.delete(path),
+      'DELETE' => api.delete(path, body),
       _ => throw ArgumentError('Unsupported mutation'),
     };
   }

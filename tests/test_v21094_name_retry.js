@@ -6,5 +6,5 @@ if(!capture.includes('Could not capture the ID photo. Please retry.'))throw new 
 if(!capture.includes('OCR took too long. You can retry the scan.'))throw new Error('OCR timeout/retry guard missing');
 if(!src.includes('cropNormalizedField(primaryCanvas,.395,.292,.435,.085,4)')||!src.includes('parseHungarianNameRegion')||!src.includes('Field-isolated OCR v2.11.01'))throw new Error('Field-isolated name OCR algorithm missing');
 if(!capture.includes('start.disabled=false;start.textContent=\'Capture ID photo\''))throw new Error('Capture button is not restored in finally');
-if(!capture.includes("/Reading ID|Starting local OCR|Loading local OCR|Photo captured/.test(status.textContent)"))throw new Error('Finally block can still overwrite user-facing OCR errors/status');
+if(!capture.includes("/Reading ID|Starting local OCR|Loading local OCR|Photo captured/.test(window.guestSourceText?window.guestSourceText(status):status.textContent)"))throw new Error('Finally block must check canonical scanner status when the visible text is localized');
 console.log('PASS: capture failure recovery, timeout/retry, field-isolated name OCR, and button reset assertions');

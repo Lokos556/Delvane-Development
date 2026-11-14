@@ -5,7 +5,7 @@
         android:fullBackupContent="false"
         android:dataExtractionRules="@xml/session_data_extraction_rules"
         android:usesCleartextTraffic="false"
-        android:label="Delvane Business"
+        android:label="Delvane AI"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

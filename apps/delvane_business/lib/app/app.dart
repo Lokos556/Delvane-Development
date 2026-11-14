@@ -91,7 +91,7 @@ class _DelvaneBusinessAppState extends State<DelvaneBusinessApp> {
     locale: Locale(WebStrings.current.language),
     supportedLocales: const [Locale('hu'), Locale('en')],
     localizationsDelegates: GlobalMaterialLocalizations.delegates,
-    title: 'Delvane Business',
+    title: 'Delvane AI',
     debugShowCheckedModeBanner: false,
     theme: delvaneTheme(),
     home: !_localeReady

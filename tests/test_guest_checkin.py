@@ -43,7 +43,7 @@ def test_guest_checkin_link_scan_and_confirmation():
         token = links.json()['links'][0]['url'].rsplit('/', 1)[-1]
         page = client.get(f'/guest/checkin/{token}')
         assert page.status_code == 200
-        assert 'Guest check-in' in page.text
+        assert 'lang="hu"' in page.text and 'guestLanguage' in page.text
         payload = {
             'full_name':'Test Guest', 'birth_name':'Test Guest', 'birth_place':'Eger',
             'date_of_birth':'2000-01-02', 'sex':'M', 'nationality':'HUN',

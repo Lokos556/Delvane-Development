@@ -27,11 +27,11 @@ def main():
              'test_v21089_hungarian_id_ocr.js', 'test_v21090_name_doc_field_extraction.js',
              'test_v21091_noisy_name_dob.js', 'test_v21092_nationality_name_fallback.js',
              'test_v21093_noise_resistance.js', 'test_v21094_name_retry.js',
-             'localization_coverage.js']
+             'localization_coverage.js', 'test_guest_registration_ui.js']
     failures = []
     with tempfile.TemporaryDirectory(prefix='delvane-js-tests-') as directory:
         snapshot = Path(directory)
-        for relative in ['static/app.js', 'static/guest-checkin.js',
+        for relative in ['static/app.js', 'static/guest-checkin.js', 'static/guest-checkin-i18n.js',
                          'tests/js_test_guard.cjs'] + ['tests/' + name for name in names]:
             target = snapshot / relative
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -41,9 +41,13 @@ def main():
         env.update({key: directory for key in ('TEMP', 'TMP', 'HOME', 'USERPROFILE',
                                                'LOCALAPPDATA', 'APPDATA')})
         env['TZ'] = 'UTC'
+        version = subprocess.run([node, '--version'], env=env, capture_output=True,
+                                 text=True, check=True, timeout=10).stdout.strip()
+        major = int(version.lstrip('v').split('.')[0])
+        permission = '--permission' if major >= 23 else '--experimental-permission'
         for name in names:
             result = subprocess.run([
-                node, '--experimental-permission', '--no-addons',
+                node, permission, '--no-addons',
                 '--allow-fs-read=' + directory,
                 '--require', str(snapshot / 'tests/js_test_guard.cjs'),
                 str(snapshot / 'tests' / name),

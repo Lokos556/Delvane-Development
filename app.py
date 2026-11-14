@@ -35,6 +35,7 @@ except Exception:
 
 from fastapi import Cookie, FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -114,7 +115,7 @@ SESSION_DAYS = 7
 SESSION_IDLE_HOURS = 12
 SECURE_COOKIES = os.getenv("ROSA_SECURE_COOKIES", "1" if APP_ENV == "production" else "0") == "1"
 DEMO_MODE = os.getenv("ROSA_DEMO_MODE", "0" if APP_ENV == "production" else "1") == "1"
-SCHEMA_VERSION = 3070
+SCHEMA_VERSION = 3072
 DEFAULT_CHECKLIST = ["Bedding & linens", "Bathroom", "Kitchen", "Towels & supplies", "Floors & surfaces", "Final readiness check"]
 REQUIRE_COMPLETE_CHECKLIST = os.getenv("ROSA_REQUIRE_COMPLETE_CHECKLIST", "0") == "1"
 
@@ -241,6 +242,19 @@ app = FastAPI(title="Rosa", version=APP_VERSION, lifespan=lifespan)
 def native_client_environment():
     from client_environment import client_environment_metadata
     return client_environment_metadata(APP_ENV, SECURE_COOKIES)
+
+def pms_error(code, field=None, status=400):
+    return HTTPException(status, {"code":code,"field":field})
+
+
+@app.exception_handler(RequestValidationError)
+async def form_validation_error(request, error):
+    if request.url.path.startswith(("/api/reservations", "/api/public/checkin/")):
+        fields=[str(e["loc"][-1]) for e in error.errors() if e.get("loc")]
+        return JSONResponse(status_code=422,content={"detail":{"code":"invalid_fields","fields":fields,"field":fields[0] if fields else None}})
+    # Never echo submitted identity or credential values in validation errors.
+    return JSONResponse(status_code=422,content={"detail":{"code":"invalid_fields"}})
+
 
 @app.middleware("http")
 async def security_and_cache_headers(request: Request, call_next):
@@ -803,6 +817,7 @@ def init_db(reset: bool = False):
         ensure_v3067_schema(con)
         ensure_v3070_schema(con)
         ensure_v3071_schema(con)
+        ensure_v3072_schema(con)
     if DEMO_MODE:
         refresh_cleaning_tasks("org_casa_rosa")
         seed_v2_demo()
@@ -880,6 +895,44 @@ def ensure_v3070_schema(con: DBConnection):
     """)
     con.execute("INSERT INTO schema_migrations(version,name,applied_at) VALUES (?,?,?)", (3070,"guest_self_checkin_foundation",now_iso()))
 
+
+
+def ensure_v3072_schema(con):
+    add_column_if_missing(con,"guest_reservations","association_source","TEXT NOT NULL DEFAULT 'legacy_unverified'")
+    for name,ddl in [("cancelled_at","TEXT"),("cancellation_initiator","TEXT NOT NULL DEFAULT 'unknown'"),("cancellation_reason","TEXT"),("cancellation_source","TEXT")]:
+        add_column_if_missing(con,"reservations",name,ddl)
+    con.execute("""UPDATE reservations SET cancelled_at=(SELECT MIN(e.created_at) FROM reservation_events e WHERE e.reservation_id=reservations.id AND e.event_type='cancelled')
+        WHERE status='cancelled' AND cancelled_at IS NULL""")
+    con.execute("INSERT OR IGNORE INTO schema_migrations(version,name,applied_at) VALUES (3072,'guest_history_cancellation_provenance',?)",(now_iso(),))
+
+
+def _associate_guest(con,org,reservation_id,guest_id):
+    if not con.execute("SELECT id FROM guests WHERE id=? AND organization_id=?",(guest_id,org)).fetchone():
+        raise pms_error("guest_profile_unavailable","guest_id",404)
+    con.execute("UPDATE guest_reservations SET association_source='operator_selected' WHERE guest_id=? AND association_source='reservation_only'",(guest_id,))
+    con.execute("DELETE FROM guest_reservations WHERE reservation_id=? AND is_primary=1",(reservation_id,))
+    con.execute("INSERT INTO guest_reservations(guest_id,reservation_id,is_primary,association_source) VALUES (?,?,1,'operator_selected') ON CONFLICT(guest_id,reservation_id) DO UPDATE SET is_primary=1,association_source='operator_selected'",(guest_id,reservation_id))
+    con.execute("INSERT INTO reservation_events VALUES (?,?,?,?,?,?,?)",(new_id("reve"),org,reservation_id,"guest_profile_linked","Existing guest profile explicitly linked.",json.dumps({"guest_id":guest_id}),now_iso()))
+
+
+def _record_cancellation(con,org,reservation_id,initiator="unknown",reason=None,source=None):
+    if initiator not in {"guest","host","platform_system","unknown"}: raise pms_error("invalid_fields","initiator")
+    con.execute("""UPDATE reservations SET cancelled_at=COALESCE(cancelled_at,?),
+        cancellation_initiator=CASE WHEN cancellation_initiator='unknown' OR cancellation_initiator IS NULL THEN ? ELSE cancellation_initiator END,
+        cancellation_reason=COALESCE(?,cancellation_reason),cancellation_source=COALESCE(cancellation_source,?) WHERE id=? AND organization_id=?""",(now_iso(),initiator,(str(reason) if reason else "")[:1000] or None,source,reservation_id,org))
+
+
+def _guest_history(con,org,guest_id):
+    stays=rows(con.execute("""SELECT r.id,r.arrival_date,r.departure_date,r.source,r.status,r.cancelled_at,r.cancellation_initiator,r.cancellation_reason,r.cancellation_source,p.name property_name,gr.association_source
+        FROM guest_reservations gr JOIN reservations r ON r.id=gr.reservation_id JOIN properties p ON p.id=r.property_id
+        WHERE gr.guest_id=? AND r.organization_id=? ORDER BY r.arrival_date DESC""",(guest_id,org)))
+    trusted=[r for r in stays if r["association_source"]=="operator_selected"]
+    summary={"previous_reservations":sum(r["departure_date"]<str(date.today()) or r["status"]=="cancelled" for r in trusted),
+             "completed_stays":None, "past_confirmed_reservations":sum(r["status"]=="confirmed" and r["departure_date"]<str(date.today()) for r in trusted),
+             "guest_cancellations":sum(r["status"]=="cancelled" and r["cancellation_initiator"]=="guest" for r in trusted),
+             "host_cancellations":sum(r["status"]=="cancelled" and r["cancellation_initiator"]=="host" for r in trusted),
+             "unknown_cancellations":sum(r["status"]=="cancelled" and r["cancellation_initiator"]=="unknown" for r in trusted)}
+    return stays,summary
 
 
 def ensure_v3071_schema(con: DBConnection):
@@ -2378,7 +2431,7 @@ def seed_v22_demo():
             con.execute("""INSERT INTO reservations(id,organization_id,property_id,source,external_ref,guest_name,arrival_date,departure_date,guest_count,total_huf,payment_status,registration_status,arrival_time,special_requests,status,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 ("res_daniel_past",org,"prop_aqua","Booking.com","BKG-3901","Daniel Weber",str(date.today()-timedelta(days=120)),str(date.today()-timedelta(days=117)),3,168000,"paid","complete","19:40",json.dumps(["High chair"]),"confirmed",now_iso()))
         links=[("guest_daniel","res_terra_next",1),("guest_daniel","res_daniel_past",1),("guest_john","res_flora_next",1),("guest_eszt","res_terra_prev",1)]
-        con.executemany("INSERT OR IGNORE INTO guest_reservations VALUES (?,?,?)",links)
+        con.executemany("INSERT OR IGNORE INTO guest_reservations(guest_id,reservation_id,is_primary) VALUES (?,?,?)",links)
         prefs=[
             ("pref_daniel_lang",org,"guest_daniel","communication_language","German","reservation history",now_iso()),
             ("pref_daniel_family",org,"guest_daniel","travels_with_child","yes","guest message",now_iso()),
@@ -2732,7 +2785,7 @@ def _validate_registration_label(con, reservation, value):
     if value not in {"incomplete","pending","complete"}:
         raise HTTPException(400,"Invalid registration status")
     if value != _registration_state(con,reservation):
-        raise HTTPException(409,"Registration status follows guest data and identity review.")
+        raise pms_error("registration_review_required","registration_status",409)
 
 
 def property_readiness(con: sqlite3.Connection, org_id: str):
@@ -2791,6 +2844,7 @@ class NoteBody(BaseModel):
 
 
 class ReservationCreateBody(BaseModel):
+    guest_id: str | None = None
     property_id: str
     room_type_id: str | None = None
     guest_name: str
@@ -2830,6 +2884,7 @@ class AuthorityBody(BaseModel):
 
 
 class ReservationUpdateBody(BaseModel):
+    guest_id: str | None = None
     property_id: str | None = None
     room_type_id: str | None = None
     guest_name: str | None = None
@@ -3872,10 +3927,10 @@ def property_overview(property_id: str, rosa_session: str | None = Cookie(defaul
 def validate_reservation_dates(arrival: str, departure: str):
     try:
         a, d = date.fromisoformat(arrival), date.fromisoformat(departure)
-    except ValueError:
-        raise HTTPException(400, "Dates must use YYYY-MM-DD")
+    except (ValueError, TypeError):
+        raise pms_error("invalid_dates","arrival_date")
     if d <= a:
-        raise HTTPException(400, "Departure must be after arrival")
+        raise pms_error("departure_not_after_arrival","departure_date")
 
 
 def check_overlap(con, org: str, property_id: str, arrival: str, departure: str, ignore_id: str | None = None, room_type_id: str | None = None):
@@ -4059,18 +4114,20 @@ def _sync_certification_remote_availability_baseline(
 def reservation_create(body: ReservationCreateBody, rosa_session: str | None = Cookie(default=None)):
     user=require_user(rosa_session); require_roles(user,"owner","manager")
     validate_reservation_dates(body.arrival_date,body.departure_date)
-    if not body.guest_name.strip(): raise HTTPException(400,"Guest name is required")
-    if body.guest_count < 1: raise HTTPException(400,"Guest count must be at least 1")
-    if body.registration_status!="incomplete": raise HTTPException(409,"New reservations require guest registration and identity review")
+    if not body.guest_name.strip(): raise pms_error("guest_name_required","guest_name")
+    if body.guest_count < 1: raise pms_error("invalid_guest_count","guest_count")
+    if body.registration_status!="incomplete": raise pms_error("registration_review_required","registration_status",409)
     with db() as con:
         prop=con.execute("SELECT * FROM properties WHERE id=? AND organization_id=?",(body.property_id,user["organization_id"])).fetchone()
-        if not prop: raise HTTPException(404,"Property not found")
-        room_type_id=body.room_type_id or con.execute("SELECT id FROM room_types WHERE organization_id=? AND property_id=? AND active=1 ORDER BY created_at,id LIMIT 1",(user["organization_id"],body.property_id)).fetchone()["id"]
+        if not prop: raise pms_error("property_unavailable","property_id",404)
+        fallback=con.execute("SELECT id FROM room_types WHERE organization_id=? AND property_id=? AND active=1 ORDER BY created_at,id LIMIT 1",(user["organization_id"],body.property_id)).fetchone()
+        room_type_id=body.room_type_id or (fallback["id"] if fallback else None)
+        if not room_type_id: raise pms_error("room_unavailable","room_type_id",404)
         room=con.execute("SELECT * FROM room_types WHERE id=? AND organization_id=? AND property_id=? AND active=1",(room_type_id,user["organization_id"],body.property_id)).fetchone()
-        if not room: raise HTTPException(404,"Room type not found for this property")
-        if body.guest_count>int(room["max_guests"] or 1): raise HTTPException(400,"Guest count exceeds the room type capacity")
+        if not room: raise pms_error("room_unavailable","room_type_id",404)
+        if body.guest_count>int(room["max_guests"] or 1): raise pms_error("capacity_exceeded","guest_count")
         conflict=check_overlap(con,user["organization_id"],body.property_id,body.arrival_date,body.departure_date,room_type_id=room_type_id)
-        if conflict: raise HTTPException(409,f"This overlaps {conflict['guest_name']} ({conflict['arrival_date']} to {conflict['departure_date']})")
+        if conflict: raise pms_error("availability_conflict","arrival_date",409)
         rid=new_id("res")
         created=now_iso()
         con.execute("""INSERT INTO reservations (id,organization_id,property_id,room_type_id,source,external_ref,guest_name,arrival_date,departure_date,guest_count,total_huf,payment_status,registration_status,arrival_time,special_requests,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
@@ -4080,6 +4137,8 @@ def reservation_create(body: ReservationCreateBody, rosa_session: str | None = C
         # slot starts with the reservation guest name; additional slots are neutral
         # placeholders until the actual guests complete pre-check-in.
         _ensure_guest_records(con, con.execute("SELECT * FROM reservations WHERE id=?",(rid,)).fetchone())
+        if body.guest_id: _associate_guest(con,user["organization_id"],rid,body.guest_id)
+        else: _ensure_guest_link_for_import(con,user["organization_id"],rid,body.guest_name)
         con.execute("INSERT INTO activity(organization_id,actor_user_id,message,created_at) VALUES (?,?,?,?)",(user["organization_id"],user["id"],f"{user['full_name']} added {body.guest_name.strip()} to {prop['name']} ({body.arrival_date}–{body.departure_date}).",created))
         # A certification workspace is disposable test infrastructure. If an older
         # availability job is still retrying, it may contain a stale pre-test
@@ -4219,15 +4278,18 @@ def retry_reservation_channex_availability(reservation_id: str, rosa_session: st
 def reservation_update(reservation_id: str, body: ReservationUpdateBody, rosa_session: str | None = Cookie(default=None)):
     user=require_user(rosa_session); require_roles(user,"owner","manager")
     data=body.model_dump(exclude_unset=True)
-    allowed={"property_id","room_type_id","guest_name","arrival_date","departure_date","guest_count","source","external_ref","total_huf","payment_status","registration_status","arrival_time","special_requests","status"}
+    allowed={"property_id","room_type_id","guest_name","arrival_date","departure_date","guest_count","source","external_ref","total_huf","payment_status","registration_status","arrival_time","special_requests","status","guest_id"}
     data={k:v for k,v in data.items() if k in allowed}
     with db() as con:
         _lock_reservation(con,reservation_id,user["organization_id"])
         old=con.execute("SELECT * FROM reservations WHERE id=? AND organization_id=?",(reservation_id,user["organization_id"])).fetchone()
-        if not old: raise HTTPException(404,"Reservation not found")
+        if not old: raise pms_error("reservation_not_found",None,404)
+        if "guest_id" in data:
+            guest_id=data.pop("guest_id")
+            if guest_id: _associate_guest(con,user["organization_id"],reservation_id,guest_id)
         if "status" in data and data["status"] not in {"confirmed","inquiry","cancelled"}: raise HTTPException(400,"Invalid reservation status")
         if "guest_count" in data:
-            if data["guest_count"] is None or data["guest_count"]<1: raise HTTPException(400,"Guest count must be at least 1")
+            if data["guest_count"] is None or data["guest_count"]<1: raise pms_error("invalid_guest_count","guest_count")
             count=con.execute("SELECT COUNT(*) c FROM guest_records WHERE reservation_id=?",(reservation_id,)).fetchone()["c"]
             if data["guest_count"]<count:
                 untouched=con.execute("""SELECT g.id FROM guest_records g WHERE g.reservation_id=? AND g.completeness='incomplete'
@@ -4237,22 +4299,24 @@ def reservation_update(reservation_id: str, body: ReservationUpdateBody, rosa_se
                     AND NOT EXISTS (SELECT 1 FROM government_scan_events e WHERE e.guest_record_id=g.id)
                     ORDER BY g.id DESC""",(reservation_id,)).fetchall()
                 excess=count-data["guest_count"]
-                if len(untouched)<excess: raise HTTPException(409,"Review existing guest records before reducing the guest count")
+                if len(untouched)<excess: raise pms_error("guest_records_review_required","guest_count",409)
                 for g in untouched[:excess]:
                     con.execute("DELETE FROM guest_checkin_tokens WHERE guest_record_id=?",(g["id"],))
                     con.execute("DELETE FROM guest_records WHERE id=?",(g["id"],))
         if "registration_status" in data: _validate_registration_label(con,old,data["registration_status"])
+        if "guest_name" in data and not str(data["guest_name"] or "").strip(): raise pms_error("guest_name_required","guest_name")
+        if not con.execute("SELECT id FROM properties WHERE id=? AND organization_id=?",(data.get("property_id",old["property_id"]),user["organization_id"])).fetchone(): raise pms_error("property_unavailable","property_id",404)
         arrival=data.get("arrival_date",old["arrival_date"]); departure=data.get("departure_date",old["departure_date"]); prop_id=data.get("property_id",old["property_id"]); room_type_id=data.get("room_type_id",old["room_type_id"] if "room_type_id" in old.keys() else None); status=data.get("status",old["status"]); validate_reservation_dates(arrival,departure)
         if not room_type_id:
             fallback=con.execute("SELECT id FROM room_types WHERE organization_id=? AND property_id=? AND active=1 ORDER BY created_at,id LIMIT 1",(user["organization_id"],prop_id)).fetchone()
             room_type_id=fallback["id"] if fallback else None
         if room_type_id:
             room=con.execute("SELECT * FROM room_types WHERE id=? AND organization_id=? AND property_id=? AND active=1",(room_type_id,user["organization_id"],prop_id)).fetchone()
-            if not room: raise HTTPException(404,"Room type not found for this property")
-            if data.get("guest_count",old["guest_count"])>int(room["max_guests"] or 1): raise HTTPException(400,"Guest count exceeds the room type capacity")
+            if not room: raise pms_error("room_unavailable","room_type_id",404)
+            if data.get("guest_count",old["guest_count"])>int(room["max_guests"] or 1): raise pms_error("capacity_exceeded","guest_count")
         if status=='confirmed':
             conflict=check_overlap(con,user["organization_id"],prop_id,arrival,departure,reservation_id,room_type_id)
-            if conflict: raise HTTPException(409,f"This overlaps {conflict['guest_name']} ({conflict['arrival_date']} to {conflict['departure_date']})")
+            if conflict: raise pms_error("availability_conflict","arrival_date",409)
         if "special_requests" in data: data["special_requests"]=json.dumps(data["special_requests"])
         if data:
             before={k:old[k] for k in data if k in old.keys()}
@@ -4262,6 +4326,7 @@ def reservation_update(reservation_id: str, body: ReservationUpdateBody, rosa_se
             con.execute("UPDATE reservations SET "+",".join(f"{k}=?" for k in data)+" WHERE id=?",[*data.values(),reservation_id])
             con.execute("INSERT INTO reservation_events VALUES (?,?,?,?,?,?,?)",(new_id("reve"),user["organization_id"],reservation_id,"updated","Reservation details changed.",json.dumps({"before":before,"after":data}),now_iso()))
             con.execute("INSERT INTO activity(organization_id,actor_user_id,message,created_at) VALUES (?,?,?,?)",(user["organization_id"],user["id"],f"{user['full_name']} updated reservation for {data.get('guest_name',old['guest_name'])}.",now_iso()))
+            if data.get("status")=="cancelled" and old["status"]!="cancelled": _record_cancellation(con,user["organization_id"],reservation_id,source="operator_status_update")
             _sync_registration(con,reservation_id,user["organization_id"])
             # A date/room/property/status change affects two inventory windows: the
             # old stay must be reopened and the new stay must be consumed. Queue both
@@ -4288,8 +4353,13 @@ def reservation_update(reservation_id: str, body: ReservationUpdateBody, rosa_se
     return {"ok":True,"channex_delivery":delivery}
 
 
+class CancellationBody(BaseModel):
+    initiator: str = "unknown"
+    reason: str = ""
+
+
 @app.delete("/api/reservations/{reservation_id}")
-def reservation_cancel(reservation_id: str, rosa_session: str | None = Cookie(default=None)):
+def reservation_cancel(reservation_id: str, body: CancellationBody | None = None, rosa_session: str | None = Cookie(default=None)):
     user=require_user(rosa_session); require_roles(user,"owner","manager")
     with db() as con:
         _lock_reservation(con,reservation_id,user["organization_id"])
@@ -4297,6 +4367,7 @@ def reservation_cancel(reservation_id: str, rosa_session: str | None = Cookie(de
         if not r: raise HTTPException(404,"Reservation not found")
         ts=now_iso()
         _revoke_guest_links(con,reservation_id)
+        _record_cancellation(con,user["organization_id"],reservation_id,body.initiator if body else "unknown",body.reason if body else None,"operator")
         con.execute("UPDATE reservations SET status='cancelled',updated_at=? WHERE id=?",(ts,reservation_id))
         con.execute("INSERT INTO reservation_events VALUES (?,?,?,?,?,?,?)",(new_id("reve"),user["organization_id"],reservation_id,"cancelled","Reservation cancelled.",json.dumps({"guest_name":r['guest_name']}),ts))
         con.execute("INSERT INTO activity(organization_id,actor_user_id,message,created_at) VALUES (?,?,?,?)",(user["organization_id"],user["id"],f"{user['full_name']} cancelled {r['guest_name']}'s reservation.",ts))
@@ -5607,9 +5678,9 @@ def guest_detail(guest_id:str,rosa_session:str|None=Cookie(default=None)):
     with db() as con:
         g=con.execute("SELECT * FROM guests WHERE id=? AND organization_id=?",(guest_id,user["organization_id"])).fetchone()
         if not g: raise HTTPException(404,"Guest not found")
-        stays=rows(con.execute("""SELECT r.id,r.arrival_date,r.departure_date,r.source,r.status,r.arrival_time,r.special_requests,p.name property_name FROM guest_reservations gr JOIN reservations r ON r.id=gr.reservation_id JOIN properties p ON p.id=r.property_id WHERE gr.guest_id=? AND r.organization_id=? ORDER BY r.arrival_date DESC""",(guest_id,user["organization_id"])))
+        stays,summary=_guest_history(con,user["organization_id"],guest_id)
         prefs=rows(con.execute("SELECT * FROM guest_preferences WHERE guest_id=? AND organization_id=? ORDER BY preference_key",(guest_id,user["organization_id"])))
-        return {"guest":dict(g),"stays":stays,"preferences":prefs}
+        return {"guest":dict(g),"stays":stays,"preferences":prefs,"history_summary":summary}
 
 @app.post("/api/guests/{guest_id}/preferences")
 def guest_preference_save(guest_id:str,body:GuestPreferenceBody,request:Request,rosa_session:str|None=Cookie(default=None)):
@@ -5741,19 +5812,15 @@ def _build_sync_preview(con: sqlite3.Connection, integration: sqlite3.Row) -> di
     return {"integration_id":integration[0],"provider":integration["provider"],"source":source,"property_id":integration["property_id"],"property_name":property_name,"counts":counts,"changes":changes,"generated_at":now_iso()}
 
 
-def _ensure_guest_link_for_import(con: sqlite3.Connection, org_id: str, reservation_id: str, guest_name: str):
-    if not guest_name or guest_name.lower().endswith(" guest"):
-        return
-    guest = con.execute("SELECT id FROM guests WHERE organization_id=? AND lower(full_name)=lower(?) ORDER BY created_at LIMIT 1", (org_id,guest_name)).fetchone()
-    if not guest:
-        gid = new_id("guest")
-        con.execute("INSERT INTO guests(id,organization_id,full_name,email,phone,preferred_language,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)", (gid,org_id,guest_name,None,None,None,"Imported from reservation feed",now_iso(),now_iso()))
-    else:
-        gid = guest["id"]
-    con.execute("INSERT OR IGNORE INTO guest_reservations(guest_id,reservation_id,is_primary) VALUES (?,?,1)", (gid,reservation_id))
+def _ensure_guest_link_for_import(con,org_id,reservation_id,guest_name):
+    if con.execute("SELECT 1 FROM guest_reservations WHERE reservation_id=?",(reservation_id,)).fetchone(): return
+    gid=new_id("guest")
+    con.execute("INSERT INTO guests(id,organization_id,full_name,notes,created_at,updated_at) VALUES (?,?,?,?,?,?)",(gid,org_id,guest_name or "Guest","Separate reservation profile; no name-based identity matching",now_iso(),now_iso()))
+    con.execute("INSERT INTO guest_reservations(guest_id,reservation_id,is_primary,association_source) VALUES (?,?,1,'reservation_only')",(gid,reservation_id))
 
 
 def _record_sync_downstream(con: sqlite3.Connection, org_id: str, reservation_id: str, source_id: str, event_kind: str, guest_name: str, property_name: str):
+    if event_kind=="cancelled": _record_cancellation(con,org_id,reservation_id,source="channel")
     if event_kind in {"changed","cancelled"}:
         _revoke_guest_links(con,reservation_id)
         _sync_registration(con,reservation_id,org_id)
@@ -7242,6 +7309,11 @@ def _apply_channex_event(con: DBConnection, integration: Any, event: dict[str, A
                     (org,None,f"{source} reservation {verb} for {integration['property_name']}: {event['guest_name']} ({event['arrival_date']}–{event['departure_date']}).",now_iso()))
         audit_event(con,org,f"integration.reservation.{kind}",f"{source} reservation {verb} for {integration['property_name']}.",actor_type="system",entity_type="reservation",entity_id=reservation_id,metadata={"external_ref":event["external_ref"],"revision_id":event["provider_event_id"],"integration_id":integration[0]})
         _record_sync_downstream(con,org,reservation_id,integration[0],kind,event["guest_name"],integration["property_name"])
+        if kind=="cancelled":
+            cancellation=event.get("payload") or {}
+            initiator=cancellation.get("cancellation_initiator","unknown")
+            if initiator not in {"guest","host","platform_system","unknown"}: initiator="unknown"
+            _record_cancellation(con,org,reservation_id,initiator,cancellation.get("cancellation_reason"),"channel")
         _queue_government_events(con,org,integration["property_id"],reservation_id,f"reservation.{ {'new':'created','changed':'updated','cancelled':'cancelled'}[kind] }")
         if previous_window:
             _queue_reservation_availability(
@@ -7586,6 +7658,7 @@ def guest_checkin_get(token: str):
         row=_public_checkin_token(con,token)
         return {
             "ok":True,
+            "birth_date_min":"1920-01-01", "birth_date_max":str(date.today()),
             "reservation": {"arrival_date":row["arrival_date"],"departure_date":row["departure_date"],"guest_count":row["guest_count"],"property_name":row["property_name"],"checkin_time":row["checkin_time"],"checkout_time":row["checkout_time"]},
             "guest": {"id":row["guest_record_id"],"full_name":row["guest_full_name"],"completeness":row["completeness"]},
         }
@@ -7594,13 +7667,14 @@ def guest_checkin_get(token: str):
 @app.post("/api/public/checkin/{token}")
 def guest_checkin_submit(token: str, body: GuestCheckinSubmitBody, request: Request):
     if not body.guest_confirmed: raise HTTPException(400,"Please confirm that the information is correct.")
+    if body.sex not in {"","M","F","X"}: raise pms_error("invalid_fields","sex")
     if len(body.full_name.strip())<2: raise HTTPException(400,"Full name is required.")
     if not all(x.strip() for x in (body.date_of_birth,body.nationality,body.document_type,body.document_number)):
         raise HTTPException(400,"Required identity fields are missing.")
     try:
         born=date.fromisoformat(body.date_of_birth)
-        if born>date.today(): raise ValueError()
-    except ValueError: raise HTTPException(400,"Invalid birth date.")
+        if born<date(1920,1,1) or born>date.today(): raise ValueError()
+    except ValueError: raise pms_error("invalid_birth_date","date_of_birth")
     with db() as con:
         row=_public_checkin_token(con,token)
         guest_id=row["guest_record_id"]
@@ -8119,7 +8193,7 @@ def government_viza_id_scan(body:GovernmentScanBody,request:Request,rosa_session
         merged={**dict(record),**updates}
         complete=all(str(merged.get(k) or '').strip() for k in ("full_name","date_of_birth","nationality","document_type","document_number"))
         try:
-            complete=complete and date.fromisoformat(str(merged.get("date_of_birth") or ""))<=date.today()
+            complete=complete and date(1920,1,1)<=date.fromisoformat(str(merged.get("date_of_birth") or ""))<=date.today()
         except ValueError: complete=False
         if updates:
             con.execute("UPDATE guest_records SET " + ",".join(f"{k}=?" for k in updates) + ",completeness=? WHERE id=?",tuple(updates.values())+("complete" if complete else "incomplete",body.guest_record_id))
@@ -8682,7 +8756,9 @@ def reservation_detail(reservation_id: str, rosa_session: str | None = Cookie(de
                                       WHERE gr.guest_id=? AND rr.organization_id=? ORDER BY rr.arrival_date DESC""",(guest["id"],org)))
             prefs=rows(con.execute("SELECT preference_key,preference_value,source FROM guest_preferences WHERE guest_id=? AND organization_id=? ORDER BY preference_key",(guest["id"],org)))
             previous=[x for x in stays if x["id"]!=reservation_id]
+            history,summary=_guest_history(con,org,guest["id"])
             guest_profile={**dict(guest),"stay_count":len(stays),"previous_stays":previous[:4],"preferences":prefs}
+            guest_profile["history_summary"]=summary
         maint=rows(con.execute("SELECT id,title,severity,status,assigned_to,due_at,created_at FROM maintenance_cases WHERE organization_id=? AND property_id=? AND status NOT IN ('verified') ORDER BY created_at DESC LIMIT 8",(org,r["property_id"])))
         return {"reservation":dict(r),"notes":notes,"messages":messages,"registration":records,"cleaning":cleaning,"events":events,"guest":dict(guest) if guest else None,"guest_profile":guest_profile,"maintenance":maint}
 

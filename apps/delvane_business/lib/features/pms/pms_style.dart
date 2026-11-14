@@ -1,3 +1,5 @@
+import 'overflow_row.dart';
+
 import 'package:delvane_business/core/localization/web_strings.dart';
 
 import 'dart:ui' as canvas_ui;
@@ -413,6 +415,9 @@ class PmsSideSheet extends StatelessWidget {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(mobile ? 30 : 32),
               child: BackdropFilter(
+                enabled:
+                    !MediaQuery.disableAnimationsOf(context) &&
+                    !MediaQuery.accessibleNavigationOf(context),
                 filter: PmsStyle.glassFilter(42, 1.9),
                 child: Material(
                   color: const Color(0xA8FFFCF3),
@@ -456,7 +461,7 @@ class PmsSideSheet extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 24),
-                        Expanded(child: SingleChildScrollView(child: child)),
+                        Expanded(child: PmsScrollPane(child: child)),
                       ],
                     ),
                   ),
@@ -527,6 +532,10 @@ class PmsCard extends StatelessWidget {
       child: Material(type: MaterialType.transparency, child: child),
     );
     if (backdropBlur == 0) return surface;
+    if (MediaQuery.disableAnimationsOf(context) ||
+        MediaQuery.accessibleNavigationOf(context)) {
+      return ColoredBox(color: Colors.white, child: surface);
+    }
     return ClipRRect(
       borderRadius: BorderRadius.circular(radius),
       child: BackdropFilter(
@@ -725,53 +734,59 @@ class PmsTabs extends StatelessWidget {
   final bool plain;
   final bool localizeLabels;
   @override
-  Widget build(BuildContext context) => Container(
-    padding: plain ? EdgeInsets.zero : const EdgeInsets.all(2),
-    decoration: BoxDecoration(
-      color: plain ? Colors.transparent : const Color(0x6BFFFFFF),
-      borderRadius: BorderRadius.circular(24),
-    ),
-    child: SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (var i = 0; i < labels.length; i++)
-            Semantics(
-              selected: i == selected,
-              button: true,
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(18),
-                  gradient: !plain && i == selected
-                      ? const LinearGradient(
-                          colors: [Color(0xFFFFE76A), Color(0xFFFFD000)],
-                        )
-                      : null,
-                ),
-                child: Material(
-                  type: MaterialType.transparency,
-                  child: InkWell(
+  Widget build(BuildContext context) => PmsCard(
+    padding: EdgeInsets.zero,
+    radius: 24,
+    shadow: false,
+    backdropBlur: 8,
+    saturation: 1.1,
+    child: Container(
+      padding: plain ? EdgeInsets.zero : const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        color: plain ? Colors.transparent : const Color(0x6BFFFFFF),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: PmsOverflowRow(
+        child: Row(
+          children: [
+            for (var i = 0; i < labels.length; i++)
+              Semantics(
+                selected: i == selected,
+                button: true,
+                child: Container(
+                  decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(18),
-                    onTap: () => onChanged(i),
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 18,
-                        vertical: plain ? 12 : 13,
-                      ),
-                      child: Text(
-                        localizeLabels ? ui(labels[i]) : labels[i],
-                        style: TextStyle(
-                          fontSize: plain ? 14 : 16,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.black,
+                    gradient: !plain && i == selected
+                        ? const LinearGradient(
+                            colors: [Color(0xFFFFE76A), Color(0xFFFFD000)],
+                          )
+                        : null,
+                  ),
+                  child: Material(
+                    type: MaterialType.transparency,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(18),
+                      onTap: () => onChanged(i),
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: plain ? 12 : 13,
+                        ),
+                        child: Text(
+                          localizeLabels ? ui(labels[i]) : labels[i],
+                          style: TextStyle(
+                            fontSize: plain ? 14 : 16,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.black,
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     ),
   );
@@ -968,6 +983,7 @@ class PmsModal extends StatelessWidget {
     this.canClose = true,
     this.headerActions = const [],
     this.mobileSheet = false,
+    this.titleSize = 32,
   });
   final String title;
   final String? eyebrow;
@@ -977,6 +993,7 @@ class PmsModal extends StatelessWidget {
   final bool canClose;
   final List<Widget> headerActions;
   final bool mobileSheet;
+  final double titleSize;
   @override
   Widget build(BuildContext context) => PopScope(
     canPop: canClose,
@@ -1022,8 +1039,8 @@ class PmsModal extends StatelessWidget {
                               if (eyebrow != null) PmsEyebrow(eyebrow!),
                               Text(
                                 title,
-                                style: const TextStyle(
-                                  fontSize: 32,
+                                style: TextStyle(
+                                  fontSize: titleSize,
                                   fontWeight: FontWeight.w700,
                                   letterSpacing: -.8,
                                 ),
@@ -1059,7 +1076,7 @@ class PmsModal extends StatelessWidget {
                 ),
               ),
               Flexible(
-                child: SingleChildScrollView(
+                child: PmsScrollPane(
                   padding: const EdgeInsets.fromLTRB(28, 0, 28, 20),
                   child: child,
                 ),
@@ -1078,6 +1095,38 @@ class PmsModal extends StatelessWidget {
           ),
         ),
       ),
+    ),
+  );
+}
+
+class PmsScrollPane extends StatefulWidget {
+  const PmsScrollPane({
+    super.key,
+    required this.child,
+    this.padding = EdgeInsets.zero,
+  });
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  @override
+  State<PmsScrollPane> createState() => _PmsScrollPaneState();
+}
+
+class _PmsScrollPaneState extends State<PmsScrollPane> {
+  final controller = ScrollController();
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scrollbar(
+    controller: controller,
+    thumbVisibility: true,
+    child: SingleChildScrollView(
+      controller: controller,
+      padding: widget.padding,
+      child: widget.child,
     ),
   );
 }

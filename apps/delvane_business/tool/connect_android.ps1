@@ -50,5 +50,5 @@ if ($Install) {
     if ($LASTEXITCODE -ne 0) { throw 'APK installation failed. Existing application data was not removed.' }
     & $adbPath -s $DeviceId shell am start -n com.delvane.delvane_business/.MainActivity
     if ($LASTEXITCODE -ne 0) { throw 'Android activity launch failed.' }
-    Write-Output 'Delvane Business launched. Sign in with an isolated development account.'
+    Write-Output 'Delvane AI launched. Sign in with an isolated development account.'
 }

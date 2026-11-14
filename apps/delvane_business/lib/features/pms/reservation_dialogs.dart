@@ -1,3 +1,10 @@
+import 'package:intl/date_symbol_data_local.dart';
+
+import 'guest_link_picker.dart';
+import 'cancellation_dialog.dart';
+
+import 'package:intl/intl.dart';
+
 import 'dart:convert';
 
 import 'package:material_ui/material_ui.dart';
@@ -37,6 +44,7 @@ class _ReservationEditorState extends State<ReservationEditor>
   final fields = <String, TextEditingController>{};
   List<Json> properties = [], rooms = [];
   String property = '', room = '', source = 'Direct';
+  String? selectedGuestId;
   bool loading = true, roomLoading = false;
   int request = 0;
   bool get editing => widget.reservation != null;
@@ -122,6 +130,7 @@ class _ReservationEditorState extends State<ReservationEditor>
   Future<void> save() async {
     if (!form.currentState!.validate()) return;
     final body = <String, dynamic>{
+      if (selectedGuestId != null) 'guest_id': selectedGuestId,
       'property_id': property,
       'room_type_id': room.isEmpty ? null : room,
       'source': source,
@@ -154,17 +163,16 @@ class _ReservationEditorState extends State<ReservationEditor>
   }
 
   Future<void> cancel() async {
-    if (!await pmsConfirm(
-      context,
-      t('Cancel reservation'),
-      ui("Cancel ${text(widget.reservation!, 'guest_name')}'s reservation?"),
-    )) {
-      return;
-    }
-    final ok = await perform(() async {
-      await widget.api.cancel(text(widget.reservation!, 'id'));
-    });
-    if (ok && mounted) Navigator.pop(context, true);
+    final ok = await showDialog<bool>(
+      context: context,
+      useRootNavigator: false,
+      barrierDismissible: false,
+      builder: (_) => CancellationDialog(
+        api: widget.api,
+        id: text(widget.reservation!, 'id'),
+      ),
+    );
+    if (ok == true && mounted) Navigator.pop(context, true);
   }
 
   @override
@@ -230,6 +238,24 @@ class _ReservationEditorState extends State<ReservationEditor>
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             errors(),
+            PmsButton(
+              ui('Link returning guest'),
+              onPressed: busy
+                  ? null
+                  : () async {
+                      final guest = await showDialog<Json>(
+                        context: context,
+                        useRootNavigator: false,
+                        builder: (_) => GuestLinkPicker(api: widget.api),
+                      );
+                      if (guest != null && mounted) {
+                        setState(() {
+                          selectedGuestId = text(guest, 'id');
+                          fields['guest_name']!.text = text(guest, 'full_name');
+                        });
+                      }
+                    },
+            ),
             if (loading) ...[
               if (!busy) PmsButton(ui('Retry'), onPressed: load),
             ] else
@@ -286,6 +312,7 @@ class _ReservationEditorState extends State<ReservationEditor>
                       PmsField(
                         t('Guest name'),
                         controller: fields['guest_name']!,
+                        status: failureField == 'guest_name' ? failure : null,
                         required: true,
                       ),
                       PmsColumns([
@@ -316,6 +343,9 @@ class _ReservationEditorState extends State<ReservationEditor>
                         PmsField(
                           t('Guests'),
                           controller: fields['guest_count']!,
+                          status: failureField == 'guest_count'
+                              ? failure
+                              : null,
                           keyboard: TextInputType.number,
                           validator: (v) =>
                               int.tryParse(v ?? '') != null &&
@@ -417,6 +447,7 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
 
   Future<void> load() async {
     await perform(() async {
+      await initializeDateFormatting('hu');
       final result = await widget.api.detail(widget.id);
       final r = jsonObject(result['reservation']);
       if (!mounted) return;
@@ -484,6 +515,7 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
       canPop: !busy,
       child: PmsModal(
         title: text(r, 'guest_name', 'Reservation'),
+        titleSize: MediaQuery.sizeOf(context).width <= 760 ? 18 : 22,
         mobileSheet: true,
         eyebrow: text(r, 'source'),
         canClose: !busy,
@@ -515,10 +547,68 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
             errors(),
             if (data == null && !busy) PmsButton(ui('Retry'), onPressed: load),
             if (data != null) ...[
-              Text(
-                '${text(r, 'property_name')} · ${displayDate(r['arrival_date'] as String?)} → ${displayDate(r['departure_date'] as String?)}',
+              PmsCard(
+                padding: const EdgeInsets.all(14),
+                color: const Color(0xB3FFFFFF),
+                shadow: false,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        for (final item in [
+                          ('Check-in', 'arrival_date'),
+                          ('Checkout', 'departure_date'),
+                        ])
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  t(item.$1),
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                Text(
+                                  DateFormat.yMMMd(
+                                    WebStrings.current.language == 'hu'
+                                        ? 'hu'
+                                        : 'en',
+                                  ).format(DateTime.parse(text(r, item.$2))),
+                                  style: TextStyle(
+                                    fontSize:
+                                        MediaQuery.sizeOf(context).width <= 760
+                                        ? 22
+                                        : 32,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: -.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(text(r, 'property_name')),
+                    PmsBadge(text(r, 'status')),
+                  ],
+                ),
               ),
               const SizedBox(height: 16),
+              PmsTabs(
+                labels: [
+                  t('Stay overview'),
+                  t('Preparation'),
+                  t('Communication'),
+                  t('Activity'),
+                ],
+                selected: tab,
+                onChanged: busy ? (_) {} : (v) => setState(() => tab = v),
+              ),
+              const SizedBox(height: 12),
               PmsColumns(
                 [
                   stat(
@@ -542,16 +632,6 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
                 mobileColumns: 2,
               ),
               const SizedBox(height: 16),
-              PmsTabs(
-                labels: [
-                  t('Stay overview'),
-                  t('Preparation'),
-                  t('Communication'),
-                  t('Activity'),
-                ],
-                selected: tab,
-                onChanged: busy ? (_) {} : (v) => setState(() => tab = v),
-              ),
               const SizedBox(height: 18),
               if (tab == 0) overview(r),
               if (tab == 1) preparation(r, reg),
@@ -652,11 +732,8 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
             text(gp, 'full_name'),
             style: const TextStyle(fontWeight: FontWeight.w700),
           ),
-          Text(
-            ui(
-              '${gp['stay_count']} stays · ${text(gp, 'preferred_language', '—')}',
-            ),
-          ),
+          Text(ui('${ui('Language')}: ${text(gp, 'preferred_language', '—')}')),
+          GuestHistorySummary(summary: optionalObject(gp['history_summary'])),
           for (final pref in optionalRows(gp['preferences']).take(4))
             Text(
               '${text(pref, 'preference_key')} · ${text(pref, 'preference_value')}',

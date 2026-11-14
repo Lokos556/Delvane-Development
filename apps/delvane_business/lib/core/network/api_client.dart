@@ -60,7 +60,8 @@ class IoApiTransport implements ApiTransport {
 }
 
 class ApiException implements Exception {
-  const ApiException(this.message, {this.statusCode});
+  const ApiException(this.message, {this.statusCode, this.code, this.field});
+  final String? code, field;
   final String message;
   final int? statusCode;
   @override
@@ -101,7 +102,8 @@ class ApiClient {
   Future<Object?> patch(String path, Object body) =>
       _request('PATCH', path, body);
   Future<Object?> put(String path, Object body) => _request('PUT', path, body);
-  Future<Object?> delete(String path) => _request('DELETE', path);
+  Future<Object?> delete(String path, [Object? body]) =>
+      _request('DELETE', path, body);
 
   Future<Object?> _request(String method, String path, [Object? body]) async {
     final response = await exchange(method, path, body);
@@ -140,6 +142,20 @@ class ApiClient {
         if (response.statusCode == 401 && path != '/api/login') {
           onUnauthorized?.call();
         }
+        String? code, field;
+        try {
+          final decoded = jsonDecode(response.body);
+          final detail = decoded is Map ? decoded['detail'] : null;
+          if (detail is Map) {
+            if (detail['code'] is String) code = detail['code'];
+            if (detail['field'] is String &&
+                RegExp(r'^[a-z_]+$').hasMatch(detail['field'])) {
+              field = detail['field'];
+            }
+          }
+        } catch (_) {
+          /* Never expose raw server messages. */
+        }
         throw ApiException(
           response.statusCode == 401
               ? 'Authentication required.'
@@ -149,6 +165,8 @@ class ApiClient {
               ? 'Too many attempts. Wait before trying again.'
               : 'The server could not complete the request.',
           statusCode: response.statusCode,
+          code: code,
+          field: field,
         );
       }
       return response;

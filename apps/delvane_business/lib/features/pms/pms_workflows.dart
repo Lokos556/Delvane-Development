@@ -58,6 +58,27 @@ class PmsWorkflows {
 
 String workflowError(Object error) {
   if (error is ApiException) {
+    const messages = {
+      "guest_records_review_required": "Review the registered guests before reducing the guest count. Submitted identity records cannot be removed automatically.",
+      "registration_review_required": "Complete the guest data and identity review first. Registration status cannot be set manually.",
+
+      'availability_conflict': 'The selected room has no availability for these dates. Choose another room or change the dates.',
+      'invalid_dates': 'Enter valid arrival and departure dates.',
+      'departure_not_after_arrival': 'Departure must be later than arrival.',
+      'guest_name_required': 'Enter the guest name.',
+      'invalid_guest_count': 'Enter a positive whole guest count.',
+      'capacity_exceeded': 'The guest count exceeds this room’s capacity. Choose a larger room or reduce the guest count.',
+      'property_unavailable':
+          'This property is unavailable. Refresh and select another property.',
+      'room_unavailable': 'This room is unavailable for the selected property. Refresh and select a room.',
+      'reservation_not_found': 'This reservation no longer exists or you cannot access it. Refresh the reservation list.',
+      'invalid_fields': 'Check the required fields and their formats.',
+      'guest_profile_unavailable': 'This guest profile is unavailable. Refresh and choose another profile.',
+    };
+    if (messages.containsKey(error.code)) return messages[error.code]!;
+    if ((error.statusCode ?? 0) >= 500) {
+      return 'The server could not complete the request. Refresh before trying again.';
+    }
     return switch (error.statusCode) {
       400 => 'The server rejected these values. Check dates, capacity and required fields.',
       409 => 'This change conflicts with the current record or availability. Refresh and review before retrying.',

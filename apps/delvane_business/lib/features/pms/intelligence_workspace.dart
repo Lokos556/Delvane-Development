@@ -1,3 +1,5 @@
+import 'overflow_row.dart';
+
 import 'package:material_ui/material_ui.dart';
 
 import '../workspace/workspace_models.dart';
@@ -133,8 +135,7 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
               12,
             ),
             child: mobile
-                ? SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
+                ? PmsOverflowRow(
                     child: Row(
                       children: metrics(d)
                           .map((w) => SizedBox(width: 160, child: w))
@@ -290,8 +291,7 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
+                PmsOverflowRow(
                   child: Row(
                     children: [
                       if (!mobile)

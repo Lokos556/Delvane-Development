@@ -85,7 +85,7 @@ class SettingsPage extends StatelessWidget {
           ),
           SizedBox(height: 20),
           Text(
-            ui('Delvane Business'),
+            ui('Delvane AI'),
             style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
           ),
           SizedBox(height: 8),

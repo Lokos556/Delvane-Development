@@ -1,3 +1,5 @@
+import '../../core/network/api_client.dart';
+
 import 'package:material_ui/material_ui.dart';
 
 import 'pms_controller.dart';
@@ -8,17 +10,24 @@ import 'pms_workflows.dart';
 mixin PmsActions<T extends StatefulWidget> on State<T> {
   bool busy = false;
   String? failure;
+  String? failureField;
   Future<bool> perform(Future<void> Function() action) async {
     if (busy) return false;
     setState(() {
       busy = true;
       failure = null;
+      failureField = null;
     });
     try {
       await action();
       return true;
     } catch (e) {
-      if (mounted) setState(() => failure = workflowError(e));
+      if (mounted) {
+        setState(() {
+          failure = workflowError(e);
+          failureField = e is ApiException ? e.field : null;
+        });
+      }
       return false;
     } finally {
       if (mounted) setState(() => busy = false);

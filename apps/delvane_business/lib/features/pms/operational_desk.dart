@@ -1,3 +1,5 @@
+import 'overflow_row.dart';
+
 import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
@@ -161,12 +163,7 @@ class _OperationalDeskState extends State<OperationalDesk>
                             ),
                           ),
                           const Divider(height: 1, color: Color(0xFFE1D6C5)),
-                          SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            padding: EdgeInsets.symmetric(
-                              horizontal: mobile ? 12 : 24,
-                              vertical: mobile ? 8 : 10,
-                            ),
+                          PmsOverflowRow(
                             child: Row(
                               children: [
                                 for (var i = 0; i < labels.length; i++)
@@ -206,7 +203,7 @@ class _OperationalDeskState extends State<OperationalDesk>
                           ),
                           const Divider(height: 1, color: Color(0xFFE6DCCB)),
                           Expanded(
-                            child: SingleChildScrollView(
+                            child: PmsScrollPane(
                               key: ValueKey(selected),
                               padding: EdgeInsets.fromLTRB(
                                 mobile ? 16 : 28,

@@ -24,9 +24,9 @@ function withOCRTimeout(promise,ms,message){
   ]).finally(()=>clearTimeout(timer));
 }
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const api=async(path,opts={})=>{const r=await fetch(path,{...opts,headers:{'Content-Type':'application/json',...(opts.headers||{})}});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.detail||'Something went wrong.');return d};
-const fmt=d=>d?new Intl.DateTimeFormat('en-GB',{day:'numeric',month:'long',year:'numeric'}).format(new Date(d+'T12:00:00')):'—';
-function shell(body){root.innerHTML=`<div class="wrap"><div class="brand"><div class="mark">R</div><b>ROSA</b></div>${body}</div>`}
+const api=async(path,opts={})=>{let r;try{r=await fetch(path,{...opts,headers:{'Content-Type':'application/json',...(opts.headers||{})}})}catch(_){throw new Error('Unable to connect. Check your connection and try again.')}const d=await r.json().catch(()=>({}));if(!r.ok){const error=new Error(window.guestError(r.status,d.detail));error.field=d.detail?.field;throw error}return d};
+const fmt=d=>d?`<time data-guest-date datetime="${esc(d)}">${new Intl.DateTimeFormat(document.documentElement.lang==='hu'?'hu-HU':'en-GB',{day:'numeric',month:'long',year:'numeric'}).format(new Date(d+'T12:00:00'))}</time>`:'—';
+function shell(body){root.innerHTML=`<div class="wrap"><div class="brand"><img class="brand-logo" src="/static/delvane-icon.png" alt=""><b>Delvane AI</b></div>${body}</div>`;window.guestTranslateDOM?.()}
 function stopCamera(){
   if(autoTimer){clearInterval(autoTimer);autoTimer=null}
   if(autoResumeTimer){clearTimeout(autoResumeTimer);autoResumeTimer=null}
@@ -55,7 +55,7 @@ function mrzCheck(value,digit){
   return String(sum%10)===digit;
 }
 const NATIONALITY_BY_CODE={"ABW":"Aruba","AFG":"Afghan","AGO":"Angolan","AIA":"Anguilla","ALA":"Åland Islands","ALB":"Albanian","AND":"Andorra","ARE":"Emirati","ARG":"Argentinian","ARM":"Armenian","ASM":"American Samoa","ATA":"Antarctica","ATF":"French Southern Territories","ATG":"Antigua and Barbuda","AUS":"Australian","AUT":"Austrian","AZE":"Azerbaijani","BDI":"Burundi","BEL":"Belgian","BEN":"Benin","BES":"Bonaire, Sint Eustatius and Saba","BFA":"Burkina Faso","BGD":"Bangladeshi","BGR":"Bulgarian","BHR":"Bahrain","BHS":"Bahamas","BIH":"Bosnian and Herzegovinian","BLM":"Saint Barthélemy","BLR":"Belarus","BLZ":"Belize","BMU":"Bermuda","BOL":"Bolivian","BRA":"Brazilian","BRB":"Barbados","BRN":"Brunei Darussalam","BTN":"Bhutan","BVT":"Bouvet Island","BWA":"Botswanan","CAF":"Central African Republic","CAN":"Canadian","CCK":"Cocos (Keeling) Islands","CHE":"Swiss","CHL":"Chilean","CHN":"Chinese","CIV":"Côte d'Ivoire","CMR":"Cameroonian","COD":"Congolese","COG":"Congo","COK":"Cook Islands","COL":"Colombian","COM":"Comoros","CPV":"Cabo Verde","CRI":"Costa Rican","CUB":"Cuban","CUW":"Curaçao","CXR":"Christmas Island","CYM":"Cayman Islands","CYP":"Cypriot","CZE":"Czech","DEU":"German","DJI":"Djibouti","DMA":"Dominica","DNK":"Danish","DOM":"Dominican","DZA":"Algerian","ECU":"Ecuadorian","EGY":"Egyptian","ERI":"Eritrea","ESH":"Western Sahara","ESP":"Spanish","EST":"Estonian","ETH":"Ethiopian","FIN":"Finnish","FJI":"Fiji","FLK":"Falkland Islands (Malvinas)","FRA":"French","FRO":"Faroe Islands","FSM":"Micronesia, Federated States of","GAB":"Gabon","GBR":"British","GEO":"Georgian","GGY":"Guernsey","GHA":"Ghanaian","GIB":"Gibraltar","GIN":"Guinea","GLP":"Guadeloupe","GMB":"Gambia","GNB":"Guinea-Bissau","GNQ":"Equatorial Guinea","GRC":"Greek","GRD":"Grenada","GRL":"Greenland","GTM":"Guatemalan","GUF":"French Guiana","GUM":"Guam","GUY":"Guyana","HKG":"Hong Konger","HMD":"Heard Island and McDonald Islands","HND":"Honduras","HRV":"Croatian","HTI":"Haitian","HUN":"Hungarian","IDN":"Indonesian","IMN":"Isle of Man","IND":"Indian","IOT":"British Indian Ocean Territory","IRL":"Irish","IRN":"Iranian","IRQ":"Iraqi","ISL":"Icelandic","ISR":"Israeli","ITA":"Italian","JAM":"Jamaican","JEY":"Jersey","JOR":"Jordanian","JPN":"Japanese","KAZ":"Kazakh","KEN":"Kenyan","KGZ":"Kyrgyzstan","KHM":"Cambodian","KIR":"Kiribati","KNA":"Saint Kitts and Nevis","KOR":"South Korean","KWT":"Kuwait","LAO":"Lao","LBN":"Lebanese","LBR":"Liberia","LBY":"Libyan","LCA":"Saint Lucia","LIE":"Liechtenstein","LKA":"Sri Lankan","LSO":"Lesotho","LTU":"Lithuanian","LUX":"Luxembourgish","LVA":"Latvian","MAC":"Macao","MAF":"Saint Martin (French part)","MAR":"Moroccan","MCO":"Monaco","MDA":"Moldova, Republic of","MDG":"Malagasy","MDV":"Maldives","MEX":"Mexican","MHL":"Marshall Islands","MKD":"North Macedonian","MLI":"Mali","MLT":"Maltese","MMR":"Burmese","MNE":"Montenegrin","MNG":"Mongolian","MNP":"Northern Mariana Islands","MOZ":"Mozambican","MRT":"Mauritania","MSR":"Montserrat","MTQ":"Martinique","MUS":"Mauritian","MWI":"Malawi","MYS":"Malaysian","MYT":"Mayotte","NAM":"Namibian","NCL":"New Caledonia","NER":"Niger","NFK":"Norfolk Island","NGA":"Nigerian","NIC":"Nicaragua","NIU":"Niue","NLD":"Dutch","NOR":"Norwegian","NPL":"Nepalese","NRU":"Nauru","NZL":"New Zealander","OMN":"Oman","PAK":"Pakistani","PAN":"Panamanian","PCN":"Pitcairn","PER":"Peruvian","PHL":"Filipino","PLW":"Palau","PNG":"Papua New Guinea","POL":"Polish","PRI":"Puerto Rico","PRK":"North Korean","PRT":"Portuguese","PRY":"Paraguayan","PSE":"Palestinian","PYF":"French Polynesia","QAT":"Qatar","REU":"Réunion","ROU":"Romanian","RUS":"Russian","RWA":"Rwanda","SAU":"Saudi Arabian","SDN":"Sudan","SEN":"Senegalese","SGP":"Singaporean","SGS":"South Georgia and the South Sandwich Islands","SHN":"Saint Helena, Ascension and Tristan da Cunha","SJM":"Svalbard and Jan Mayen","SLB":"Solomon Islands","SLE":"Sierra Leone","SLV":"El Salvador","SMR":"San Marino","SOM":"Somalia","SPM":"Saint Pierre and Miquelon","SRB":"Serbian","SSD":"South Sudan","STP":"Sao Tome and Principe","SUR":"Suriname","SVK":"Slovak","SVN":"Slovenian","SWE":"Swedish","SWZ":"Eswatini","SXM":"Sint Maarten (Dutch part)","SYC":"Seychelles","SYR":"Syrian","TCA":"Turks and Caicos Islands","TCD":"Chad","TGO":"Togo","THA":"Thai","TJK":"Tajikistan","TKL":"Tokelau","TKM":"Turkmenistan","TLS":"Timor-Leste","TON":"Tonga","TTO":"Trinidadian and Tobagonian","TUN":"Tunisian","TUR":"Turkish","TUV":"Tuvalu","TWN":"Taiwanese","TZA":"Tanzanian","UGA":"Ugandan","UKR":"Ukrainian","UMI":"United States Minor Outlying Islands","URY":"Uruguayan","USA":"American","UZB":"Uzbek","VAT":"Holy See (Vatican City State)","VCT":"Saint Vincent and the Grenadines","VEN":"Venezuelan","VGB":"Virgin Islands, British","VIR":"Virgin Islands, U.S.","VNM":"Vietnamese","VUT":"Vanuatu","WLF":"Wallis and Futuna","WSM":"Samoa","YEM":"Yemen","ZAF":"South African","ZMB":"Zambia","ZWE":"Zimbabwean","XKX":"Kosovar","GBD":"British","GBN":"British","GBO":"British","GBS":"British","GBW":"British"};
-const NATIONALITY_OPTIONS=[...new Set(Object.values(NATIONALITY_BY_CODE))].sort((a,b)=>a.localeCompare(b));
+const NATIONALITY_OPTIONS=[...new Set(Object.values(NATIONALITY_BY_CODE))].sort((a,b)=>a==='Hungarian'?-1:b==='Hungarian'?1:a.localeCompare(b));
 function nationalityFromMRZ(code){
   const value=String(code||'').replace(/</g,'').toUpperCase();
   if(!value)return '';
@@ -413,7 +413,7 @@ async function getRosaOCRWorker(status){
         if(!m?.status||!rosaOCRStatus)return;
         const stage=String(m.status).replace(/[_-]+/g,' ');
         const pct=Number.isFinite(m.progress)?` ${Math.round(m.progress*100)}%`:'';
-        rosaOCRStatus.textContent=`${rosaOCRStage} · ${stage}${pct}`;
+        rosaOCRStatus.textContent=`Reading document…${pct}`;
       }});
       await worker.setParameters({preserve_interword_spaces:'1',tessedit_pageseg_mode:'6'});
       rosaOCRWorker=worker;
@@ -466,7 +466,7 @@ async function recognizeLocal(blob,status){
       const rawPanel=document.getElementById('rawOcrOutput');
       const rawMeta=document.getElementById('rawOcrMeta');
       if(rawPanel)rawPanel.textContent=text||'[Tesseract returned no text]';
-      if(rawMeta)rawMeta.textContent=`${label} · ${elapsed} ms · ${text.trim()?text.trim().split(/\r?\n/).filter(Boolean).length:0} line(s)`;
+      if(rawMeta)rawMeta.textContent=`OCR diagnostic · ${elapsed} ms · ${text.trim()?text.trim().split(/\r?\n/).filter(Boolean).length:0} line(s)`;
       const rawDetails=document.getElementById('rawOcrDetails');
       if(rawDetails)rawDetails.hidden=false;
     }
@@ -769,8 +769,8 @@ async function captureAndRead(){
       scanSide='back';
       const liveStatus=document.getElementById('scanStatus')||status;
       liveStatus.textContent=parsed
-        ? 'Front captured. Flip your ID and capture the BACK side now. Rosa will merge any additional fields, including place of birth, mother’s birth name and the three machine-readable lines.'
-        : 'Rosa could not confidently read the front. Flip your ID and capture the BACK side; you can review and complete all fields manually afterward.';
+        ? 'Front captured. Flip your ID and capture the BACK side now. Delvane will merge any additional fields, including place of birth, mother’s birth name and the three machine-readable lines.'
+        : 'Delvane could not confidently read the front. Flip your ID and capture the BACK side; you can review and complete all fields manually afterward.';
       const start=document.getElementById('startCamera');
       if(start){start.textContent='Capture back side';start.disabled=false;}
       const guide=document.querySelector('#cameraBox .guide');
@@ -797,7 +797,7 @@ async function captureAndRead(){
     const detail=String(e?.message||e||'Unknown OCR error').replace(/https?:\/\/\S+/g,'[resource URL]').slice(0,180);
     status.textContent=(e&&e.message==='Scanner engine unavailable')
       ?'Scanner engine unavailable. Check internet/CDN access, then reopen the camera.'
-      :`OCR error: ${detail}`;
+      :'Unable to read the document. Adjust the lighting and retry, or complete the fields manually.';
   }finally{
     scanInProgress=false;
     // Do not silently run repeated multi-pass OCR on the same unchanged frame.
@@ -806,7 +806,7 @@ async function captureAndRead(){
     if(stream&&document.getElementById('cameraVideo')){
       const start=document.getElementById('startCamera');
       if(start){start.disabled=false;start.textContent='Capture ID photo';}
-      if(status&&(/Reading ID|Starting local OCR|Loading local OCR|Photo captured/.test(status.textContent)))status.textContent='Scan did not finish. Adjust the card and tap Capture ID photo to retry.';
+      if(status&&(/Reading ID|Starting local OCR|Loading local OCR|Photo captured/.test(window.guestSourceText?window.guestSourceText(status):status.textContent)))status.textContent='Scan did not finish. Adjust the card and tap Capture ID photo to retry.';
     }
   }
 }
@@ -820,6 +820,7 @@ function applyParsed(p){
   for(const [id,value] of Object.entries(values)){
     if(value===undefined||value===null||String(value).trim()==='')continue;
     const el=document.getElementById(id);if(!el)continue;
+    if(id==='sex'&&!['M','F'].includes(String(value))){el.value='';continue}
     if(el.tagName==='SELECT'&&!Array.from(el.options).some(o=>o.value===String(value))){const opt=document.createElement('option');opt.value=String(value);opt.textContent=String(value);el.appendChild(opt)}
     el.value=String(value);
     if(typeof el.dispatchEvent==='function'&&typeof Event==='function'){el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}
@@ -827,13 +828,14 @@ function applyParsed(p){
   const typeEl=document.getElementById('document_type');
   if(typeEl&&state.document_type){if(typeEl.options&&!Array.from(typeEl.options).some(o=>o.value===state.document_type)){const opt=document.createElement('option');opt.value=state.document_type;opt.textContent=state.document_type;typeEl.appendChild(opt)}typeEl.value=state.document_type;}
 }
+function localToday(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
 function renderFields(){const f=state||{};return `<div class="fields" id="fields">
 <div class="field wide"><label>Full name</label><input id="full_name" value="${esc(f.full_name||'')}" autocomplete="name"></div>
 <div class="field"><label>Birth name</label><input id="birth_name" value="${esc(f.birth_name||'')}"></div>
 <div class="field"><label>Place of birth</label><input id="birth_place" value="${esc(f.birth_place||'')}"></div>
-<div class="field"><label>Date of birth</label><input id="date_of_birth" type="date" value="${esc(f.date_of_birth||'')}"></div>
-<div class="field"><label>Sex</label><select id="sex"><option value="">Select</option><option ${f.sex==='M'?'selected':''} value="M">Male</option><option ${f.sex==='F'?'selected':''} value="F">Female</option><option ${f.sex==='X'?'selected':''} value="X">Other / unknown</option></select></div>
-<div class="field"><label for="nationality">Nationality</label><select id="nationality"><option value="">Select nationality</option>${(f.nationality&&!NATIONALITY_OPTIONS.includes(f.nationality)?[f.nationality,...NATIONALITY_OPTIONS]:NATIONALITY_OPTIONS).map(n=>`<option value="${esc(n)}" ${f.nationality===n?'selected':''}>${esc(n)}</option>`).join('')}</select></div>
+<div class="field"><label>Date of birth</label><input id="date_of_birth" type="date" min="1920-01-01" max="${localToday()}" required value="${esc(f.date_of_birth||'')}"></div>
+<div class="field"><label>Sex</label><select id="sex"><option value="">Select</option><option ${f.sex==='M'?'selected':''} value="M">Male</option><option ${f.sex==='F'?'selected':''} value="F">Female</option></select></div>
+<div class="field"><label for="nationality">Nationality</label><input type="search" id="nationalitySearch" data-guest-label="Search nationalities" aria-label="Search nationalities" autocomplete="off"><select id="nationality"><option value="">Select nationality</option>${(f.nationality&&!NATIONALITY_OPTIONS.includes(f.nationality)?[f.nationality,...NATIONALITY_OPTIONS]:NATIONALITY_OPTIONS).map(n=>`<option value="${esc(n)}" ${f.nationality===n?'selected':''}>${esc(n)}</option>`).join('')}</select></div>
 <div class="field"><label>Mother's birth name</label><input id="mother_birth_name" value="${esc(f.mother_birth_name||'')}"></div>
 <div class="field"><label>Document number</label><input id="document_number" value="${esc(f.document_number||'')}" autocomplete="off"></div>
 <div class="field wide"><label>Address (if required by the applicable document/data set)</label><input id="address" value="${esc(f.address||'')}" autocomplete="street-address"></div>
@@ -842,11 +844,11 @@ function formData(){const ids=['full_name','birth_name','birth_place','date_of_b
 function renderForm(){
   scanSide='front';
   shell(`<section class="hero"><span class="eyebrow">GUEST CHECK-IN</span><h1>Verify your stay.</h1><p>${esc(state.reservation.property_name)} · ${fmt(state.reservation.arrival_date)} → ${fmt(state.reservation.departure_date)}</p></section>
-  <section class="card"><div class="notice">International document scanning: Rosa attempts to read visible fields and supported machine-readable zones. Review every value before confirming. <b>The document image is processed on your phone and is not uploaded to Rosa.</b></div>
-    <div class="field wide"><label for="document_type">What document are you scanning?</label><select id="document_type"><option ${(!state.document_type||state.document_type==='auto')?'selected':''} value="auto">Auto-detect document</option><option ${state.document_type==='id_card'?'selected':''} value="id_card">National identity card (any country)</option><option ${state.document_type==='passport'?'selected':''} value="passport">Passport</option><option ${state.document_type==='driver_license'?'selected':''} value="driver_license">Driving licence</option><option ${state.document_type==='other'?'selected':''} value="other">Other document</option></select><small>Rosa tries to identify the document format automatically; you can override it if needed.</small></div>
-    <ol class="scan-steps"><li>Choose the document type, then fit the <b>whole document</b> inside the guide. Do not crop to a particular line or corner.</li><li>Use bright, even light and tilt slightly to remove reflections.</li><li>Scan the FRONT first, then flip the card and scan the BACK. Rosa combines both results, including birthplace, mother's birth name, and the three machine-readable lines when present.</li></ol>
-    <div class="camera" id="cameraBox"><video id="cameraVideo" autoplay playsinline muted></video><div class="guide"></div><div class="camera-tip">Fit all four edges · keep printed text visible</div><div class="scan-processing" id="scanProcessing" hidden><div class="spinner" aria-hidden="true"></div><strong>Reading your ID…</strong><span>Please wait while Rosa fills in your details.</span></div></div>
-    <p class="scan-status" id="scanStatus">Open the camera, then tap Capture ID photo. Rosa scans the captured image while you wait.</p>
+  <section class="card"><div class="notice">International document scanning: Delvane attempts to read visible fields and supported machine-readable zones. Review every value before confirming. <b>The document image is processed on your phone and is not uploaded to Delvane.</b></div>
+    <div class="field wide"><label for="document_type">What document are you scanning?</label><select id="document_type"><option ${(!state.document_type||state.document_type==='auto')?'selected':''} value="auto">Auto-detect document</option><option ${state.document_type==='id_card'?'selected':''} value="id_card">National identity card (any country)</option><option ${state.document_type==='passport'?'selected':''} value="passport">Passport</option><option ${state.document_type==='driver_license'?'selected':''} value="driver_license">Driving licence</option><option ${state.document_type==='other'?'selected':''} value="other">Other document</option></select><small>Delvane tries to identify the document format automatically; you can override it if needed.</small></div>
+    <ol class="scan-steps"><li>Choose the document type, then fit the <b>whole document</b> inside the guide. Do not crop to a particular line or corner.</li><li>Use bright, even light and tilt slightly to remove reflections.</li><li>Scan the FRONT first, then flip the card and scan the BACK. Delvane combines both results, including birthplace, mother's birth name, and the three machine-readable lines when present.</li></ol>
+    <div class="camera" id="cameraBox"><video id="cameraVideo" autoplay playsinline muted></video><div class="guide"></div><div class="camera-tip">Fit all four edges · keep printed text visible</div><div class="scan-processing" id="scanProcessing" hidden><div class="spinner" aria-hidden="true"></div><strong>Reading your ID…</strong><span>Please wait while Delvane fills in your details.</span></div></div>
+    <p class="scan-status" id="scanStatus">Open the camera, then tap Capture ID photo. Delvane scans the captured image while you wait.</p>
     <details class="raw-ocr-details" id="rawOcrDetails" hidden>
       <summary>Developer diagnostic: raw OCR result</summary>
       <p class="raw-ocr-warning">This text is displayed locally on this device and is not uploaded. It may contain personal identity information. Redact names, document numbers and dates before sharing it.</p>
@@ -863,9 +865,13 @@ function renderForm(){
     const rawMeta=document.getElementById('rawOcrMeta');
     const rawDetails=document.getElementById('rawOcrDetails');
     if(rawPanel)rawPanel.textContent=window.__rosaRawOCR.text||'[Tesseract returned no text]';
-    if(rawMeta)rawMeta.textContent=`${window.__rosaRawOCR.label} · ${window.__rosaRawOCR.elapsed} ms · ${window.__rosaRawOCR.text.trim()?window.__rosaRawOCR.text.trim().split(/\r?\n/).filter(Boolean).length:0} line(s)`;
+    if(rawMeta)rawMeta.textContent=`OCR diagnostic · ${window.__rosaRawOCR.elapsed} ms · ${window.__rosaRawOCR.text.trim()?window.__rosaRawOCR.text.trim().split(/\r?\n/).filter(Boolean).length:0} line(s)`;
     if(rawDetails)rawDetails.hidden=false;
   }
+  document.getElementById('nationalitySearch').oninput=(event)=>{
+    const query=event.target.value.toLocaleLowerCase(document.documentElement.lang);
+    for(const option of document.getElementById('nationality').options)option.hidden=!!query&&!option.textContent.toLocaleLowerCase(document.documentElement.lang).includes(query)&&!option.value.toLowerCase().includes(query);
+  };
   const copyRaw=document.getElementById('copyRawOcr');
   if(copyRaw)copyRaw.onclick=async()=>{
     const raw=String(window.__rosaRawOCR?.text||'');
@@ -875,7 +881,7 @@ function renderForm(){
   document.getElementById('document_type').onchange=(e)=>{
     state.document_type=e.target.value;
     const status=document.getElementById('scanStatus');
-    if(state.document_type)status.textContent='Document type selected. Keep the whole document visible; Rosa checks printed fields and any machine-readable zone it can find.';
+    if(state.document_type)status.textContent='Document type selected. Keep the whole document visible; Delvane checks printed fields and any machine-readable zone it can find.';
   };
   document.getElementById('startCamera').onclick=async()=>{
     state.document_type=document.getElementById('document_type').value||'auto';
@@ -896,7 +902,7 @@ function renderForm(){
         document.getElementById('scanStatus').textContent='Scanning paused. You can adjust the card and reopen the camera.';
       };
       document.getElementById('scanStatus').textContent=scanSide==='front'
-        ? 'Camera ready. Fit the FRONT of the ID inside the guide and tap Capture ID photo. Rosa will then ask for the back.'
+        ? 'Camera ready. Fit the FRONT of the ID inside the guide and tap Capture ID photo. Delvane will then ask for the back.'
         : 'Camera ready. Fit the BACK of the ID inside the guide and tap Capture back side.';
     }catch(e){document.getElementById('scanStatus').textContent='Camera access was not available. Check browser permission or enter the information manually.'}
   };
@@ -918,7 +924,7 @@ function renderForm(){
       document.getElementById('scanStatus').textContent='The camera flash could not be controlled by this browser. Try the phone’s default browser or use steady room lighting.';
     }
   };
-  document.getElementById('confirm').onclick=async()=>{const body={...formData(),scan_method:state.scan_method||'camera_mrz',guest_confirmed:true};if(!body.full_name){document.getElementById('error').className='error';document.getElementById('error').textContent='Please enter your full name.';return}try{const out=await api(`/api/public/checkin/${encodeURIComponent(token)}`,{method:'POST',body:JSON.stringify(body)});stopCamera();shell(`<section class="card success"><div class="mark">✓</div><span class="eyebrow">PRE-CHECK-IN COMPLETE</span><h1>You’re all set.</h1><p class="muted">Your guest information has been received by ${esc(state.reservation.property_name)}. The property will complete the required identity verification before sending the information to VIZA.</p><div class="notice">You do not need to upload or keep a photo of your document for Rosa.</div></section>`)}catch(e){document.getElementById('error').className='error';document.getElementById('error').textContent=e.message}};
+  document.getElementById('confirm').onclick=async()=>{const body={...formData(),scan_method:state.scan_method||'camera_mrz',guest_confirmed:true};if(!body.full_name){document.getElementById('error').className='error';document.getElementById('error').textContent='Please enter your full name.';return}const birth=document.getElementById('date_of_birth');if(!birth.value||birth.value<'1920-01-01'||birth.value>localToday()||!birth.checkValidity()){document.getElementById('error').textContent='Enter a birth date between 1 January 1920 and today.';birth.setAttribute('aria-invalid','true');birth.focus();return}try{const out=await api(`/api/public/checkin/${encodeURIComponent(token)}`,{method:'POST',body:JSON.stringify(body)});stopCamera();shell(`<section class="card success"><div class="mark">✓</div><span class="eyebrow">PRE-CHECK-IN COMPLETE</span><h1>You’re all set.</h1><p class="muted">Your guest information has been received by ${esc(state.reservation.property_name)}. The property will complete the required identity verification before sending the information to VIZA.</p><div class="notice">You do not need to upload or keep a photo of your document for Delvane.</div></section>`)}catch(e){document.getElementById('error').className='error';document.getElementById('error').textContent=e.message;if(e.field){const field=document.getElementById(e.field);field?.setAttribute('aria-invalid','true');field?.focus()}}};
 }
 async function boot(){try{state=await api(`/api/public/checkin/${encodeURIComponent(token)}`);renderForm()}catch(e){shell(`<section class="card"><span class="eyebrow">ROSA CHECK-IN</span><h1>This link isn't available.</h1><p class="muted">${esc(e.message)}</p></section>`)}}
 boot();

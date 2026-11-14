@@ -349,7 +349,7 @@ class _ReceptionPageState extends State<ReceptionPage>
           children: [
             SizedBox(
               width: (box.maxWidth * .36).clamp(300.0, 365.0),
-              child: SingleChildScrollView(
+              child: PmsScrollPane(
                 child: ConstrainedBox(
                   constraints: BoxConstraints(
                     minHeight: (MediaQuery.sizeOf(context).height - 235).clamp(
@@ -363,7 +363,7 @@ class _ReceptionPageState extends State<ReceptionPage>
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: SingleChildScrollView(
+              child: PmsScrollPane(
                 child: ConstrainedBox(
                   constraints: BoxConstraints(
                     minHeight: (MediaQuery.sizeOf(context).height - 235).clamp(
