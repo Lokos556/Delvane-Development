@@ -1,0 +1,4 @@
+{
+  "DELVANE_ENV": "production",
+  "DELVANE_API_ORIGIN": "https://api.example.invalid"
+}

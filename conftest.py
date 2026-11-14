@@ -15,7 +15,18 @@ def pytest_configure(config):
     if config.option.basetemp:
         raise pytest.UsageError("Do not supply --basetemp; isolation owns temporary storage")
     safety = IsolatedEnvironment().__enter__()
-    config.add_cleanup(lambda: safety.__exit__(None, None, None))
+    def close_isolation():
+        # Pytest's optional "current" links can become dangling directory links
+        # on Windows; Python 3.14 rmtree leaves them behind (WinError 145).
+        # Remove only aliases in our own guarded temp tree, never their targets.
+        pytest_root = safety.root / "pytest"
+        if sys.platform == "win32" and pytest_root.is_dir():
+            for alias in pytest_root.iterdir():
+                if (alias.name.endswith("current") and alias.is_symlink()
+                        and alias.resolve(strict=False).is_relative_to(safety.root)):
+                    alias.unlink(missing_ok=True)
+        safety.__exit__(None, None, None)
+    config.add_cleanup(close_isolation)
     config._delvane_safety = safety
     config.option.basetemp = str(safety.root / "pytest")
     import app

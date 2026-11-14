@@ -1,4 +1,5 @@
 {
     "cmake.sourceDirectory": "C:/Delvane/Delvane-Development/apps/delvane_business/windows",
-    "java.configuration.updateBuildConfiguration": "automatic"
+    "java.configuration.updateBuildConfiguration": "automatic",
+    "java.compile.nullAnalysis.mode": "disabled"
 }

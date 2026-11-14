@@ -59,6 +59,33 @@ class OperationsWorkflows {
     );
   }
 
+  Future<void> createCleaning(Json values) async {
+    operatorOnly();
+    await c.mutate('POST', '/api/work-tasks', values);
+  }
+
+  Future<void> assign(Json work, String assignee) async {
+    operatorOnly();
+    if (work['kind'] == 'maintenance') {
+      await c.mutate(
+        'PATCH',
+        '/api/maintenance/${idPath(text(work, 'id'))}/status',
+        {
+          'status': ['reported', 'assigned', 'open'].contains(work['status'])
+              ? (assignee.isEmpty ? 'reported' : 'assigned')
+              : work['status'],
+          'assigned_to': assignee,
+        },
+      );
+    } else {
+      await c.mutate(
+        'PATCH',
+        '/api/work-tasks/${idPath(text(work, 'id'))}/assignment',
+        {'assigned_to': assignee.isEmpty ? null : assignee},
+      );
+    }
+  }
+
   Future<void> stock(String id, num quantity) async {
     operatorOnly();
     await c.mutate('PATCH', '/api/inventory/${idPath(id)}', {

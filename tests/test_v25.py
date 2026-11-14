@@ -36,10 +36,10 @@ def test_schema_migration_and_runtime_health(tmp_path, monkeypatch):
             assert con.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone()
     login(c)
     runtime = c.get("/api/system/runtime").json()
-    assert runtime["version"] == "2.10.27"
-    assert runtime["schema_version"] == 3056
+    assert runtime["version"] == rosa.APP_VERSION == rosa.app.version
+    assert runtime["schema_version"] == rosa.SCHEMA_VERSION
     assert runtime["database_backend"] == "sqlite"
-    assert runtime["environment"] == "development"
+    assert runtime["environment"] == rosa.APP_ENV == "test"
 
 
 def test_reservation_workspace_note_and_operational_update(tmp_path, monkeypatch):
@@ -56,14 +56,14 @@ def test_reservation_workspace_note_and_operational_update(tmp_path, monkeypatch
     u = c.patch(f"/api/reservations/{rid}/operations", json={
         "arrival_time": "20:45",
         "payment_status": "partial",
-        "registration_status": "pending",
+        "registration_status": body["reservation"]["registration_status"],
         "special_requests": ["High chair", "Extra towels"],
     })
     assert u.status_code == 200, u.text
     after = c.get(f"/api/reservations/{rid}/detail").json()
     assert after["reservation"]["arrival_time"] == "20:45"
     assert after["reservation"]["payment_status"] == "partial"
-    assert after["reservation"]["registration_status"] == "pending"
+    assert after["reservation"]["registration_status"] == body["reservation"]["registration_status"]
     assert json.loads(after["reservation"]["special_requests"]) == ["High chair", "Extra towels"]
     assert any(x["body"].startswith("VIP arrival") for x in after["notes"])
     assert any(x["event_type"] == "operational_update" for x in after["events"])

@@ -233,7 +233,14 @@ async def lifespan(app: FastAPI):
                 with suppress(asyncio.CancelledError):
                     await task
 
-app = FastAPI(title="Rosa", version="2.10.59", lifespan=lifespan)
+APP_VERSION = "2.10.59"
+app = FastAPI(title="Rosa", version=APP_VERSION, lifespan=lifespan)
+
+
+@app.get("/api/client/environment")
+def native_client_environment():
+    from client_environment import client_environment_metadata
+    return client_environment_metadata(APP_ENV, SECURE_COOKIES)
 
 @app.middleware("http")
 async def security_and_cache_headers(request: Request, call_next):
@@ -2680,6 +2687,54 @@ def require_permission(user: dict[str, Any], permission: str):
         raise HTTPException(403, "You do not have permission for this operation")
 
 
+def _worker_property_access(con, user, property_id):
+    if user["role"] in {"owner", "manager"}:
+        return True
+    if user["role"] == "cleaner":
+        return bool(con.execute("SELECT 1 FROM work_tasks WHERE organization_id=? AND property_id=? AND assigned_to=? AND status!='complete' LIMIT 1",
+            (user["organization_id"], property_id, user["id"])).fetchone())
+    return bool(con.execute("SELECT 1 FROM maintenance_cases WHERE organization_id=? AND property_id=? AND (assigned_to=? OR assigned_to IS NULL) LIMIT 1",
+        (user["organization_id"], property_id, user["id"])).fetchone())
+
+
+def _lock_reservation(con, reservation_id, org_id=None):
+    # Serialize guest slots, token consumption and booking changes in both supported DBs.
+    query="UPDATE reservations SET id=id WHERE id=?"
+    args=[reservation_id]
+    if org_id is not None:
+        query+=" AND organization_id=?"; args.append(org_id)
+    con.execute(query, args)
+
+
+def _registration_state(con, reservation):
+    records=con.execute("""SELECT g.completeness,v.status verification_status FROM guest_records g
+        LEFT JOIN guest_identity_verifications v ON v.guest_record_id=g.id
+        WHERE g.reservation_id=? AND g.organization_id=?""",
+        (reservation["id"],reservation["organization_id"])).fetchall()
+    expected=max(1,int(reservation["guest_count"] or 1))
+    if len(records)!=expected or any(g["completeness"]!="complete" for g in records):
+        return "incomplete"
+    return "complete" if all(g["verification_status"]=="verified" for g in records) else "pending"
+
+
+def _sync_registration(con, reservation_id, org_id):
+    r=con.execute("SELECT * FROM reservations WHERE id=? AND organization_id=?",(reservation_id,org_id)).fetchone()
+    state=_registration_state(con,r)
+    con.execute("UPDATE reservations SET registration_status=? WHERE id=? AND organization_id=?",(state,reservation_id,org_id))
+    return state
+
+
+def _revoke_guest_links(con, reservation_id):
+    con.execute("UPDATE guest_checkin_tokens SET status='revoked' WHERE reservation_id=? AND status='active'",(reservation_id,))
+
+
+def _validate_registration_label(con, reservation, value):
+    if value not in {"incomplete","pending","complete"}:
+        raise HTTPException(400,"Invalid registration status")
+    if value != _registration_state(con,reservation):
+        raise HTTPException(409,"Registration status follows guest data and identity review.")
+
+
 def property_readiness(con: sqlite3.Connection, org_id: str):
     result = []
     for prop in con.execute("SELECT * FROM properties WHERE organization_id=? ORDER BY name", (org_id,)):
@@ -3708,9 +3763,9 @@ def worker_dashboard(rosa_session: str | None = Cookie(default=None)):
     with db() as con:
         tasks = rows(con.execute(
             """SELECT w.*,p.name property_name FROM work_tasks w JOIN properties p ON p.id=w.property_id
-               WHERE w.organization_id=? AND w.assigned_to=? AND w.scheduled_date BETWEEN ? AND ?
+               WHERE w.organization_id=? AND w.assigned_to=? AND w.task_type=? AND w.scheduled_date BETWEEN ? AND ?
                ORDER BY w.scheduled_date, COALESCE(w.earliest_time,'00:00')""",
-            (user["organization_id"],user["id"],str(date.today()-timedelta(days=1)),str(date.today()+timedelta(days=7))),
+            (user["organization_id"],user["id"],"cleaning" if user["role"]=="cleaner" else "maintenance",str(date.today()-timedelta(days=1)),str(date.today()+timedelta(days=7))),
         ))
         for task in tasks:
             nxt = None
@@ -3733,10 +3788,13 @@ def reservation_list(rosa_session: str | None = Cookie(default=None)):
     user = require_user(rosa_session)
     require_roles(user, "owner", "manager")
     with db() as con:
-        return rows(con.execute(
+        reservations=rows(con.execute(
             """SELECT r.*,p.name property_name FROM reservations r JOIN properties p ON p.id=r.property_id
                WHERE r.organization_id=? ORDER BY r.arrival_date""", (user["organization_id"],)
         ))
+        for reservation in reservations:
+            reservation["registration_status"]=_registration_state(con,reservation)
+        return reservations
 
 
 @app.get("/api/properties")
@@ -4003,6 +4061,7 @@ def reservation_create(body: ReservationCreateBody, rosa_session: str | None = C
     validate_reservation_dates(body.arrival_date,body.departure_date)
     if not body.guest_name.strip(): raise HTTPException(400,"Guest name is required")
     if body.guest_count < 1: raise HTTPException(400,"Guest count must be at least 1")
+    if body.registration_status!="incomplete": raise HTTPException(409,"New reservations require guest registration and identity review")
     with db() as con:
         prop=con.execute("SELECT * FROM properties WHERE id=? AND organization_id=?",(body.property_id,user["organization_id"])).fetchone()
         if not prop: raise HTTPException(404,"Property not found")
@@ -4058,15 +4117,17 @@ def reservation_create(body: ReservationCreateBody, rosa_session: str | None = C
 def guest_checkin_status(reservation_id:str,rosa_session:str|None=Cookie(default=None)):
     user=require_user(rosa_session); require_roles(user,"owner","manager")
     with db() as con:
-        reservation=con.execute("SELECT id,guest_name,guest_count,registration_status FROM reservations WHERE id=? AND organization_id=?",(reservation_id,user["organization_id"])).fetchone()
+        _lock_reservation(con,reservation_id,user["organization_id"])
+        reservation=con.execute("SELECT * FROM reservations WHERE id=? AND organization_id=?",(reservation_id,user["organization_id"])).fetchone()
         if not reservation: raise HTTPException(404,"Reservation not found")
         records=_ensure_guest_records(con,reservation)
+        state=_sync_registration(con,reservation_id,user["organization_id"])
         out=[]
         for r in records:
             event=con.execute("SELECT event_type,created_at FROM guest_checkin_events WHERE guest_record_id=? ORDER BY created_at DESC LIMIT 1",(r["id"],)).fetchone()
             verification=con.execute("SELECT status,verification_method,verified_by,verified_at,review_note,updated_at FROM guest_identity_verifications WHERE guest_record_id=?",(r["id"],)).fetchone()
             out.append({"id":r["id"],"full_name":r["full_name"],"completeness":r["completeness"],"verification_status":verification["status"] if verification else ("not_submitted" if r["completeness"]!="complete" else "needs_review"),"verification_method":verification["verification_method"] if verification else None,"verified_at":verification["verified_at"] if verification else None,"review_note":verification["review_note"] if verification else "","latest_event":event["event_type"] if event else None,"latest_event_at":event["created_at"] if event else None})
-        return {"reservation_id":reservation_id,"registration_status":reservation["registration_status"],"owner_approval_required":True,"guests":out}
+        return {"reservation_id":reservation_id,"registration_status":state,"reservation_status":reservation["status"],"owner_approval_required":True,"guests":out}
 
 
 @app.get("/api/reservations/{reservation_id}/channex-availability-delivery")
@@ -4161,8 +4222,26 @@ def reservation_update(reservation_id: str, body: ReservationUpdateBody, rosa_se
     allowed={"property_id","room_type_id","guest_name","arrival_date","departure_date","guest_count","source","external_ref","total_huf","payment_status","registration_status","arrival_time","special_requests","status"}
     data={k:v for k,v in data.items() if k in allowed}
     with db() as con:
+        _lock_reservation(con,reservation_id,user["organization_id"])
         old=con.execute("SELECT * FROM reservations WHERE id=? AND organization_id=?",(reservation_id,user["organization_id"])).fetchone()
         if not old: raise HTTPException(404,"Reservation not found")
+        if "status" in data and data["status"] not in {"confirmed","inquiry","cancelled"}: raise HTTPException(400,"Invalid reservation status")
+        if "guest_count" in data:
+            if data["guest_count"] is None or data["guest_count"]<1: raise HTTPException(400,"Guest count must be at least 1")
+            count=con.execute("SELECT COUNT(*) c FROM guest_records WHERE reservation_id=?",(reservation_id,)).fetchone()["c"]
+            if data["guest_count"]<count:
+                untouched=con.execute("""SELECT g.id FROM guest_records g WHERE g.reservation_id=? AND g.completeness='incomplete'
+                    AND NOT EXISTS (SELECT 1 FROM guest_identity_verifications v WHERE v.guest_record_id=g.id)
+                    AND NOT EXISTS (SELECT 1 FROM sensitive_guest_data d WHERE d.guest_record_id=g.id)
+                    AND NOT EXISTS (SELECT 1 FROM guest_checkin_events e WHERE e.guest_record_id=g.id)
+                    AND NOT EXISTS (SELECT 1 FROM government_scan_events e WHERE e.guest_record_id=g.id)
+                    ORDER BY g.id DESC""",(reservation_id,)).fetchall()
+                excess=count-data["guest_count"]
+                if len(untouched)<excess: raise HTTPException(409,"Review existing guest records before reducing the guest count")
+                for g in untouched[:excess]:
+                    con.execute("DELETE FROM guest_checkin_tokens WHERE guest_record_id=?",(g["id"],))
+                    con.execute("DELETE FROM guest_records WHERE id=?",(g["id"],))
+        if "registration_status" in data: _validate_registration_label(con,old,data["registration_status"])
         arrival=data.get("arrival_date",old["arrival_date"]); departure=data.get("departure_date",old["departure_date"]); prop_id=data.get("property_id",old["property_id"]); room_type_id=data.get("room_type_id",old["room_type_id"] if "room_type_id" in old.keys() else None); status=data.get("status",old["status"]); validate_reservation_dates(arrival,departure)
         if not room_type_id:
             fallback=con.execute("SELECT id FROM room_types WHERE organization_id=? AND property_id=? AND active=1 ORDER BY created_at,id LIMIT 1",(user["organization_id"],prop_id)).fetchone()
@@ -4177,10 +4256,13 @@ def reservation_update(reservation_id: str, body: ReservationUpdateBody, rosa_se
         if "special_requests" in data: data["special_requests"]=json.dumps(data["special_requests"])
         if data:
             before={k:old[k] for k in data if k in old.keys()}
+            if any(k in data and data[k]!=old[k] for k in ("property_id","room_type_id","arrival_date","departure_date","guest_count","guest_name","status")):
+                _revoke_guest_links(con,reservation_id)
             data["updated_at"]=now_iso()
             con.execute("UPDATE reservations SET "+",".join(f"{k}=?" for k in data)+" WHERE id=?",[*data.values(),reservation_id])
             con.execute("INSERT INTO reservation_events VALUES (?,?,?,?,?,?,?)",(new_id("reve"),user["organization_id"],reservation_id,"updated","Reservation details changed.",json.dumps({"before":before,"after":data}),now_iso()))
             con.execute("INSERT INTO activity(organization_id,actor_user_id,message,created_at) VALUES (?,?,?,?)",(user["organization_id"],user["id"],f"{user['full_name']} updated reservation for {data.get('guest_name',old['guest_name'])}.",now_iso()))
+            _sync_registration(con,reservation_id,user["organization_id"])
             # A date/room/property/status change affects two inventory windows: the
             # old stay must be reopened and the new stay must be consumed. Queue both
             # transitions first and merge them into a single availability request per
@@ -4210,9 +4292,11 @@ def reservation_update(reservation_id: str, body: ReservationUpdateBody, rosa_se
 def reservation_cancel(reservation_id: str, rosa_session: str | None = Cookie(default=None)):
     user=require_user(rosa_session); require_roles(user,"owner","manager")
     with db() as con:
+        _lock_reservation(con,reservation_id,user["organization_id"])
         r=con.execute("SELECT * FROM reservations WHERE id=? AND organization_id=?",(reservation_id,user["organization_id"])).fetchone()
         if not r: raise HTTPException(404,"Reservation not found")
         ts=now_iso()
+        _revoke_guest_links(con,reservation_id)
         con.execute("UPDATE reservations SET status='cancelled',updated_at=? WHERE id=?",(ts,reservation_id))
         con.execute("INSERT INTO reservation_events VALUES (?,?,?,?,?,?,?)",(new_id("reve"),user["organization_id"],reservation_id,"cancelled","Reservation cancelled.",json.dumps({"guest_name":r['guest_name']}),ts))
         con.execute("INSERT INTO activity(organization_id,actor_user_id,message,created_at) VALUES (?,?,?,?)",(user["organization_id"],user["id"],f"{user['full_name']} cancelled {r['guest_name']}'s reservation.",ts))
@@ -4642,13 +4726,63 @@ def notification_read_all(rosa_session: str | None = Cookie(default=None)):
         return {"ok":True}
 
 
+class CleaningTaskBody(BaseModel):
+    property_id: str
+    title: str
+    scheduled_date: str
+    assigned_to: str | None = None
+
+
+class TaskAssignmentBody(BaseModel):
+    assigned_to: str | None = None
+
+
+def _validate_assignee(con, org, assignee, role):
+    if assignee and not con.execute("SELECT id FROM users WHERE id=? AND organization_id=? AND role=? AND active=1",(assignee,org,role)).fetchone():
+        raise HTTPException(400,"Invalid work assignee")
+
+
+@app.post("/api/work-tasks")
+def cleaning_task_create(body: CleaningTaskBody, request: Request, rosa_session: str | None = Cookie(default=None)):
+    user=require_user(rosa_session); require_roles(user,"owner","manager")
+    try: date.fromisoformat(body.scheduled_date)
+    except ValueError: raise HTTPException(400,"Invalid scheduled date")
+    if not body.title.strip(): raise HTTPException(400,"Task title is required")
+    org=user["organization_id"]
+    with db() as con:
+        if not con.execute("SELECT id FROM properties WHERE id=? AND organization_id=?",(body.property_id,org)).fetchone(): raise HTTPException(404,"Property not found")
+        _validate_assignee(con,org,body.assigned_to,"cleaner")
+        tid=new_id("task")
+        con.execute("INSERT INTO work_tasks(id,organization_id,property_id,assigned_to,task_type,title,scheduled_date,status,source_key,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (tid,org,body.property_id,body.assigned_to,"cleaning",body.title.strip(),body.scheduled_date,"open","manual:"+tid,now_iso()))
+        ensure_task_checklist(con,org,tid)
+        audit_event(con,org,"cleaning.created","Manual cleaning task created.",actor_user_id=user["id"],entity_type="work_task",entity_id=tid,request=request)
+    return {"ok":True,"id":tid}
+
+
+@app.patch("/api/work-tasks/{task_id}/assignment")
+def cleaning_task_assign(task_id: str, body: TaskAssignmentBody, request: Request, rosa_session: str | None = Cookie(default=None)):
+    user=require_user(rosa_session); require_roles(user,"owner","manager")
+    org=user["organization_id"]
+    with db() as con:
+        con.execute("UPDATE work_tasks SET id=id WHERE id=? AND organization_id=?",(task_id,org))
+        task=con.execute("SELECT * FROM work_tasks WHERE id=? AND organization_id=? AND task_type='cleaning'",(task_id,org)).fetchone()
+        if not task: raise HTTPException(404,"Task not found")
+        if task["status"]=="complete": raise HTTPException(409,"Completed cleaning cannot be reassigned")
+        _validate_assignee(con,org,body.assigned_to,"cleaner")
+        con.execute("UPDATE work_tasks SET assigned_to=? WHERE id=? AND organization_id=?",(body.assigned_to,task_id,org))
+        audit_event(con,org,"cleaning.assigned","Cleaning assignment changed.",actor_user_id=user["id"],entity_type="work_task",entity_id=task_id,request=request)
+    return {"ok":True}
+
+
 @app.post("/api/work-tasks/{task_id}/start")
 def start_task(task_id: str, rosa_session: str | None = Cookie(default=None)):
     user = require_user(rosa_session)
     require_roles(user, "cleaner", "maintenance")
     with db() as con:
+        con.execute("UPDATE work_tasks SET id=id WHERE id=? AND organization_id=?",(task_id,user["organization_id"]))
         task = con.execute("SELECT * FROM work_tasks WHERE id=? AND organization_id=? AND assigned_to=?", (task_id,user["organization_id"],user["id"])).fetchone()
-        if not task:
+        if not task or (task["task_type"]=="cleaning" and user["role"]!="cleaner"):
             raise HTTPException(404, "Task not found")
         if task["status"] == "complete":
             raise HTTPException(409, "Task is already complete")
@@ -4663,8 +4797,9 @@ def finish_task(task_id: str, body: NoteBody, rosa_session: str | None = Cookie(
     user = require_user(rosa_session)
     require_roles(user, "cleaner", "maintenance")
     with db() as con:
+        con.execute("UPDATE work_tasks SET id=id WHERE id=? AND organization_id=?",(task_id,user["organization_id"]))
         task = con.execute("SELECT * FROM work_tasks WHERE id=? AND organization_id=? AND assigned_to=?", (task_id,user["organization_id"],user["id"])).fetchone()
-        if not task:
+        if not task or (task["task_type"]=="cleaning" and user["role"]!="cleaner"):
             raise HTTPException(404, "Task not found")
         ensure_task_checklist(con,user["organization_id"],task_id)
         remaining=con.execute("SELECT COUNT(*) c FROM task_checklist_items WHERE task_id=? AND organization_id=? AND completed=0",(task_id,user["organization_id"])).fetchone()["c"]
@@ -4830,7 +4965,9 @@ def maintenance_list(rosa_session:str|None=Cookie(default=None)):
         args=[user["organization_id"]]
         if user["role"]=="maintenance":
             q+=" AND (m.assigned_to=? OR m.assigned_to IS NULL)"; args.append(user["id"])
-        elif user["role"] not in ("owner","manager","cleaner"):
+        elif user["role"]=="cleaner":
+            q+=" AND EXISTS (SELECT 1 FROM work_tasks t WHERE t.organization_id=m.organization_id AND t.property_id=m.property_id AND t.assigned_to=? AND t.status!='complete')"; args.append(user["id"])
+        elif user["role"] not in ("owner","manager"):
             raise HTTPException(403,"No access")
         q+=" ORDER BY CASE m.status WHEN 'reported' THEN 0 WHEN 'assigned' THEN 1 WHEN 'in_progress' THEN 2 WHEN 'open' THEN 0 WHEN 'resolved' THEN 3 ELSE 4 END,m.created_at DESC"
         return rows(con.execute(q,args))
@@ -4841,7 +4978,7 @@ def maintenance_create(body:MaintenanceCreateBody,rosa_session:str|None=Cookie(d
     if user["role"] not in ("owner","manager","cleaner"): raise HTTPException(403,"No access")
     with db() as con:
         prop=con.execute("SELECT name FROM properties WHERE id=? AND organization_id=?",(body.property_id,user["organization_id"])).fetchone()
-        if not prop: raise HTTPException(404,"Property not found")
+        if not prop or not _worker_property_access(con,user,body.property_id): raise HTTPException(404,"Property not found")
         mid=new_id("maint")
         maint=con.execute("SELECT id FROM users WHERE organization_id=? AND role='maintenance' AND active=1 LIMIT 1",(user["organization_id"],)).fetchone()
         ts=now_iso(); assigned=maint["id"] if maint else None
@@ -4852,14 +4989,8 @@ def maintenance_create(body:MaintenanceCreateBody,rosa_session:str|None=Cookie(d
 
 @app.post("/api/maintenance/{case_id}/resolve")
 def maintenance_resolve(case_id:str,rosa_session:str|None=Cookie(default=None)):
-    user=require_user(rosa_session)
-    if user["role"] not in ("owner","manager","maintenance"): raise HTTPException(403,"No access")
-    with db() as con:
-        m=con.execute("SELECT m.*,p.name property_name FROM maintenance_cases m JOIN properties p ON p.id=m.property_id WHERE m.id=? AND m.organization_id=?",(case_id,user["organization_id"])).fetchone()
-        if not m: raise HTTPException(404,"Case not found")
-        con.execute("UPDATE maintenance_cases SET status='resolved',resolved_at=?,updated_at=? WHERE id=?",(now_iso(),now_iso(),case_id))
-        con.execute("INSERT INTO activity(organization_id,actor_user_id,message,created_at) VALUES (?,?,?,?)",(user["organization_id"],user["id"],f"{user['full_name']} resolved {m['property_name']} maintenance: {m['title']}.",now_iso()))
-    return {"ok":True}
+    return maintenance_status(case_id, MaintenanceStatusBody(status="resolved"), None, rosa_session)
+
 
 @app.get("/api/rosa/provider")
 def rosa_provider_status(rosa_session:str|None=Cookie(default=None)):
@@ -5235,6 +5366,7 @@ def _execute_proposal(con: DBConnection, user: dict[str,Any], proposal: dict[str
         changed=[]
         previous={}
         for tid in task_ids:
+            con.execute("UPDATE work_tasks SET id=id WHERE id=? AND organization_id=?",(tid,user["organization_id"]))
             task=con.execute("SELECT id,assigned_to,status FROM work_tasks WHERE id=? AND organization_id=? AND task_type='cleaning'",(tid,user["organization_id"])).fetchone()
             if not task or task["status"]=="complete": continue
             previous[tid]=task["assigned_to"]
@@ -5496,13 +5628,14 @@ def guest_preference_save(guest_id:str,body:GuestPreferenceBody,request:Request,
 def registration_center(rosa_session:str|None=Cookie(default=None)):
     user=require_user(rosa_session); require_roles(user,"owner","manager")
     with db() as con:
-        rs=rows(con.execute("""SELECT r.id,r.guest_name,r.arrival_date,r.departure_date,r.guest_count,r.registration_status,p.name property_name FROM reservations r JOIN properties p ON p.id=r.property_id WHERE r.organization_id=? AND r.status='confirmed' AND r.departure_date>=? ORDER BY r.arrival_date LIMIT 30""",(user["organization_id"],str(date.today()-timedelta(days=1)))))
+        rs=rows(con.execute("""SELECT r.id,r.organization_id,r.guest_name,r.arrival_date,r.departure_date,r.guest_count,r.registration_status,p.name property_name FROM reservations r JOIN properties p ON p.id=r.property_id WHERE r.organization_id=? AND r.status='confirmed' AND r.departure_date>=? ORDER BY r.arrival_date LIMIT 30""",(user["organization_id"],str(date.today()-timedelta(days=1)))))
         for r in rs:
+            r["registration_status"]=_registration_state(con,r)
             records=rows(con.execute("SELECT id,full_name,nationality,completeness FROM guest_records WHERE reservation_id=? AND organization_id=? ORDER BY full_name",(r["id"],user["organization_id"])))
             complete=sum(1 for x in records if x["completeness"]=="complete")
             expected=max(r["guest_count"],len(records))
             r["guests"]=records
-            r["complete_count"]=complete if records else (expected if r["registration_status"]=="complete" else 0)
+            r["complete_count"]=complete
             r["expected_count"]=expected
             r["state"]="ready" if r["registration_status"]=="complete" else ("needs_owner" if r["arrival_date"]<=str(date.today()+timedelta(days=1)) else "waiting")
         return rs
@@ -5621,6 +5754,9 @@ def _ensure_guest_link_for_import(con: sqlite3.Connection, org_id: str, reservat
 
 
 def _record_sync_downstream(con: sqlite3.Connection, org_id: str, reservation_id: str, source_id: str, event_kind: str, guest_name: str, property_name: str):
+    if event_kind in {"changed","cancelled"}:
+        _revoke_guest_links(con,reservation_id)
+        _sync_registration(con,reservation_id,org_id)
     mode = organization_mode(con, org_id)
     status = "simulated" if mode == "observe" else "awaiting_approval"
     if event_kind == "new":
@@ -7420,7 +7556,8 @@ def _create_guest_checkin_token(con: DBConnection, reservation: Any, guest_recor
 
 
 def _public_checkin_token(con: DBConnection, token: str) -> Any:
-    row=con.execute("""SELECT t.*,r.guest_name,r.arrival_date,r.departure_date,r.guest_count,r.registration_status,p.name property_name,p.address,p.checkin_time,p.checkout_time,g.full_name guest_full_name,g.completeness
+    con.execute("UPDATE reservations SET id=id WHERE id=(SELECT reservation_id FROM guest_checkin_tokens WHERE token_hash=?)",(_guest_checkin_token_hash(token),))
+    row=con.execute("""SELECT t.*,r.guest_name,r.arrival_date,r.departure_date,r.guest_count,r.registration_status,r.status reservation_status,p.name property_name,p.address,p.checkin_time,p.checkout_time,g.full_name guest_full_name,g.completeness
                       FROM guest_checkin_tokens t
                       JOIN reservations r ON r.id=t.reservation_id
                       JOIN properties p ON p.id=t.property_id
@@ -7428,6 +7565,8 @@ def _public_checkin_token(con: DBConnection, token: str) -> Any:
                       WHERE t.token_hash=?""", (_guest_checkin_token_hash(token),)).fetchone()
     if not row: raise HTTPException(404,"This check-in link is invalid or has expired.")
     if row["status"]!="active": raise HTTPException(410,"This check-in link is no longer active.")
+    if row["property_id"]!=con.execute("SELECT property_id FROM reservations WHERE id=?",(row["reservation_id"],)).fetchone()["property_id"]: raise HTTPException(410,"This check-in link is no longer active.")
+    if row["reservation_status"]!="confirmed": raise HTTPException(410,"This check-in link is no longer active.")
     if row["expires_at"]<=now_iso():
         con.execute("UPDATE guest_checkin_tokens SET status='expired' WHERE token_hash=?",(_guest_checkin_token_hash(token),))
         raise HTTPException(410,"This check-in link has expired.")
@@ -7456,6 +7595,12 @@ def guest_checkin_get(token: str):
 def guest_checkin_submit(token: str, body: GuestCheckinSubmitBody, request: Request):
     if not body.guest_confirmed: raise HTTPException(400,"Please confirm that the information is correct.")
     if len(body.full_name.strip())<2: raise HTTPException(400,"Full name is required.")
+    if not all(x.strip() for x in (body.date_of_birth,body.nationality,body.document_type,body.document_number)):
+        raise HTTPException(400,"Required identity fields are missing.")
+    try:
+        born=date.fromisoformat(body.date_of_birth)
+        if born>date.today(): raise ValueError()
+    except ValueError: raise HTTPException(400,"Invalid birth date.")
     with db() as con:
         row=_public_checkin_token(con,token)
         guest_id=row["guest_record_id"]
@@ -7478,7 +7623,7 @@ def guest_checkin_submit(token: str, body: GuestCheckinSubmitBody, request: Requ
           VALUES (?,?,?,'needs_review',NULL,NULL,NULL,'',?)
           ON CONFLICT(guest_record_id) DO UPDATE SET status='needs_review',verification_method=NULL,verified_by=NULL,verified_at=NULL,review_note='',updated_at=excluded.updated_at""",(guest_id,row["organization_id"],row["reservation_id"],now_iso()))
         remaining=con.execute("SELECT COUNT(*) c FROM guest_records WHERE reservation_id=? AND completeness!='complete'",(row["reservation_id"],)).fetchone()["c"]
-        status="pending" if remaining==0 else "incomplete"
+        status=_sync_registration(con,row["reservation_id"],row["organization_id"])
         con.execute("UPDATE reservations SET registration_status=?,updated_at=? WHERE id=?",(status,now_iso(),row["reservation_id"]))
         audit_event(con,row["organization_id"],"guest.self_checkin.completed","Guest completed remote pre-check-in; owner verification is still required.",actor_type="guest",entity_type="guest_record",entity_id=guest_id,metadata={"reservation_id":row["reservation_id"],"scan_method":body.scan_method,"verification_status":"needs_review"})
         return {"ok":True,"status":"pre_checkin_complete_needs_owner_review","verification_status":"needs_review","reservation_registration_status":status,"remaining_guest_records":remaining}
@@ -7498,11 +7643,15 @@ def verify_guest_identity(reservation_id: str, guest_record_id: str, body: Guest
     if decision not in {"verify","reject"}: raise HTTPException(400,"Decision must be verify or reject.")
     if method not in {"in_person","video_call","identity_image","manual_review"}: raise HTTPException(400,"Unsupported verification method.")
     with db() as con:
-        reservation=con.execute("SELECT id,property_id,guest_count,registration_status FROM reservations WHERE id=? AND organization_id=?",(reservation_id,user["organization_id"])).fetchone()
+        _lock_reservation(con,reservation_id,user["organization_id"])
+        reservation=con.execute("SELECT * FROM reservations WHERE id=? AND organization_id=?",(reservation_id,user["organization_id"])).fetchone()
         if not reservation: raise HTTPException(404,"Reservation not found")
+        if reservation["status"]!="confirmed": raise HTTPException(409,"Identity review requires a confirmed reservation")
+        _ensure_guest_records(con,reservation)
         guest=con.execute("SELECT id,completeness FROM guest_records WHERE id=? AND reservation_id=? AND organization_id=?",(guest_record_id,reservation_id,user["organization_id"])).fetchone()
         if not guest: raise HTTPException(404,"Guest registration record not found")
         if guest["completeness"]!="complete": raise HTTPException(409,"Guest must submit their registration details before verification.")
+        previous_state=_registration_state(con,reservation)
         state="verified" if decision=="verify" else "rejected"
         note=body.review_note.strip()[:1000]
         verified_at=now_iso() if decision=="verify" else None
@@ -7512,25 +7661,31 @@ def verify_guest_identity(reservation_id: str, guest_record_id: str, body: Guest
         con.execute("INSERT INTO guest_checkin_events(id,organization_id,property_id,reservation_id,guest_record_id,event_type,metadata_json,created_at) VALUES (?,?,?,?,?,?,?,?)",(new_id("gce"),user["organization_id"],reservation["property_id"],reservation_id,guest_record_id,"owner_identity_"+state,json.dumps({"method":method,"review_note":note},ensure_ascii=False),now_iso()))
         pending=con.execute("""SELECT COUNT(*) c FROM guest_records g LEFT JOIN guest_identity_verifications v ON v.guest_record_id=g.id
           WHERE g.reservation_id=? AND (g.completeness!='complete' OR v.status!='verified' OR v.status IS NULL)""",(reservation_id,)).fetchone()["c"]
-        registration_status="complete" if pending==0 else ("pending" if con.execute("SELECT COUNT(*) c FROM guest_records WHERE reservation_id=? AND completeness='complete'",(reservation_id,)).fetchone()["c"]==int(reservation["guest_count"] or 1) else "incomplete")
-        con.execute("UPDATE reservations SET registration_status=?,updated_at=? WHERE id=?",(registration_status,now_iso(),reservation_id))
-        if pending==0 and reservation["registration_status"]!="complete":
+        registration_status=_sync_registration(con,reservation_id,user["organization_id"])
+        queued=False
+        if registration_status=="complete" and previous_state!="complete":
             _queue_government_events(con,user["organization_id"],reservation["property_id"],reservation_id,"guest.registration_verified")
+            queued=True
         audit_event(con,user["organization_id"],"guest.identity."+state,"Owner reviewed guest identity data.",actor_user_id=user["id"],entity_type="guest_record",entity_id=guest_record_id,metadata={"reservation_id":reservation_id,"method":method,"remaining_unverified":pending},request=request,session_id=user.get("session_id"))
-        return {"ok":True,"guest_record_id":guest_record_id,"verification_status":state,"remaining_unverified_guests":pending,"registration_status":registration_status,"government_submission_queued":pending==0}
+        return {"ok":True,"guest_record_id":guest_record_id,"verification_status":state,"remaining_unverified_guests":pending,"registration_status":registration_status,"government_submission_queued":queued}
 
 
 @app.get("/api/reservations/{reservation_id}/guest-checkin-links")
 def guest_checkin_links(reservation_id:str,request:Request,rosa_session:str|None=Cookie(default=None)):
     user=require_user(rosa_session); require_roles(user,"owner","manager")
     with db() as con:
+        _lock_reservation(con,reservation_id,user["organization_id"])
         reservation=con.execute("SELECT * FROM reservations WHERE id=? AND organization_id=?",(reservation_id,user["organization_id"])).fetchone()
         if not reservation: raise HTTPException(404,"Reservation not found")
+        if reservation["status"]!="confirmed": raise HTTPException(409,"Guest check-in links require a confirmed reservation.")
         if reservation["departure_date"] < str(date.today()): raise HTTPException(409,"Guest check-in links cannot be generated for a completed stay.")
         records=_ensure_guest_records(con,reservation)
+        if len(records)!=int(reservation["guest_count"]): raise HTTPException(409,"Guest records require review")
         base=str(request.base_url).rstrip("/")
         links=[]
         for record in records:
+            review=con.execute("SELECT status FROM guest_identity_verifications WHERE guest_record_id=?",(record["id"],)).fetchone()
+            if record["completeness"]=="complete" and (not review or review["status"]!="rejected"): continue
             existing=con.execute("SELECT token_hash FROM guest_checkin_tokens WHERE reservation_id=? AND guest_record_id=? AND status='active' AND expires_at>? ORDER BY created_at DESC LIMIT 1",(reservation_id,record["id"],now_iso())).fetchone()
             if existing:
                 # Existing raw token cannot be recovered; rotate it so the owner gets a usable URL.
@@ -7952,20 +8107,29 @@ def government_developer_readiness(system:str,property_id:str,rosa_session:str|N
 def government_viza_id_scan(body:GovernmentScanBody,request:Request,rosa_session:str|None=Cookie(default=None)):
     user=require_user(rosa_session); require_roles(user,"owner","manager")
     with db() as con:
-        reservation=con.execute("SELECT id,property_id FROM reservations WHERE id=? AND organization_id=?",(body.reservation_id,user["organization_id"])).fetchone()
+        _lock_reservation(con,body.reservation_id,user["organization_id"])
+        reservation=con.execute("SELECT * FROM reservations WHERE id=? AND organization_id=?",(body.reservation_id,user["organization_id"])).fetchone()
         if not reservation: raise HTTPException(404,"Reservation not found")
+        if reservation["status"]!="confirmed": raise HTTPException(409,"Identity collection requires a confirmed reservation")
         record=con.execute("SELECT * FROM guest_records WHERE id=? AND reservation_id=? AND organization_id=?",(body.guest_record_id,body.reservation_id,user["organization_id"])).fetchone()
         if not record: raise HTTPException(404,"Guest registration record not found")
         updates={k:v for k,v in {"full_name":body.full_name,"date_of_birth":body.date_of_birth,"nationality":body.nationality,"document_type":body.document_type,"document_number":body.document_number}.items() if v is not None}
+        if updates and all(record[k]==v for k,v in updates.items()) and con.execute("SELECT 1 FROM government_scan_events WHERE guest_record_id=? AND source='id_scanner' LIMIT 1",(body.guest_record_id,)).fetchone():
+            return {"ok":True,"duplicate":True,"registration_status":_sync_registration(con,body.reservation_id,user["organization_id"]),"remaining_guest_records":con.execute("SELECT COUNT(*) c FROM guest_records WHERE reservation_id=? AND completeness!='complete'",(body.reservation_id,)).fetchone()["c"]}
+        merged={**dict(record),**updates}
+        complete=all(str(merged.get(k) or '').strip() for k in ("full_name","date_of_birth","nationality","document_type","document_number"))
+        try:
+            complete=complete and date.fromisoformat(str(merged.get("date_of_birth") or ""))<=date.today()
+        except ValueError: complete=False
         if updates:
-            con.execute("UPDATE guest_records SET " + ",".join(f"{k}=?" for k in updates) + ",completeness='complete' WHERE id=?",tuple(updates.values())+(body.guest_record_id,))
+            con.execute("UPDATE guest_records SET " + ",".join(f"{k}=?" for k in updates) + ",completeness=? WHERE id=?",tuple(updates.values())+("complete" if complete else "incomplete",body.guest_record_id))
         con.execute("""INSERT INTO guest_identity_verifications(guest_record_id,organization_id,reservation_id,status,verification_method,verified_by,verified_at,review_note,updated_at)
           VALUES (?,?,?,'needs_review','manual_review',NULL,NULL,'',?)
           ON CONFLICT(guest_record_id) DO UPDATE SET status='needs_review',verification_method='manual_review',verified_by=NULL,verified_at=NULL,review_note='',updated_at=excluded.updated_at""",(body.guest_record_id,user["organization_id"],body.reservation_id,now_iso()))
-        con.execute("INSERT INTO government_scan_events(id,organization_id,property_id,reservation_id,guest_record_id,source,payload_json,created_at) VALUES (?,?,?,?,?,?,?,?)",(new_id("scan"),user["organization_id"],reservation["property_id"],body.reservation_id,body.guest_record_id,"id_scanner",json.dumps(body.model_dump(),ensure_ascii=False,separators=(",",":")),now_iso()))
+        con.execute("INSERT INTO government_scan_events(id,organization_id,property_id,reservation_id,guest_record_id,source,payload_json,created_at) VALUES (?,?,?,?,?,?,?,?)",(new_id("scan"),user["organization_id"],reservation["property_id"],body.reservation_id,body.guest_record_id,"id_scanner",json.dumps({"fields":sorted(updates)},ensure_ascii=False,separators=(",",":")),now_iso()))
         remaining=con.execute("SELECT COUNT(*) c FROM guest_records WHERE reservation_id=? AND completeness!='complete'",(body.reservation_id,)).fetchone()["c"]
-        status="pending" if remaining==0 else "incomplete"
-        con.execute("UPDATE reservations SET registration_status=?,updated_at=? WHERE id=?",(status,now_iso(),body.reservation_id))
+        status=_sync_registration(con,body.reservation_id,user["organization_id"])
+        _revoke_guest_links(con,body.reservation_id)
         audit_event(con,user["organization_id"],"government.viza.id_scan",f"Imported an ID-scanner result for reservation {body.reservation_id}.",actor_user_id=user["id"],entity_type="reservation",entity_id=body.reservation_id,metadata={"guest_record_id":body.guest_record_id,"registration_status":status},request=request,session_id=user.get("session_id"))
         return {"ok":True,"registration_status":status,"remaining_guest_records":remaining}
 
@@ -8386,6 +8550,8 @@ def rosa_action_undo(action_id:str,request:Request,rosa_session:str|None=Cookie(
         if not a["reversible"] or a["status"]!="executed" or a["undone_at"]: raise HTTPException(409,"This action cannot be undone")
         prev=json.loads(a["previous_json"] or "{}")
         if a["entity_type"]=="reservation" and a["entity_id"]:
+            _lock_reservation(con,a["entity_id"],user["organization_id"])
+            _revoke_guest_links(con,a["entity_id"])
             if prev.get("status")=="absent":
                 con.execute("UPDATE reservations SET status='cancelled' WHERE id=? AND organization_id=?",(a["entity_id"],user["organization_id"]))
             else:
@@ -8397,8 +8563,11 @@ def rosa_action_undo(action_id:str,request:Request,rosa_session:str|None=Cookie(
         if a["action_type"]=="reassign_cleaning":
             assignments=prev.get("assignments",{})
             for tid,assigned_to in assignments.items():
-                task=con.execute("SELECT id FROM work_tasks WHERE id=? AND organization_id=?",(tid,user["organization_id"])).fetchone()
-                if task: con.execute("UPDATE work_tasks SET assigned_to=? WHERE id=?",(assigned_to,tid))
+                con.execute("UPDATE work_tasks SET id=id WHERE id=? AND organization_id=?",(tid,user["organization_id"]))
+                task=con.execute("SELECT id,status FROM work_tasks WHERE id=? AND organization_id=?",(tid,user["organization_id"])).fetchone()
+                if not task or task["status"]=="complete": raise HTTPException(409,"Cleaning assignment can no longer be restored")
+                _validate_assignee(con,user["organization_id"],assigned_to,"cleaner")
+                con.execute("UPDATE work_tasks SET assigned_to=? WHERE id=?",(assigned_to,tid))
         con.execute("UPDATE rosa_actions SET status='undone',undone_at=? WHERE id=?",(now_iso(),action_id))
         audit_event(con,user["organization_id"],"rosa.action.undone",f"Rosa action undone: {a['action_type']}.",actor_user_id=user["id"],entity_type=a["entity_type"],entity_id=a["entity_id"],request=request,session_id=user.get("session_id"))
     refresh_cleaning_tasks(user["organization_id"])
@@ -8471,7 +8640,7 @@ def universal_search(q:str="",rosa_session:str|None=Cookie(default=None)):
 
 @app.get("/health/live")
 def health_live():
-    return {"status":"ok","service":"rosa","version":"2.10.55"}
+    return {"status":"ok","service":"rosa","version":APP_VERSION}
 
 @app.get("/health/ready")
 def health_ready():
@@ -8486,18 +8655,23 @@ def health_ready():
 @app.get("/api/system/runtime")
 def runtime_overview(rosa_session: str | None = Cookie(default=None)):
     user=require_user(rosa_session); require_roles(user,"owner","manager")
-    return {"version":"2.10.55","environment":APP_ENV,"database_backend":DB_BACKEND,"data_path":str(DB_PATH),"demo_mode":DEMO_MODE,"secure_cookies":SECURE_COOKIES,"schema_version":SCHEMA_VERSION,"ai_strategy":"local_first","ai_provider":AI_PROVIDER,"ai_model":OPENAI_MODEL if AI_PROVIDER=="openai" and OPENAI_API_KEY else None,"ai_configured":bool(OPENAI_API_KEY) if AI_PROVIDER=="openai" else False,"production_requirements":{"postgresql":True,"secure_cookies":True,"demo_disabled":True,"encryption_key":True}}
+    return {"version":APP_VERSION,"environment":APP_ENV,"database_backend":DB_BACKEND,"data_path":str(DB_PATH),"demo_mode":DEMO_MODE,"secure_cookies":SECURE_COOKIES,"schema_version":SCHEMA_VERSION,"ai_strategy":"local_first","ai_provider":AI_PROVIDER,"ai_model":OPENAI_MODEL if AI_PROVIDER=="openai" and OPENAI_API_KEY else None,"ai_configured":bool(OPENAI_API_KEY) if AI_PROVIDER=="openai" else False,"production_requirements":{"postgresql":True,"secure_cookies":True,"demo_disabled":True,"encryption_key":True}}
 
 @app.get("/api/reservations/{reservation_id}/detail")
 def reservation_detail(reservation_id: str, rosa_session: str | None = Cookie(default=None)):
     user=require_user(rosa_session); require_permission(user,"reservations.read")
     org=user["organization_id"]
     with db() as con:
+        _lock_reservation(con,reservation_id,org)
         r=con.execute("""SELECT r.*,p.name property_name,p.checkin_time,p.checkout_time,p.address FROM reservations r JOIN properties p ON p.id=r.property_id WHERE r.id=? AND r.organization_id=?""",(reservation_id,org)).fetchone()
         if not r: raise HTTPException(404,"Reservation not found")
         notes=rows(con.execute("""SELECT n.*,u.full_name author_name FROM reservation_notes n LEFT JOIN users u ON u.id=n.author_user_id WHERE n.reservation_id=? AND n.organization_id=? ORDER BY n.created_at DESC""",(reservation_id,org)))
         messages=rows(con.execute("SELECT id,source,sender_name,subject,body,received_at,status FROM inbox_messages WHERE reservation_id=? AND organization_id=? ORDER BY received_at DESC",(reservation_id,org)))
-        records=rows(con.execute("SELECT id,full_name,nationality,completeness FROM guest_records WHERE reservation_id=? AND organization_id=? ORDER BY full_name",(reservation_id,org)))
+        state=_sync_registration(con,reservation_id,org)
+        r=dict(r); r["registration_status"]=state
+        records=rows(con.execute("""SELECT g.id,g.full_name,g.nationality,g.completeness,COALESCE(v.status,'not_submitted') verification_status
+            FROM guest_records g LEFT JOIN guest_identity_verifications v ON v.guest_record_id=g.id
+            WHERE g.reservation_id=? AND g.organization_id=? ORDER BY g.full_name""",(reservation_id,org)))
         cleaning=rows(con.execute("""SELECT t.*,u.full_name assigned_name FROM work_tasks t LEFT JOIN users u ON u.id=t.assigned_to WHERE t.organization_id=? AND (t.previous_reservation_id=? OR t.next_reservation_id=?) ORDER BY t.scheduled_date""",(org,reservation_id,reservation_id)))
         events=rows(con.execute("SELECT event_type,summary,metadata_json,created_at FROM reservation_events WHERE reservation_id=? AND organization_id=? ORDER BY created_at DESC",(reservation_id,org)))
         guest=con.execute("""SELECT g.* FROM guest_reservations gr JOIN guests g ON g.id=gr.guest_id WHERE gr.reservation_id=? AND g.organization_id=? AND gr.is_primary=1 LIMIT 1""",(reservation_id,org)).fetchone()
@@ -8518,10 +8692,13 @@ def reservation_registration_reminder(reservation_id: str, request: Request, ros
     user=require_user(rosa_session); require_roles(user,"owner","manager")
     org=user["organization_id"]
     with db() as con:
+        _lock_reservation(con,reservation_id,org)
         r=con.execute("""SELECT r.*,p.name property_name,p.address,p.checkin_time,p.checkout_time
                          FROM reservations r JOIN properties p ON p.id=r.property_id
                          WHERE r.id=? AND r.organization_id=?""",(reservation_id,org)).fetchone()
         if not r: raise HTTPException(404,"Reservation not found")
+        r=dict(r); r["registration_status"]=_sync_registration(con,reservation_id,org)
+        if r["status"]!="confirmed": raise HTTPException(409,"Registration reminder requires a confirmed reservation")
         if r["registration_status"]=="complete": raise HTTPException(409,"Registration is already complete")
         rule=con.execute("SELECT * FROM automation_rules WHERE organization_id=? AND rule_key='registration_reminder' LIMIT 1",(org,)).fetchone()
         existing=con.execute("""SELECT id,status FROM communication_outbox WHERE organization_id=? AND reservation_id=?
@@ -8560,6 +8737,7 @@ def reservation_operational_update(reservation_id: str, body: ReservationOperati
     user=require_user(rosa_session); require_permission(user,"reservations.write")
     allowed_payment={"unknown","unpaid","partial","paid","refunded"}; allowed_registration={"incomplete","pending","complete"}
     with db() as con:
+        _lock_reservation(con,reservation_id,user["organization_id"])
         r=con.execute("SELECT * FROM reservations WHERE id=? AND organization_id=?",(reservation_id,user["organization_id"])).fetchone()
         if not r: raise HTTPException(404,"Reservation not found")
         updates={}; before={}
@@ -8569,6 +8747,7 @@ def reservation_operational_update(reservation_id: str, body: ReservationOperati
             updates["payment_status"]=body.payment_status
         if body.registration_status is not None:
             if body.registration_status not in allowed_registration: raise HTTPException(400,"Invalid registration status")
+            _validate_registration_label(con,r,body.registration_status)
             updates["registration_status"]=body.registration_status
         if body.special_requests is not None: updates["special_requests"]=json.dumps([x.strip() for x in body.special_requests if x.strip()])
         if not updates: return {"ok":True}
@@ -8585,7 +8764,7 @@ def checklist_get(task_id: str, rosa_session: str | None = Cookie(default=None))
     user=require_user(rosa_session); require_roles(user,"owner","manager","cleaner")
     with db() as con:
         task=con.execute("SELECT * FROM work_tasks WHERE id=? AND organization_id=?",(task_id,user["organization_id"])).fetchone()
-        if not task: raise HTTPException(404,"Task not found")
+        if not task or (user["role"]=="cleaner" and task["assigned_to"]!=user["id"]): raise HTTPException(404,"Task not found")
         ensure_task_checklist(con,user["organization_id"],task_id)
         items=rows(con.execute("SELECT id,label,sort_order,completed,completed_by,completed_at FROM task_checklist_items WHERE task_id=? AND organization_id=? ORDER BY sort_order",(task_id,user["organization_id"])))
     return items
@@ -8594,9 +8773,10 @@ def checklist_get(task_id: str, rosa_session: str | None = Cookie(default=None))
 def checklist_toggle(task_id: str, item_id: str, body: ChecklistToggleBody, request: Request, rosa_session: str | None = Cookie(default=None)):
     user=require_user(rosa_session); require_roles(user,"cleaner")
     with db() as con:
+        con.execute("UPDATE work_tasks SET id=id WHERE id=? AND organization_id=?",(task_id,user["organization_id"]))
         task=con.execute("SELECT * FROM work_tasks WHERE id=? AND organization_id=?",(task_id,user["organization_id"])).fetchone()
         item=con.execute("SELECT * FROM task_checklist_items WHERE id=? AND task_id=? AND organization_id=?",(item_id,task_id,user["organization_id"])).fetchone()
-        if not task or not item: raise HTTPException(404,"Checklist item not found")
+        if not task or not item or task["assigned_to"]!=user["id"]: raise HTTPException(404,"Checklist item not found")
         if task["status"]=="complete": raise HTTPException(409,"Completed cleaning cannot be edited")
         con.execute("UPDATE task_checklist_items SET completed=?,completed_by=?,completed_at=? WHERE id=?",(1 if body.completed else 0,user["id"] if body.completed else None,now_iso() if body.completed else None,item_id))
         audit_event(con,user["organization_id"],"cleaning.checklist_updated",f"Checklist item {'completed' if body.completed else 'reopened'}: {item['label']}",actor_user_id=user["id"],entity_type="work_task",entity_id=task_id,request=request)
@@ -8610,9 +8790,23 @@ def maintenance_status(case_id: str, body: MaintenanceStatusBody, request: Reque
     if user["role"]=="cleaner" and body.status not in {"reported"}: raise HTTPException(403,"Cleaner can only report maintenance")
     if user["role"]=="maintenance" and body.status=="verified": raise HTTPException(403,"Owner or manager must verify resolved work")
     with db() as con:
+        con.execute("UPDATE maintenance_cases SET id=id WHERE id=? AND organization_id=?",(case_id,user["organization_id"]))
         row=con.execute("SELECT * FROM maintenance_cases WHERE id=? AND organization_id=?",(case_id,user["organization_id"])).fetchone()
         if not row: raise HTTPException(404,"Case not found")
+        operator=user["role"] in {"owner","manager"}
+        if not operator:
+            if user["role"]!="maintenance" or row["assigned_to"] not in (None,user["id"]):
+                raise HTTPException(404,"Case not found")
+            if "assigned_to" in body.model_fields_set: raise HTTPException(403,"Only operators can assign work")
+            if body.status not in {"in_progress","resolved"}: raise HTTPException(403,"No access")
+        if row["status"]=="verified" and body.status!="verified": raise HTTPException(409,"Verified work cannot be reopened")
+        if body.status=="verified" and row["status"] not in {"resolved","verified"}: raise HTTPException(409,"Resolve work before verification")
         fields={"status":body.status,"updated_at":now_iso()}
+        if not operator and row["assigned_to"] is None:
+            fields["assigned_to"]=user["id"]
+        if body.assigned_to:
+            target=con.execute("SELECT id FROM users WHERE id=? AND organization_id=? AND active=1 AND role='maintenance'",(body.assigned_to,user["organization_id"])).fetchone()
+            if not target: raise HTTPException(400,"Invalid maintenance assignee")
         if body.assigned_to is not None: fields["assigned_to"]=body.assigned_to or None
         if body.status=="in_progress": fields["started_at"]=now_iso()
         if body.status=="resolved": fields["resolved_at"]=now_iso()
@@ -8640,6 +8834,12 @@ def sensitive_guest_save(guest_record_id: str, body: SensitiveGuestBody, request
     with db() as con:
         rec=con.execute("SELECT id,reservation_id FROM guest_records WHERE id=? AND organization_id=?",(guest_record_id,user["organization_id"])).fetchone()
         if not rec: raise HTTPException(404,"Guest record not found")
+        _lock_reservation(con,rec["reservation_id"],user["organization_id"])
+        previous=con.execute("SELECT encrypted_payload FROM sensitive_guest_data WHERE guest_record_id=? AND organization_id=?",(guest_record_id,user["organization_id"])).fetchone()
+        if previous and decrypt_json(previous["encrypted_payload"])==payload:
+            return {"ok":True,"duplicate":True}
+        con.execute("UPDATE guest_identity_verifications SET status='needs_review',verified_by=NULL,verified_at=NULL,updated_at=? WHERE guest_record_id=? AND organization_id=?",(now_iso(),guest_record_id,user["organization_id"]))
+        _sync_registration(con,rec["reservation_id"],user["organization_id"])
         encrypted=encrypt_json(payload)
         con.execute("INSERT INTO sensitive_guest_data(guest_record_id,organization_id,encrypted_payload,updated_at) VALUES (?,?,?,?) ON CONFLICT(guest_record_id) DO UPDATE SET encrypted_payload=excluded.encrypted_payload,updated_at=excluded.updated_at",(guest_record_id,user["organization_id"],encrypted,now_iso()))
         audit_event(con,user["organization_id"],"registration.sensitive_updated","Sensitive registration record updated.",actor_user_id=user["id"],entity_type="guest_record",entity_id=guest_record_id,metadata={"fields":[k for k,v in payload.items() if v]},request=request)
@@ -8656,9 +8856,8 @@ def operational_properties(rosa_session: str | None = Cookie(default=None)):
         args=[org]
         if user["role"]=="cleaner":
             query+=""" AND (EXISTS (SELECT 1 FROM work_tasks t WHERE t.organization_id=p.organization_id
-                         AND t.property_id=p.id AND t.assigned_to=?)
-                         OR EXISTS (SELECT 1 FROM maintenance_cases m WHERE m.organization_id=p.organization_id
-                         AND m.property_id=p.id))"""
+                         AND t.property_id=p.id AND t.assigned_to=? AND t.status!='complete')
+                         )"""
             args.append(user["id"])
         elif user["role"]=="maintenance":
             query+=""" AND EXISTS (SELECT 1 FROM maintenance_cases m WHERE m.organization_id=p.organization_id

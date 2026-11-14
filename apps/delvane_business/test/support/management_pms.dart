@@ -1,4 +1,5 @@
 import 'package:delvane_business/core/network/api_client.dart';
+
 import 'workflow_pms.dart';
 import 'fake_pms.dart';
 
@@ -73,6 +74,7 @@ class ManagementPms extends WorkflowPms {
         path.startsWith('/api/authority/') ||
         path == '/api/worker/dashboard' ||
         path.startsWith('/api/work-tasks/') ||
+        path == '/api/work-tasks' ||
         path == '/api/properties/p1/overview' ||
         path == '/api/properties/p1/room-types';
     if (!custom) return super.request(method, uri, headers, body);
@@ -92,6 +94,10 @@ class ManagementPms extends WorkflowPms {
       return json({'detail': 'synthetic private diagnostic'}, 503);
     }
     final operator = role == 'owner' || role == 'manager';
+    if (path == '/api/work-tasks' || path.endsWith('/assignment')) {
+      if (!operator) return json({}, 403);
+      return json({'ok': true, 'id': 'created-work'});
+    }
     if (path == '/api/worker/dashboard') {
       return json({
         'date': '2032-05-10',

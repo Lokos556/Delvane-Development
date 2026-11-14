@@ -1,4 +1,7 @@
 {
+  "The server does not match the selected API environment.": "A szerver nem felel meg a kiválasztott API-környezetnek.",
+  "Invalid API configuration. Check the build environment and backend origin.": "Érvénytelen API-beállítás. Ellenőrizd a build környezetét és a kiszolgáló címét.",
+  "Sign in to your operational workspace. Your backend remains the source of truth.": "Jelentkezz be a munkaterületedre. Az adatokat továbbra is a kiszolgáló kezeli.",
   "check_in": "Bejelentkezés", "arrival_preparation": "Érkezés előkészítése",
   "booking_confirmed": "Foglalás visszaigazolva", "registration": "Vendégregisztráció",
   "done": "Kész", "skip": "Kihagyva", "waiting": "Várakozik", "due": "Esedékes",
@@ -728,5 +731,11 @@
   "Mon": "H", "Tue": "K", "Wed": "Sze", "Thu": "Cs", "Fri": "P", "Sat": "Szo", "Sun": "V",
   "Active mapping": "Aktív hozzárendelés", "Inactive mapping": "Inaktív hozzárendelés", "Not set": "Nincs beállítva",
   "All": "Összes", "Maintenance": "Karbantartás", "Settings": "Beállítások", "Search": "Keresés", "Close": "Bezárás", "Loading…": "Betöltés…",
-  "Active": "Aktív", "Inactive": "Inaktív", "Suspended": "Felfüggesztve", "Cancelled": "Lemondva", "Confirmed": "Visszaigazolva", "Draft": "Piszkozat", "Approved": "Jóváhagyva", "Rejected": "Elutasítva", "Scheduled": "Ütemezve", "Sent": "Elküldve", "Failed": "Sikertelen", "Open": "Nyitott", "Resolved": "Megoldva", "Verified": "Ellenőrizve", "Unassigned": "Nincs felelős", "Ready": "Kész", "Blocked": "Zárolva", "High": "Magas", "Normal": "Normál", "Low": "Alacsony", "Urgent": "Sürgős", "Observe": "Megfigyelő", "Assist": "Támogatott", "Autonomous": "Önálló"
+  "Active": "Aktív", "Inactive": "Inaktív", "Suspended": "Felfüggesztve", "Cancelled": "Lemondva", "Confirmed": "Visszaigazolva", "Draft": "Piszkozat", "Approved": "Jóváhagyva", "Rejected": "Elutasítva", "Scheduled": "Ütemezve", "Sent": "Elküldve", "Failed": "Sikertelen", "Open": "Nyitott", "Resolved": "Megoldva", "Verified": "Ellenőrizve", "Unassigned": "Nincs felelős", "Ready": "Kész", "Blocked": "Zárolva", "High": "Magas", "Normal": "Normál", "Low": "Alacsony", "Urgent": "Sürgős", "Observe": "Megfigyelő", "Assist": "Támogatott", "Autonomous": "Önálló",
+  "Create cleaning task": "Takarítási feladat létrehozása",
+  "Assign work": "Feladat kiosztása",
+  "Assignee": "Felelős munkatárs",
+  "Select an active assignee.": "Válasszon aktív munkatársat.",
+  "Registration follows guest data and identity review.": "A regisztráció állapota a vendégadatok kitöltésétől és a személyazonosság ellenőrzésétől függ.",
+  "Enter a valid date.": "Adjon meg érvényes dátumot."
 }

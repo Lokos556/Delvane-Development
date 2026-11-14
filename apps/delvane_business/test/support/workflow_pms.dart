@@ -1,4 +1,5 @@
 import 'package:delvane_business/core/network/api_client.dart';
+
 import 'fake_pms.dart';
 
 /// Stateful contract double; live application code never imports test fixtures.
@@ -117,6 +118,7 @@ class WorkflowPms extends FakePms {
               'full_name': 'Synthetic Guest',
               'nationality': 'HU',
               'completeness': 'complete',
+              'verification_status': verification,
             },
           ],
           'cleaning': [task],
@@ -134,6 +136,8 @@ class WorkflowPms extends FakePms {
       }
       if (path.endsWith('/guest-checkin-status')) {
         return json({
+          'reservation_status': booking['status'],
+          'registration_status': booking['registration_status'],
           'guests': [
             {
               'id': 'guest1',

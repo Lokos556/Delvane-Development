@@ -8,6 +8,7 @@ import '../domain/business_repository.dart';
 import '../shared/app_shell.dart';
 import '../core/auth/auth_controller.dart';
 import '../core/auth/session_store.dart';
+import '../core/network/api_configuration.dart';
 import '../features/workspace/login_page.dart';
 import '../features/pms/pms_shell.dart';
 import 'controller.dart';
@@ -34,6 +35,7 @@ class _DelvaneBusinessAppState extends State<DelvaneBusinessApp> {
   AuthController? auth;
   late bool showDemo;
   bool _localeReady = false;
+  String? configurationError;
   String? navigatorIdentity;
   GlobalKey<NavigatorState> workspaceNavigator = GlobalKey<NavigatorState>();
   @override
@@ -53,18 +55,22 @@ class _DelvaneBusinessAppState extends State<DelvaneBusinessApp> {
         widget.repository ?? MockBusinessRepository(),
       )..load();
     } else {
-      auth =
-          widget.auth ??
-          AuthController(
-            origin: Uri.parse(
-              const String.fromEnvironment(
-                'DELVANE_API_ORIGIN',
-                defaultValue: 'http://127.0.0.1:8765',
-              ),
-            ),
-            store: const PlatformSessionStore(),
-          );
-      if (auth!.phase == AuthPhase.restoring) auth!.restore();
+      try {
+        final configuration = widget.auth == null
+            ? ApiConfiguration.fromBuild()
+            : null;
+        auth =
+            widget.auth ??
+            AuthController(
+              origin: configuration!.origin,
+              environment: configuration.environment,
+              store: const PlatformSessionStore(),
+            );
+        if (auth!.phase == AuthPhase.restoring) auth!.restore();
+      } on ArgumentError {
+        // Do not log invalid URLs: they might contain accidentally embedded secrets.
+        configurationError = 'Invalid API configuration. Check the build environment and backend origin.';
+      }
     }
   }
 
@@ -90,6 +96,17 @@ class _DelvaneBusinessAppState extends State<DelvaneBusinessApp> {
     theme: delvaneTheme(),
     home: !_localeReady
         ? const Scaffold(body: Center(child: CircularProgressIndicator()))
+        : configurationError != null
+        ? Scaffold(
+            body: SafeArea(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(ui(configurationError!)),
+                ),
+              ),
+            ),
+          )
         : showDemo
         ? (widget.demoMode
               ? AppShell(controller: controller!)

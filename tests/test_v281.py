@@ -19,8 +19,8 @@ def fresh(tmp_path,monkeypatch):
 def test_v281_runtime_and_today_registration_is_contextual(tmp_path,monkeypatch):
     c=fresh(tmp_path,monkeypatch)
     runtime=c.get('/api/system/runtime').json()
-    assert runtime['version']=='2.10.27'
-    assert runtime['schema_version']==3056
+    assert runtime['version']==rosa.APP_VERSION==rosa.app.version
+    assert runtime['schema_version']==rosa.SCHEMA_VERSION
     today=c.get('/api/operations/today-command').json()
     assert 'registration_risks' in today
     # The contextual surface must only carry incomplete, near-term registration work.
@@ -63,6 +63,14 @@ def test_prepare_registration_reminder_creates_reception_draft_only(tmp_path,mon
 
 def test_complete_registration_does_not_prepare_reminder(tmp_path,monkeypatch):
     c=fresh(tmp_path,monkeypatch)
+    with rosa.db() as con:
+        rid='res_terra_next'
+        reservation=con.execute("SELECT * FROM reservations WHERE id=?",(rid,)).fetchone()
+        records=rosa._ensure_guest_records(con,reservation)
+        for record in records:
+            con.execute("UPDATE guest_records SET completeness='complete' WHERE id=?",(record['id'],))
+            con.execute("INSERT INTO guest_identity_verifications(guest_record_id,organization_id,reservation_id,status,updated_at) VALUES (?,?,?,'verified',?) ON CONFLICT(guest_record_id) DO UPDATE SET status='verified'",(record['id'],reservation['organization_id'],rid,rosa.now_iso()))
+        rosa._sync_registration(con,rid,reservation['organization_id'])
     center=c.get('/api/registration').json()
     complete=next(x for x in center if x['registration_status']=='complete')
     r=c.post(f"/api/reservations/{complete['id']}/registration-reminder")

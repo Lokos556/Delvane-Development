@@ -463,7 +463,6 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
       await widget.api.operations(widget.id, {
         'arrival_time': arrival.text,
         'payment_status': payment,
-        'registration_status': registration,
       });
     });
   }
@@ -620,22 +619,8 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
                 },
                 onChanged: busy ? null : (v) => setState(() => payment = v),
               ),
-              PmsSelect(
-                t('Registration'),
-                value: registration,
-                items: {
-                  for (final v in {
-                    'incomplete',
-                    'pending',
-                    'complete',
-                    registration,
-                  })
-                    v: t(v),
-                },
-                onChanged: busy
-                    ? null
-                    : (v) => setState(() => registration = v),
-              ),
+              Text('${t('Registration')}: ${t(registration)}'),
+              Text(ui('Registration follows guest data and identity review.')),
               PmsButton(
                 t('Save'),
                 primary: true,
@@ -770,14 +755,14 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
               contentPadding: EdgeInsets.zero,
               title: Text(text(g, 'full_name')),
               subtitle: Text(
-                '${text(g, 'nationality', '—')} · ${text(g, 'completeness')}',
+                '${text(g, 'nationality', '—')} · ${t(text(g, 'completeness'))} · ${t(text(g, 'verification_status', 'not_submitted'))}',
               ),
             ),
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: [
-              if (registration != 'complete') ...[
+              if (registration != 'complete' && r['status'] == 'confirmed') ...[
                 PmsButton(
                   ui('Send guest check-in link'),
                   onPressed: busy ? null : links,
@@ -805,7 +790,7 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
               ],
               PmsButton(
                 ui('Review identity verification'),
-                onPressed: busy ? null : verify,
+                onPressed: busy || r['status'] != 'confirmed' ? null : verify,
               ),
             ],
           ),
@@ -985,6 +970,7 @@ class IdentityReview extends StatefulWidget {
 class _IdentityReviewState extends State<IdentityReview>
     with PmsActions<IdentityReview> {
   List<Json>? guests;
+  bool confirmed = false;
   final notes = <String, TextEditingController>{};
   final methods = <String, String>{};
   @override
@@ -999,6 +985,7 @@ class _IdentityReviewState extends State<IdentityReview>
         '/api/reservations/${idPath(widget.id)}/guest-checkin-status',
       );
       guests = optionalRows(data['guests']);
+      confirmed = data['reservation_status'] == 'confirmed';
     });
   }
 
@@ -1072,7 +1059,8 @@ class _IdentityReviewState extends State<IdentityReview>
                     ),
                   if (text(guest, 'review_note').isNotEmpty)
                     Text(text(guest, 'review_note')),
-                  if (guest['completeness'] == 'complete' &&
+                  if (confirmed &&
+                      guest['completeness'] == 'complete' &&
                       guest['verification_status'] != 'verified') ...[
                     PmsSelect(
                       ui('Verification method'),

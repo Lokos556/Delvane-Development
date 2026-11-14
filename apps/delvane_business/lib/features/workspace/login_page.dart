@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../app/theme.dart';
 import '../../core/auth/auth_controller.dart';
+import '../../core/network/api_configuration.dart';
 import '../../shared/components.dart';
 
 class LoginPage extends StatefulWidget {
@@ -62,7 +63,9 @@ class _LoginPageState extends State<LoginPage> {
                     const SizedBox(height: 8),
                     Text(
                       ui(
-                        'Sign in to your isolated operational workspace. Your backend remains the source of truth.',
+                        widget.auth.environment == ApiEnvironment.local
+                            ? 'Sign in to your isolated operational workspace. Your backend remains the source of truth.'
+                            : 'Sign in to your operational workspace. Your backend remains the source of truth.',
                       ),
                     ),
                     const SizedBox(height: 12),

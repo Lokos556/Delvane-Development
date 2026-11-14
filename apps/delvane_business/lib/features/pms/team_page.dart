@@ -1,3 +1,5 @@
+import 'work_assignment_dialog.dart';
+
 import 'package:material_ui/material_ui.dart';
 
 import '../../core/localization/system_labels.dart';
@@ -22,6 +24,17 @@ class _TeamPageState extends State<TeamPage> {
   PmsController get c => widget.c;
   bool get canManage =>
       c.user.role == 'owner' && c.object('team')['can_manage'] == true;
+  Future<void> assignWork([Json? work]) async {
+    if (!c.user.isOperator) return;
+    final changed = await showDialog<bool>(
+      context: context,
+      useRootNavigator: false,
+      barrierDismissible: false,
+      builder: (_) => WorkAssignmentDialog(c: c, work: work),
+    );
+    if (changed == true && mounted) await c.load();
+  }
+
   Future<void> edit([Json? member]) async {
     if (!canManage) return;
     await showDialog<void>(
@@ -151,6 +164,11 @@ class _TeamPageState extends State<TeamPage> {
           ),
         ],
         if (tab == 2) ...[
+          if (c.user.isOperator)
+            PmsButton(
+              ui('Create cleaning task'),
+              onPressed: c.saving ? null : () => assignWork(),
+            ),
           PmsEyebrow(ui('NEXT 7 DAYS')),
           Text(
             ui('Workload by person'),
@@ -187,6 +205,12 @@ class _TeamPageState extends State<TeamPage> {
                   ),
                   Text(text(w, 'assigned_name', 'Unassigned')),
                   PmsBadge(text(w, 'status')),
+                  if (c.user.isOperator &&
+                      !['complete', 'verified'].contains(w['status']))
+                    PmsButton(
+                      ui('Assign work'),
+                      onPressed: c.saving ? null : () => assignWork(w),
+                    ),
                 ],
               ),
             ),

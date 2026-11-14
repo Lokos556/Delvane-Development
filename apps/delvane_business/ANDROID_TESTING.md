@@ -1,5 +1,12 @@
 # Android USB development testing
 
+**2026-11-14 environment preparation:** local builds still use the same isolated
+`127.0.0.1:8765` backend and USB reverse helper. Future HTTPS staging/production URLs
+are explicit build configuration and do not use USB reversal. See
+[API_ENVIRONMENTS.md](API_ENVIRONMENTS.md) for configuration, credential separation,
+iOS preparation, build results and the scoped host-JDK TEMP workaround used for
+the latest successful Android debug build. No remote server has been deployed.
+
 ## Mobile UI and Hungarian update — 2026-11-13
 
 The app retains Flutter **3.50.0 / Dart 3.14.0**. Hungarian is the default; choose

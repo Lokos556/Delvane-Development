@@ -1,5 +1,9 @@
 # Web-fidelity port in progress
 
+For configurable localhost, future HTTPS staging/production and iOS preparation,
+see [API_ENVIRONMENTS.md](API_ENVIRONMENTS.md). The default isolated Windows and
+Android USB workflow remains unchanged; no remote server has been deployed.
+
 The validated SDK baseline is now **Flutter 3.50.0 / Dart 3.14.0**, with intl 0.20.3.
 See [FLUTTER_UPGRADE.md](FLUTTER_UPGRADE.md) for exact dependency/toolchain versions,
 Android/Windows validation and the proposed pinned Codemagic iOS configuration.

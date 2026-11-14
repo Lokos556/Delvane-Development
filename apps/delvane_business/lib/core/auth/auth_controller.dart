@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:flutter/foundation.dart';
+
 import '../network/api_client.dart';
+import '../network/api_configuration.dart';
 import 'session_store.dart';
 
 enum AuthPhase { restoring, signedOut, signingIn, authenticated, disconnected }
@@ -47,20 +50,29 @@ class AuthController extends ChangeNotifier {
     required this.store,
     ApiTransport? transport,
     DateTime Function()? clock,
+    this.environment = ApiEnvironment.local,
   }) : now = clock ?? DateTime.now {
+    final configuration = ApiConfiguration(
+      environment: environment,
+      origin: origin,
+    );
     api = ApiClient(
-      baseUrl: origin,
+      baseUrl: configuration.origin,
       transport: transport,
-      allowInsecureLoopback: true,
+      allowInsecureLoopback: configuration.isLocal,
       sessionHeaders: () => {
         if (_cookie != null) 'Cookie': 'rosa_session=$_cookie',
         if (_csrf != null) 'X-Rosa-CSRF': _csrf!,
       },
     );
     api.onUnauthorized = _expired;
+    // Preserve existing local sessions; remote namespaces cannot reuse them.
     storageKey =
-        'delvane.business.session.v1.${Uri.encodeComponent(origin.origin)}';
+        'delvane.business.session.v1.'
+        '${configuration.isLocal ? '' : '${environment.name}.'}'
+        '${Uri.encodeComponent(configuration.origin.origin)}';
   }
+  final ApiEnvironment environment;
   final SessionStore store;
   final DateTime Function() now;
   late final ApiClient api;
@@ -97,6 +109,21 @@ class AuthController extends ChangeNotifier {
   Future<void> _deleteStored() => _store(() => store.delete(storageKey));
 
   Future<void> _checkWorkspace() async {
+    if (environment != ApiEnvironment.local) {
+      final body = await api.get('/api/client/environment');
+      if (body is! Map<String, dynamic> ||
+          body['environment'] != environment.name ||
+          body['secure_cookies'] != true ||
+          body['deployment_id'] is! String ||
+          !RegExp(r'^[A-Za-z0-9_-]{8,128}$')
+              .hasMatch(body['deployment_id'] as String)) {
+        throw const ApiException(
+          'The server does not match the selected API environment.',
+        );
+      }
+      workspaceId = '${environment.name}:${body['deployment_id']}';
+      return;
+    }
     final body = await api.get('/api/development/workspace');
     if (body is! Map<String, dynamic> ||
         body['isolated'] != true ||
@@ -207,6 +234,7 @@ class AuthController extends ChangeNotifier {
           cookie.path != '/' ||
           (cookie.domain != null && cookie.domain != api.baseUrl.host) ||
           (cookie.secure && api.baseUrl.scheme != 'https') ||
+          (environment != ApiEnvironment.local && !cookie.secure) ||
           cookie.maxAge == null ||
           cookie.maxAge! <= 0 ||
           cookie.maxAge! > 604800) {
@@ -267,8 +295,7 @@ class AuthController extends ChangeNotifier {
     error = 'Your session expired or was revoked. Sign in again.';
     unawaited(
       _deleteStored().catchError((Object _) {
-        error =
-            'Session ended. Secure storage could not be cleared; retry before signing in.';
+        error = 'Session ended. Secure storage could not be cleared; retry before signing in.';
         _emit();
       }),
     );
@@ -282,15 +309,13 @@ class AuthController extends ChangeNotifier {
     try {
       await api.post('/api/logout', const {});
     } catch (_) {
-      warning =
-          'Signed out locally. Server revocation was not confirmed; the server session may remain until expiry.';
+      warning = 'Signed out locally. Server revocation was not confirmed; the server session may remain until expiry.';
     }
     _clearMemory();
     try {
       await _deleteStored();
     } catch (_) {
-      warning =
-          'Secure storage could not be cleared. Retry sign-in/sign-out before leaving this device.';
+      warning = 'Secure storage could not be cleared. Retry sign-in/sign-out before leaving this device.';
     }
     phase = AuthPhase.signedOut;
     error = warning;

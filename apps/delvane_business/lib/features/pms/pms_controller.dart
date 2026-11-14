@@ -165,6 +165,7 @@ class PmsController extends ChangeNotifier {
           paths['inventory'] = '/api/inventory';
         case PmsPage.team:
           paths['team'] = '/api/team/overview';
+          paths['properties'] = '/api/properties';
         case PmsPage.train:
           paths['knowledge'] = '/api/knowledge';
         case PmsPage.simulation:

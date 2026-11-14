@@ -1,0 +1,4 @@
+{
+  "DELVANE_ENV": "staging",
+  "DELVANE_API_ORIGIN": "https://staging.example.invalid"
+}

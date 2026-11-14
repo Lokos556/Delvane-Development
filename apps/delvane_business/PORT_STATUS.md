@@ -1,5 +1,127 @@
 # Delvane PMS Flutter port: current status
 
+## PMS reliability — staff permissions and guest identity (2026-11-14)
+
+Completed the focused follow-up without repeating the broad audit. Existing dirty
+main checkout, Flutter 3.50.0 / Dart 3.14.0, API environments, Hungarian default,
+English support and prior cancellation/inquiry guest-link fix are preserved.
+Details and acceptance steps: [PMS_RELIABILITY_RESULTS.md](PMS_RELIABILITY_RESULTS.md).
+
+Staff: owner/manager manual-cleaning create/assignment APIs and Team → Workload
+controls; active same-tenant assignee validation; cleaner checklist assignment
+checks; unfinished-task property scope for cleaner maintenance reads/reporting;
+maintenance own/unassigned scope, atomic claim and operator-only assignment and
+verification. Legacy resolve shares the guarded status handler. AI reassignment
+and undo validate current task/assignee eligibility. Current roles are enforced
+by the backend; historical completed cleaning does not grant current property access.
+
+Identity: registration derives from expected guest slots, completeness and human
+review, not an editable completion label. Booking changes/cancellation revoke
+active links; reconfirmation cannot revive them. Row locks serialize guest-slot
+creation, public token consumption and booking edits. Duplicate/public concurrent
+submissions cannot duplicate guest writes. Scanner/sensitive-data identical retries
+preserve verification; actual edits require review. Partial/invalid scans remain
+incomplete, rejected guests can correct their registration, and government queue
+events reflect real local verification transitions only. Scanner event logs now
+record field names, not full document input. No government transport was added.
+
+Metadata: health/runtime/FastAPI share APP_VERSION=2.10.59, replacing conflicting
+hard-coded values. Historical tests use actual version/schema/test environment
+contracts and explicit reviewed guest fixtures. The previous test failure is fixed.
+
+Final validation: clean Flutter analysis; 229 Flutter tests passed (8 new); 119
+isolated backend tests passed (30 new reliability cases). Earlier focused 46-test
+pass overlaps that total. Android debug APK and Windows release both succeeded;
+Windows used config/local.json and the existing VS2026 helper. Android used only
+the documented process-local TEMP workaround; existing Kotlin migration warning
+and Starlette/AnyIO deprecations remain. Evidence: build/pms-reliability-*.txt.
+
+Ready for physical-device acceptance in the guarded disposable workspace; no
+physical device, native GUI-to-server acceptance, iOS, live provider or PostgreSQL
+concurrency validation is claimed. No physical-arrival/checkout state machine or
+new property ACL was invented. Submitted guest-count reductions require explicit
+record review; historical identity logs/storage were not migrated. NTAK/VIZA stays
+on hold pending core device acceptance, official test packages/module, identifiers,
+certificates/endpoints and a separate isolated test deployment. Operational databases,
+production providers/credentials and integrations were untouched; no commit/merge/push.
+
+## PMS workflow audit and guest-link lifecycle safety (2026-11-14)
+
+Inspected current `main` branch/dirty working tree and preserved all pre-existing
+environment/UI/IDE/platform changes. Reviewed the nine PMS workflow families,
+current adapters/API handlers and associated native/isolated tests. Full findings,
+classifications, priorities and NTAK/VIZA prerequisites: [PMS_WORKFLOW_AUDIT.md](PMS_WORKFLOW_AUDIT.md).
+The existing 78 F / 21 P / 13 M / 11 B / 2 S ledger is retained; this pass does not
+claim a full PMS replacement or promote unrelated workflow rows. The historical
+mock-only scope prose at the end of FEATURE_PARITY.md is stale; current app
+composition defaults to the authenticated PMS and uses mocks only in explicit demo.
+
+Critical batch: public guest-check-in GET/POST now checks the current booking is
+confirmed before exposing or persisting identity data. Cancelled/inquiry stays
+return 410; issuing links for non-confirmed stays returns 409 before token creation.
+Added two real API lifecycle tests covering cancellation and inquiry demotion,
+rejected unauthenticated reads/submissions, and no sensitive/scan persistence.
+Existing confirmed guest submission/review remains passing. New source changes
+are limited to app.py and tests/test_guest_checkin_lifecycle.py, plus this section
+and the new audit. No schema, dependencies or toolchain changes.
+
+Validation: Flutter 3.50.0 / Dart 3.14.0 retained; clean analysis; 221 Flutter tests
+passed. Main isolated backend suite: 60 passed. Additional AI/channel suite:
+19 passed, 1 pre-existing failure in test_v281 runtime metadata (expected 2.10.27,
+actual 2.10.55); subsequent context assertions were not reached. Existing
+Starlette/AnyIO warnings and an optional pytest-cache permission warning remain.
+Android debug APK and Windows release both built successfully. Android used the
+documented process-only TEMP workaround and retains the Kotlin migration warning.
+Windows used tool/build_windows.ps1 with config/local.json and existing VS2026
+fallback. Build logs: build/pms-audit-android.txt and build/pms-audit-windows.txt.
+No physical-device or complete native GUI-to-server acceptance is claimed.
+
+Next critical work: server checklist/maintenance assignment authorization,
+registration-versus-identity consistency, version metadata, booking concurrency,
+complete status browsing/reassignment and native-to-isolated-server acceptance.
+Real Channex delivery, property/room CRUD, invoicing/NAV and payment execution
+remain partial or backend-blocked. NTAK/VIZA was not begun: core PMS still needs
+acceptance and official test packages/module, identifiers/certificates/endpoints
+and a separate isolated test deployment remain prerequisites. Repository notes
+about government interface versions were not treated as current specifications.
+Operational databases/production integrations were untouched. No commit/push.
+
+## Current pass — API environments and future iOS/staging preparation (2026-11-14)
+
+Added public build-time `DELVANE_ENV=local|staging|production` configuration, with a
+central `DELVANE_API_ORIGIN`. Local remains `http://127.0.0.1:8765` and retains the
+isolated workspace guard, session keys, Windows workflow and Android USB reversal.
+Explicit staging/production builds require HTTPS and matching, pre-login metadata
+from the new `/api/client/environment` endpoint. Session credentials are namespaced
+by environment/origin and bound to the deployment ID. Existing cookie/CSRF/role
+authorization is reused; remote cookies must be Secure. No TLS bypass was introduced.
+
+The backend change is one metadata-only endpoint, configured with
+`ROSA_DEPLOYMENT_ENVIRONMENT` and public `ROSA_DEPLOYMENT_ID`. It requires the existing
+production-hardening runtime; staging still needs its own future PostgreSQL database,
+credentials and storage. No infrastructure, remote server, database, signing account
+or integration was created, exposed or contacted. No operational data or production
+migration was accessed. Browser PMS/business logic and integration behavior remain.
+
+Validation: clean Flutter analysis; **221 Flutter tests passed**, plus staging and
+production define-file compilation checks; **31 isolated backend tests passed** with
+clean exit. Android debug and Windows release builds succeeded. Android needed a
+process-scoped normal-path TEMP directory for a host JDK loopback-pipe error; no
+persistent toolchain/network-policy change was made. The existing Kotlin migration
+warning remains. Two minimal pre-existing validation fixes restored the English
+`confidence` caption and test lint; Windows pytest now cleans only its own guarded
+temporary symlink aliases. Existing UI and Hungarian translations are preserved.
+
+iOS configuration was inspected and its plist validated; no iOS changes were needed.
+Compilation/signing and actual HTTPS staging/device tests remain for a future Mac
+and deployed staging backend. Preparation does not require paid Apple membership.
+Full configuration/build instructions, changes and exact validation limitations:
+[API_ENVIRONMENTS.md](API_ENVIRONMENTS.md).
+
+Artifacts: `build/app/outputs/flutter-apk/app-debug.apk` and
+`build/windows-vs2026/x64/runner/Release/delvane_business.exe` (keep the full bundle).
+No commits, pushes or publication were performed.
+
 ## Current pass — mobile polish and Hungarian localization (2026-11-13)
 
 Flutter **3.50.0 / Dart 3.14.0** and the earlier SDK/platform upgrades are retained

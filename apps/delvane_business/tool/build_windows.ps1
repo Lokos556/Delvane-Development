@@ -1,13 +1,18 @@
 # Flutter 3.32 only knows VS 2019/2022 generator names. This app-local fallback
 # uses installed VS 2026 without modifying Flutter, Visual Studio, or the backend.
 [CmdletBinding()]
-param()
+param([string]$DartDefineFromFile)
 $ErrorActionPreference = 'Stop'
 $appRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 Push-Location $appRoot
 try {
     $ErrorActionPreference = 'Continue'
-    $output = & flutter --no-version-check build windows --release 2>&1
+    $buildArguments = @('--no-version-check', 'build', 'windows', '--release')
+    if ($DartDefineFromFile) {
+        $configPath = (Resolve-Path -LiteralPath $DartDefineFromFile -ErrorAction Stop).Path
+        $buildArguments += "--dart-define-from-file=$configPath"
+    }
+    $output = & flutter @buildArguments 2>&1
     $flutterExit = $LASTEXITCODE
     $ErrorActionPreference = 'Stop'
     $output | ForEach-Object {

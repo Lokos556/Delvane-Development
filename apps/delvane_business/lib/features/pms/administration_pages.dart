@@ -656,7 +656,7 @@ class _OperatingModePageState extends State<OperatingModePage>
             title: Text(text(m, 'memory_key').replaceAll('_', ' ')),
             subtitle: Text(
               '${text(optionalObject(m['value']), 'note', text(optionalObject(m['value']), 'topic', jsonEncode(m['value'])))}\n'
-              '${text(m, 'subject_type')} · ${ui('Confidence')} '
+              '${text(m, 'subject_type')} · ${ui('confidence')} '
               '${m['confidence'] is num ? ((m['confidence'] as num) * 100).round() : 'Unknown'}%',
             ),
           ),

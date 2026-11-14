@@ -98,8 +98,9 @@ void main() {
     () {
       for (final entry in knowledgeLabels.entries) {
         final result = knowledgeLabel(entry.key, entry.value);
-        if (entry.value != 'Wi-Fi')
+        if (entry.value != 'Wi-Fi') {
           expect(result, isNot(entry.value), reason: entry.key);
+        }
         expect(
           knowledgeLabel(entry.key, 'Custom English label'),
           'Custom English label',
