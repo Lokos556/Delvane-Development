@@ -1,4 +1,5 @@
 # Local data (including SQLite sidecars)
+.development/
 *.db
 *.db-*
 *.sqlite

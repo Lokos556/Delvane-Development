@@ -1,5 +1,12 @@
 # Android USB development testing
 
+**Persistent acceptance testing:** use
+`python -B run_persistent_development_workspace.py` from the repository root with
+the existing `.venv` Python. It retains fictional records and credentials across
+restarts and works with the same USB helper below. See
+[exact persistent/disposable switching and reset commands](../../PERSISTENT_DEVELOPMENT.md).
+The disposable launcher shown later still intentionally discards its temporary data.
+
 **2026-11-14 environment preparation:** local builds still use the same isolated
 `127.0.0.1:8765` backend and USB reverse helper. Future HTTPS staging/production URLs
 are explicit build configuration and do not use USB reversal. See
@@ -121,7 +128,8 @@ the computer's Wi-Fi address. The identical loopback URL resolves through USB.
 Sign in with `owner@workspace.invalid`, `manager@workspace.invalid`,
 `cleaner@workspace.invalid` or `maintenance@workspace.invalid`, using the disposable
 password from terminal 1. Never enter actual staff or guest data. Restarting the
-backend discards test data and invalidates saved sessions. The app detects a
+**disposable** backend discards test data and invalidates saved sessions; the
+persistent launcher retains them, subject to normal session expiry/revocation. The app detects a
 different workspace before restoring credentials; Reconnect and sign in again.
 
 For hot reload after forwarding, use `flutter run -d SERIAL`. After a USB reconnect,

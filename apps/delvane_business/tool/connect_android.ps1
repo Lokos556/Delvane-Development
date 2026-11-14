@@ -42,6 +42,7 @@ if ($existing.Count -gt 0) {
     if ($LASTEXITCODE -ne 0) { throw 'USB reverse forwarding failed.' }
 }
 Write-Output 'USB forwarding ready: Android 127.0.0.1:8765 -> Windows 127.0.0.1:8765.'
+if ($marker.mode) { Write-Output "Isolated backend mode: $($marker.mode)." }
 if ($Install) {
     $apk = Join-Path $PSScriptRoot '..\build\app\outputs\flutter-apk\app-debug.apk'
     if (-not (Test-Path -LiteralPath $apk)) { throw 'Debug APK missing. Run flutter build apk --debug first.' }
@@ -49,5 +50,5 @@ if ($Install) {
     if ($LASTEXITCODE -ne 0) { throw 'APK installation failed. Existing application data was not removed.' }
     & $adbPath -s $DeviceId shell am start -n com.delvane.delvane_business/.MainActivity
     if ($LASTEXITCODE -ne 0) { throw 'Android activity launch failed.' }
-    Write-Output 'Delvane Business launched. Sign in with a disposable workspace account.'
+    Write-Output 'Delvane Business launched. Sign in with an isolated development account.'
 }

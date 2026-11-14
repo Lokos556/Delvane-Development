@@ -25,23 +25,34 @@ class TestSafetyError(RuntimeError):
 class IsolatedEnvironment:
     """Allow database files only inside a freshly allocated temporary tree."""
 
-    def __enter__(self):
-        self.stack = ExitStack()
-        self.root = Path(self.stack.enter_context(
+    database_name = "collection.db"
+    demo_mode = "1"
+    allow_local_configuration = True
+
+    def allocate_root(self):
+        return Path(self.stack.enter_context(
             tempfile.TemporaryDirectory(prefix="delvane-tests-", dir=_ACTIVE_ROOT.get())
         )).resolve()
+
+    def environment_overrides(self):
+        return {}
+
+    def __enter__(self):
+        self.stack = ExitStack()
+        self.root = self.allocate_root()
         token = _ACTIVE_ROOT.set(self.root)
         self.stack.callback(_ACTIVE_ROOT.reset, token)
         env = {k: v for k, v in os.environ.items()
                if not k.startswith("ROSA_") and k != "OPENAI_API_KEY"}
         env.update({
-            "ROSA_APP_ENV": "test", "ROSA_DEMO_MODE": "1",
+            "ROSA_APP_ENV": "test", "ROSA_DEMO_MODE": self.demo_mode,
             "ROSA_DATA_DIR": str(self.root),
-            "ROSA_DATABASE_URL": "sqlite:///" + str(self.root / "collection.db"),
+            "ROSA_DATABASE_URL": "sqlite:///" + str(self.root / self.database_name),
             "ROSA_AI_PROVIDER": "local", "ROSA_SECURE_COOKIES": "0",
             "LOCALAPPDATA": str(self.root),
             "XDG_CONFIG_HOME": str(self.root), "XDG_DATA_HOME": str(self.root),
         })
+        env.update(self.environment_overrides())
         self.stack.enter_context(patch.dict(os.environ, env, clear=True))
         original_connect = sqlite3.connect
         original_read = Path.read_text
@@ -109,7 +120,7 @@ class IsolatedEnvironment:
             return original_os_unlink(file, *args, **kwargs)
 
         def read_text(path, *args, **kwargs):
-            if path.name.startswith(".env") and not path.resolve().is_relative_to(self.root):
+            if path.name.startswith(".env") and (not self.allow_local_configuration or not path.resolve().is_relative_to(self.root)):
                 return ""  # Do not load real local configuration, including during import.
             return original_read(path, *args, **kwargs)
 
@@ -199,7 +210,7 @@ class IsolatedEnvironment:
             check_database()
             original_connection_init(connection)
 
-        for name, value in (("DB_PATH", self.root / "collection.db"),
+        for name, value in (("DB_PATH", self.root / self.database_name),
                             ("LEGACY_DB_PATH", self.root / "absent-legacy.db"),
                             ("DATA_DIR", self.root)):
             self.stack.enter_context(patch.object(app, name, value, create=True))

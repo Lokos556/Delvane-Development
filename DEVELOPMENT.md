@@ -3,8 +3,10 @@
 The existing PMS and operational database are preserved. Do not start the app with
 ordinary launchers, run setup scripts, copy a live database into tests, or use
 production credentials to prepare a test environment. Integrated Flutter development
-now uses only `run_development_workspace.py`, which installs these isolation guards
-before importing the app and serves disposable data on loopback. See
+uses the guarded `run_development_workspace.py` for disposable data, or
+`run_persistent_development_workspace.py` to retain fictional acceptance data across
+restarts. Both install isolation before importing the app and serve only loopback.
+See [persistent local setup/reset](PERSISTENT_DEVELOPMENT.md) and
 [Delvane Business setup](apps/delvane_business/README.md) for the two-terminal launch.
 
 ## Commands (from the repository root)

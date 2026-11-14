@@ -1,5 +1,50 @@
 # Delvane PMS Flutter port: current status
 
+## Persistent local acceptance data (2026-11-14)
+
+Confirmed that run_development_workspace.py intentionally uses a new temporary
+SQLite collection.db and workspace ID each launch. Normal exit removes that tree;
+force-kill may leave it behind, but a restart never reopens it. Reservation writes
+commit correctly. Windows and Android USB clients use the same Windows loopback
+backend/database. Closing client/helper terminals alone does not clear server data.
+
+Added separate run_persistent_development_workspace.py. Fixed owned storage:
+C:\Delvane\Delvane-Development\.development\persistent\workspace.db, with matching
+workspace.json identity/encryption key. First start reuses the synthetic bootstrap
+and creates the four workspace.invalid accounts once. Ordinary restarts preserve
+data/passwords/edits and do not reseed or recreate accounts; existing migrations
+and derived task refresh still apply. Stable workspace ID/key retain sessions and
+encrypted fictional identity data. The manual store is not created by validation.
+
+Reused isolation guards with unchanged disposable defaults: only owned SQLite,
+no external ROSA/OpenAI config, dotenv or sibling adoption, outbound networking,
+subprocesses or remote providers. Startup validates file ownership/DB identity,
+rejects redirected/hard-linked/unrecognized storage and busy ports, and holds an
+OS process lock. API demo reset is disabled; explicit --reset requires typing
+RESET PERSISTENT DEVELOPMENT DATA and archives only the stopped owned store in
+.development/persistent-archive-*. The whole development directory is Git-ignored.
+
+No Flutter UI, API environment, authentication/CSRF or PMS business logic changed.
+The existing USB helper accepts both isolated modes and now prints their mode.
+Exact setup/switch/reset commands and limitations: [persistent local setup](../../PERSISTENT_DEVELOPMENT.md).
+
+Validation: separate independent-process HTTP restart proof passed for persistent
+reservation/details, guests/encryption, staff, assignments, marker/session and
+CSRF, plus disposable fresh-data/ID/cleanup proof. All process-proof data lived in
+new owned OS-temporary directories on ephemeral loopback ports; inherited poisoned
+fictional production config could not select an external DB. 127 selected guarded
+backend tests passed (8 new); Flutter analysis clean; all 229 Flutter tests passed.
+PowerShell helper parser and git diff --check passed. Existing Starlette/AnyIO
+deprecations remain; no test failures. Logs: build/persistence-{backend-tests,
+analysis,flutter-tests}.txt. No new app build/installation or physical-device
+acceptance is claimed. Flutter 3.50.0 / Dart 3.14.0 are retained.
+
+Production/staging databases, infrastructure, credentials and integrations were
+untouched. No commit or push was made; the pre-existing main branch was already
+one commit ahead when this task began. Local acceptance only; keep DB and marker
+together and use fictional identities. No cloud service or government work added.
+
+
 ## PMS reliability — staff permissions and guest identity (2026-11-14)
 
 Completed the focused follow-up without repeating the broad audit. Existing dirty

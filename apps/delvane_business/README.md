@@ -1,5 +1,9 @@
 # Web-fidelity port in progress
 
+For acceptance testing that keeps fictional reservations, guests and staff after
+backend restarts, use [Persistent local development](../../PERSISTENT_DEVELOPMENT.md).
+The original disposable command below intentionally discards data on shutdown.
+
 For configurable localhost, future HTTPS staging/production and iOS preparation,
 see [API_ENVIRONMENTS.md](API_ENVIRONMENTS.md). The default isolated Windows and
 Android USB workflow remains unchanged; no remote server has been deployed.

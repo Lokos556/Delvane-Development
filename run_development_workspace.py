@@ -7,11 +7,12 @@ No operational database is read/copied. Data is discarded when this process exit
 import getpass
 import secrets
 import sys
+import threading
 
 from testing_safety import IsolatedEnvironment
 
 
-def prepare_workspace(application, safety, password):
+def prepare_workspace(application, safety, password, *, register_marker=True):
     """Called only inside guards; also exercised by isolated API tests."""
     safety.require_path(application.DB_PATH)
     if application.APP_ENV != "test" or application.DB_BACKEND != "sqlite":
@@ -34,11 +35,28 @@ def prepare_workspace(application, safety, password):
                 con.execute("UPDATE users SET full_name=?,email=?,password_hash=?,active=1 WHERE id=?",
                             ("Development "+role.title(),email,application.hash_password(password),user_id))
         con.execute("UPDATE properties SET address='Synthetic development address' WHERE organization_id=?",(org,))
-    workspace_id=secrets.token_urlsafe(18)
+    if register_marker:
+        register_workspace_marker(application,secrets.token_urlsafe(18))
+
+
+def register_workspace_marker(application, workspace_id, *, mode="disposable"):
 
     @application.app.get("/api/development/workspace")
     def development_workspace():
-        return {"isolated":True,"workspace_id":workspace_id,"date":str(application.date.today())}
+        return {"isolated":True,"workspace_id":workspace_id,"mode":mode,"date":str(application.date.today())}
+
+
+def serve_application(application, *, port=8765, sockets=None, _stop_stream=None):
+    """Same loopback server for both launchers; optional graceful test control."""
+    import uvicorn
+    server=uvicorn.Server(uvicorn.Config(application.app,host="127.0.0.1",port=port,
+                         access_log=False,log_level="warning",reload=False,workers=1,loop="asyncio"))
+    if _stop_stream is not None:
+        def stop():
+            _stop_stream.readline()
+            server.should_exit=True
+        threading.Thread(target=stop,daemon=True).start()
+    server.run(sockets=sockets)
 
 
 def main():
@@ -56,8 +74,7 @@ def main():
         del password
         print("Isolated PMS: http://127.0.0.1:8765 (temporary data; outbound access blocked)")
         print("Accounts: owner, manager, cleaner, maintenance @workspace.invalid")
-        uvicorn.run(app.app,host="127.0.0.1",port=8765,access_log=False,
-                    log_level="warning",reload=False,workers=1,loop="asyncio")
+        serve_application(app)
 
 
 if __name__=="__main__":
