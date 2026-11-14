@@ -1,8 +1,11 @@
+import 'support/section_navigation.dart';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:delvane_business/features/pms/pms_controller.dart';
 import 'package:delvane_business/features/pms/operational_desk.dart';
 import 'package:delvane_business/features/pms/administration_pages.dart';
+
 import 'support/fake_pms.dart';
 
 void main() {
@@ -179,8 +182,7 @@ void main() {
     };
     try {
       await t.pumpWidget(MaterialApp(home: OperationalDesk(c: c)));
-      await t.ensureVisible(find.text('Next 48h  1'));
-      await t.tap(find.text('Next 48h  1'));
+      await selectSection(t, 'Next 48h  1');
       await t.pumpAndSettle();
       expect(find.text('Synthetic Guest'), findsOneWidget);
       expect(t.takeException(), isNull);

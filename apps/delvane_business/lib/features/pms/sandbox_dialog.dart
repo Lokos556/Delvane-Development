@@ -199,8 +199,8 @@ class _SandboxDialogState extends State<SandboxDialog>
               ui('Simulate booking'),
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
             ),
-            Form(
-              key: form,
+            PmsForm(
+              formKey: form,
               child: Column(
                 children: [
                   PmsField(ui('Guest name'), controller: guest, required: true),
@@ -210,6 +210,7 @@ class _SandboxDialogState extends State<SandboxDialog>
                     PmsField(
                       ui('Guest count'),
                       controller: guests,
+                      required: true,
                       keyboard: TextInputType.number,
                       validator: (v) => int.tryParse(v ?? '') == null
                           ? 'Enter a whole number.'
@@ -250,7 +251,13 @@ class _SandboxDialogState extends State<SandboxDialog>
               tilePadding: EdgeInsets.zero,
               title: Text(ui('iCal sample')),
               children: [
-                PmsField(ui('iCal text'), controller: ical, lines: 6),
+                const PmsRequiredNote(),
+                PmsField(
+                  ui('iCal text'),
+                  controller: ical,
+                  required: true,
+                  lines: 6,
+                ),
                 CheckboxListTile(
                   contentPadding: EdgeInsets.zero,
                   title: Text(ui('Replace feed')),

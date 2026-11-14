@@ -116,6 +116,7 @@ class _ChannexMappingDialogState extends State<ChannexMappingDialog>
             'Delvane will only map existing Channex rooms and rate plans. It will not create anything in Channex.',
           ),
         ),
+        const PmsRequiredNote(),
         errors(),
         if (failure != null)
           PmsButton(
@@ -127,6 +128,7 @@ class _ChannexMappingDialogState extends State<ChannexMappingDialog>
         if (data != null) ...[
           PmsSelect(
             ui('Channex property'),
+            required: true,
             value: property,
             items: {
               '': ui('Choose…'),
@@ -167,6 +169,7 @@ class _ChannexMappingDialogState extends State<ChannexMappingDialog>
                     ),
                     PmsSelect(
                       ui('Channex room · ${text(room, 'name')}'),
+                      required: true,
                       value: rooms[room['id']] ?? '',
                       items: {
                         '': ui('Choose Channex room…'),
@@ -200,6 +203,7 @@ class _ChannexMappingDialogState extends State<ChannexMappingDialog>
                     ))
                       PmsSelect(
                         text(rate, 'name'),
+                        required: true,
                         value: rates[rate['id']] ?? '',
                         items: {
                           '': ui('Choose Channex rate…'),

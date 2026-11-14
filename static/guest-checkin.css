@@ -50,3 +50,6 @@ html,body{background:#FFFFFF!important;color:#000000!important;}
 .camera .guide[data-side="back"]:after{content:"BACK SIDE · align all four edges";background:#FFD500;color:#171914;font-weight:800}
 
 .guest-language{max-width:920px;margin:auto;padding:14px 20px;display:flex;gap:12px;align-items:center;justify-content:flex-end}.guest-language select{min-height:44px;border-radius:12px;padding:8px;background:white;border:1px solid #ddd}.brand-logo{width:36px;height:36px;object-fit:contain}input[aria-invalid="true"]{outline:2px solid #ac2735}#nationalitySearch{margin-bottom:8px}
+
+.required-note{font-size:.875rem;color:#565656;margin:0 0 1rem;line-height:1.5}
+.field label span[aria-hidden]{font-weight:600}

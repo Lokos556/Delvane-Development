@@ -331,9 +331,11 @@ class _IntegrationSlotDialogState extends State<IntegrationSlotDialog>
     ],
     child: Column(
       children: [
+        const PmsRequiredNote(),
         errors(),
         PmsSelect(
           ui('Property'),
+          required: true,
           value: property,
           items: {
             '': '—',
@@ -344,6 +346,7 @@ class _IntegrationSlotDialogState extends State<IntegrationSlotDialog>
         ),
         PmsSelect(
           ui('Provider'),
+          required: true,
           value: provider,
           items: {
             'Booking.com': ui('Booking.com'),

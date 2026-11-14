@@ -144,8 +144,8 @@ class _GuestPreferenceDialogState extends State<GuestPreferenceDialog>
               },
       ),
     ],
-    child: Form(
-      key: form,
+    child: PmsForm(
+      formKey: form,
       child: Column(
         children: [
           errors(),

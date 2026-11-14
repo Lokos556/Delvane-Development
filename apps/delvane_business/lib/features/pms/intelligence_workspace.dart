@@ -1,3 +1,4 @@
+import 'section_picker.dart';
 import 'overflow_row.dart';
 
 import 'package:material_ui/material_ui.dart';
@@ -8,6 +9,13 @@ import 'pms_style.dart';
 import 'operational_desk.dart';
 
 /// Layout of the active v264 workspace; its existing chat/proposal APIs are unchanged.
+const prompts = [
+  'Anything concerning tomorrow?',
+  'Who still needs registration?',
+  "Which properties aren't ready?",
+  "Anna called in sick. Move today's cleaning to Erika.",
+];
+
 class IntelligenceWorkspace extends StatefulWidget {
   const IntelligenceWorkspace({
     super.key,
@@ -291,38 +299,17 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                PmsOverflowRow(
-                  child: Row(
-                    children: [
-                      if (!mobile)
-                        Text(
-                          ui('TRY ASKING'),
-                          style: TextStyle(fontSize: 9, letterSpacing: .5),
-                        ),
-                      for (final prompt in [
-                        'Anything concerning tomorrow?',
-                        'Who still needs registration?',
-                        "Which properties aren't ready?",
-                        "Anna called in sick. Move today's cleaning to Erika.",
-                      ])
-                        TextButton(
-                          onPressed: () {
-                            widget.input.text = prompt;
-                            focus.requestFocus();
-                          },
-                          style: TextButton.styleFrom(
-                            foregroundColor: Colors.black,
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            textStyle: const TextStyle(
-                              fontFamily: PmsStyle.font,
-                              fontSize: 10,
-                            ),
-                          ),
-                          child: Text(c.t(prompt)),
-                        ),
-                    ],
-                  ),
+                PmsSectionPicker(
+                  pickerLabel: c.t('TRY ASKING'),
+                  allowSegments: false,
+                  selected: -1,
+                  labels: [for (final prompt in prompts) c.t(prompt)],
+                  onChanged: (i) {
+                    widget.input.text = prompts[i];
+                    focus.requestFocus();
+                  },
                 ),
+                const SizedBox(height: 10),
                 PmsCard(
                   radius: 24,
                   padding: const EdgeInsets.symmetric(

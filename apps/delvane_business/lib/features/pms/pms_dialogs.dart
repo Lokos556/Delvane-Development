@@ -133,8 +133,9 @@ class _PmsTextDialogState extends State<PmsTextDialog>
                 },
         ),
       ],
-      child: Form(
-        key: form,
+      child: PmsForm(
+        formKey: form,
+        showRequiredNote: widget.required,
         child: Column(
           children: [
             PmsField(

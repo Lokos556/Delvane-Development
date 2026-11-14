@@ -82,8 +82,9 @@ class _WorkAssignmentDialogState extends State<WorkAssignmentDialog>
           onPressed: busy || !valid ? null : save,
         ),
       ],
-      child: Form(
-        key: form,
+      child: PmsForm(
+        formKey: form,
+        showRequiredNote: widget.work == null,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -92,12 +93,14 @@ class _WorkAssignmentDialogState extends State<WorkAssignmentDialog>
               PmsField(
                 ui('Title'),
                 controller: title,
+                required: true,
                 validator: (v) =>
                     (v ?? '').trim().isEmpty ? ui('Required') : null,
               ),
               PmsField(
                 ui('Date'),
                 controller: day,
+                required: true,
                 hint: 'YYYY-MM-DD',
                 validator: (v) {
                   final parsed = DateTime.tryParse(v ?? '');
@@ -109,6 +112,7 @@ class _WorkAssignmentDialogState extends State<WorkAssignmentDialog>
               ),
               PmsSelect(
                 ui('Property'),
+                required: true,
                 value: property,
                 items: {
                   for (final p in widget.c.rows('properties'))

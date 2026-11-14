@@ -156,7 +156,7 @@ void main() {
         await t.tap(find.byKey(const ValueKey('pms-account')));
         await t.pumpAndSettle();
         expect(find.byType(PmsSideSheet), findsOneWidget);
-        expect(find.text('CONNECTIONS & SECURITY'), findsOneWidget);
+        expect(find.text('Security Center'), findsOneWidget);
         expect(t.getTopLeft(find.text('Settings')).dx, greaterThan(900));
         pms.revoked = true;
         pms.overrides.remove('/api/me');

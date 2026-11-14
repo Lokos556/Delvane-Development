@@ -916,5 +916,6 @@
   "Keep reservation": "Foglalás megtartása",
   "Review the registered guests before reducing the guest count. Submitted identity records cannot be removed automatically.": "A vendégszám csökkentése előtt ellenőrizd a regisztrált vendégeket. A beküldött személyazonosító adatokat nem töröljük automatikusan.",
   "Complete the guest data and identity review first. Registration status cannot be set manually.": "Előbb töltsd ki a vendégadatokat, és végezd el a személyazonosság ellenőrzését. A regisztráció állapota nem állítható be kézzel.",
-  "The server could not complete the request. Refresh before trying again.": "A kiszolgáló nem tudta befejezni a műveletet. Újrapróbálás előtt frissítsd az adatokat."
+  "The server could not complete the request. Refresh before trying again.": "A kiszolgáló nem tudta befejezni a műveletet. Újrapróbálás előtt frissítsd az adatokat.",
+  "Fields marked with * are required.": "A *-gal jelölt mezők kitöltése kötelező."
 }

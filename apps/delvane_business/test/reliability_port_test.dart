@@ -1,3 +1,5 @@
+import 'support/section_navigation.dart';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -123,7 +125,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Preparation').first);
+      await selectSection(tester, 'Preparation');
       await tester.pumpAndSettle();
       expect(find.text('Send guest check-in link'), findsNothing);
       final review = tester.widget<PmsButton>(

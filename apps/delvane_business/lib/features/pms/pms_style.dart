@@ -1,4 +1,4 @@
-import 'overflow_row.dart';
+import 'section_picker.dart';
 
 import 'package:delvane_business/core/localization/web_strings.dart';
 
@@ -734,61 +734,10 @@ class PmsTabs extends StatelessWidget {
   final bool plain;
   final bool localizeLabels;
   @override
-  Widget build(BuildContext context) => PmsCard(
-    padding: EdgeInsets.zero,
-    radius: 24,
-    shadow: false,
-    backdropBlur: 8,
-    saturation: 1.1,
-    child: Container(
-      padding: plain ? EdgeInsets.zero : const EdgeInsets.all(2),
-      decoration: BoxDecoration(
-        color: plain ? Colors.transparent : const Color(0x6BFFFFFF),
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: PmsOverflowRow(
-        child: Row(
-          children: [
-            for (var i = 0; i < labels.length; i++)
-              Semantics(
-                selected: i == selected,
-                button: true,
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(18),
-                    gradient: !plain && i == selected
-                        ? const LinearGradient(
-                            colors: [Color(0xFFFFE76A), Color(0xFFFFD000)],
-                          )
-                        : null,
-                  ),
-                  child: Material(
-                    type: MaterialType.transparency,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(18),
-                      onTap: () => onChanged(i),
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 18,
-                          vertical: plain ? 12 : 13,
-                        ),
-                        child: Text(
-                          localizeLabels ? ui(labels[i]) : labels[i],
-                          style: TextStyle(
-                            fontSize: plain ? 14 : 16,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.black,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    ),
+  Widget build(BuildContext context) => PmsSectionPicker(
+    labels: [for (final label in labels) localizeLabels ? ui(label) : label],
+    selected: selected,
+    onChanged: onChanged,
   );
 }
 
@@ -859,6 +808,38 @@ class PmsLifecycleRail extends StatelessWidget {
   );
 }
 
+class PmsRequiredNote extends StatelessWidget {
+  const PmsRequiredNote({super.key});
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 16),
+    child: Text(
+      ui('Fields marked with * are required.'),
+      style: const TextStyle(fontSize: 12, color: PmsStyle.muted),
+    ),
+  );
+}
+
+class PmsForm extends StatelessWidget {
+  const PmsForm({
+    super.key,
+    required this.formKey,
+    required this.child,
+    this.showRequiredNote = true,
+  });
+  final GlobalKey<FormState> formKey;
+  final Widget child;
+  final bool showRequiredNote;
+  @override
+  Widget build(BuildContext context) => Form(
+    key: formKey,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [if (showRequiredNote) const PmsRequiredNote(), child],
+    ),
+  );
+}
+
 class PmsField extends StatelessWidget {
   const PmsField(
     this.label, {
@@ -894,7 +875,7 @@ class PmsField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          localizeLabel ? ui(label) : label,
+          '${localizeLabel ? ui(label) : label}${required ? ' *' : ''}',
           style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
         ),
         if (status != null)
@@ -903,22 +884,26 @@ class PmsField extends StatelessWidget {
             style: const TextStyle(fontSize: 11, color: PmsStyle.muted),
           ),
         const SizedBox(height: 5),
-        TextFormField(
-          onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
-          controller: controller,
-          maxLines: lines,
-          maxLength: maxLength,
-          keyboardType: keyboard,
-          onChanged: onChanged,
-          decoration: InputDecoration(hintText: hint, suffixIcon: suffix),
-          validator: (value) {
-            final error = validator != null
-                ? validator!(value)
-                : required && (value == null || value.trim().isEmpty)
-                ? 'Required'
-                : null;
-            return error == null ? null : ui(error);
-          },
+        Semantics(
+          label:
+              '${localizeLabel ? ui(label) : label}${required ? ' · ${ui('Required')}' : ''}',
+          child: TextFormField(
+            onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+            controller: controller,
+            maxLines: lines,
+            maxLength: maxLength,
+            keyboardType: keyboard,
+            onChanged: onChanged,
+            decoration: InputDecoration(hintText: hint, suffixIcon: suffix),
+            validator: (value) {
+              final error = validator != null
+                  ? validator!(value)
+                  : required && (value == null || value.trim().isEmpty)
+                  ? 'Required'
+                  : null;
+              return error == null ? null : ui(error);
+            },
+          ),
         ),
       ],
     ),
@@ -932,7 +917,9 @@ class PmsSelect extends StatelessWidget {
     required this.value,
     required this.items,
     required this.onChanged,
+    this.required = false,
   });
+  final bool required;
   final String label, value;
   final Map<String, String> items;
   final ValueChanged<String>? onChanged;
@@ -943,29 +930,32 @@ class PmsSelect extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          ui(label),
+          '${ui(label)}${required ? ' *' : ''}',
           style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 5),
-        DropdownButtonFormField<String>(
-          borderRadius: BorderRadius.circular(18),
-          dropdownColor: const Color(0xFFFFFDF8),
-          icon: const PmsVectorIcon('chevron_down', size: 18),
-          initialValue: items.containsKey(value) ? value : null,
-          isExpanded: true,
-          items: items.entries
-              .map(
-                (e) => DropdownMenuItem(
-                  value: e.key,
-                  child: Text(e.value, overflow: TextOverflow.ellipsis),
-                ),
-              )
-              .toList(),
-          onChanged: onChanged == null
-              ? null
-              : (value) {
-                  if (value != null) onChanged!(value);
-                },
+        Semantics(
+          label: '${ui(label)}${required ? ' · ${ui('Required')}' : ''}',
+          child: DropdownButtonFormField<String>(
+            borderRadius: BorderRadius.circular(18),
+            dropdownColor: const Color(0xFFFFFDF8),
+            icon: const PmsVectorIcon('chevron_down', size: 18),
+            initialValue: items.containsKey(value) ? value : null,
+            isExpanded: true,
+            items: items.entries
+                .map(
+                  (e) => DropdownMenuItem(
+                    value: e.key,
+                    child: Text(e.value, overflow: TextOverflow.ellipsis),
+                  ),
+                )
+                .toList(),
+            onChanged: onChanged == null
+                ? null
+                : (value) {
+                    if (value != null) onChanged!(value);
+                  },
+          ),
         ),
       ],
     ),

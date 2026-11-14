@@ -183,14 +183,15 @@ class _RatePlanEditorState extends State<RatePlanEditor>
               },
       ),
     ],
-    child: Form(
-      key: form,
+    child: PmsForm(
+      formKey: form,
       child: Column(
         children: [
           errors(),
           PmsColumns([
             PmsSelect(
               ui('Room type'),
+              required: true,
               value: room,
               items: {
                 for (final r in widget.rooms) text(r, 'id'): text(r, 'name'),

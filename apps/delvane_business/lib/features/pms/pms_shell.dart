@@ -346,79 +346,75 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
             ),
           ),
           const SizedBox(height: 22),
-          for (final group in <String, List<(PmsPage, String)>>{
-            'Account': [(PmsPage.team, '♙')],
-            'Delvane & automation': [
-              (PmsPage.train, 'R'),
-              (PmsPage.simulation, '◎'),
-            ],
-            'Property operations': [
-              (PmsPage.maintenance, '◇'),
-              (PmsPage.supplies, '▦'),
-            ],
-            'Connections & security': [
-              (PmsPage.integrations, '↔'),
-              (PmsPage.security, '⌾'),
-            ],
-          }.entries)
-            if (group.value.any((e) => c.settings.contains(e.$1))) ...[
-              Padding(
-                padding: const EdgeInsets.only(top: 14, bottom: 8),
-                child: PmsEyebrow(c.t(group.key).toUpperCase()),
-              ),
-              for (final entry in group.value.where(
-                (e) => c.settings.contains(e.$1),
-              ))
-                Material(
-                  color: c.page == entry.$1
-                      ? const Color(0x55FFD500)
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(18),
-                  child: Semantics(
-                    selected: c.page == entry.$1,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(18),
-                      onTap: () {
-                        Navigator.pop(context);
-                        c.navigate(entry.$1);
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 16,
-                        ),
-                        child: Row(
-                          children: [
-                            SizedBox(
-                              width: 36,
-                              child: entry.$2 == 'R'
-                                  ? Image.asset(
-                                      PmsStyle.logo,
-                                      width: 24,
-                                      height: 24,
-                                    )
-                                  : PmsVectorIcon(entry.$2),
-                            ),
-                            Expanded(
-                              child: Text(
-                                c.label(entry.$1),
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                ),
+          LayoutBuilder(
+            builder: (context, constraints) => Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final page in c.settings)
+                  SizedBox(
+                    width: (constraints.maxWidth - 8) / 2,
+                    child: Semantics(
+                      selected: c.page == page,
+                      child: Material(
+                        color: c.page == page
+                            ? const Color(0x66FFD500)
+                            : const Color(0xAFFFFFFF),
+                        borderRadius: BorderRadius.circular(16),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () {
+                            Navigator.pop(context);
+                            c.navigate(page);
+                          },
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(minHeight: 76),
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  PmsVectorIcon(switch (page) {
+                                    PmsPage.team => '♙',
+                                    PmsPage.simulation => '◎',
+                                    PmsPage.maintenance => '◇',
+                                    PmsPage.supplies => '▦',
+                                    PmsPage.integrations => '↔',
+                                    PmsPage.security => '⌾',
+                                    _ => 'R',
+                                  }, size: 20),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          c.label(page),
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Icon(
+                                        c.page == page
+                                            ? Icons.check
+                                            : Icons.chevron_right,
+                                        size: 18,
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ),
                             ),
-                            if (c.page == entry.$1)
-                              const Icon(Icons.check, size: 18)
-                            else
-                              const Text('›'),
-                          ],
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
+          ),
           const SizedBox(height: 20),
           PmsSelect(
             c.t('Language'),

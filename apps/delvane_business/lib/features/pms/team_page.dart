@@ -538,8 +538,8 @@ class _TeamMemberEditorState extends State<TeamMemberEditor>
           onPressed: busy || changed ? null : save,
         ),
       ],
-      child: Form(
-        key: form,
+      child: PmsForm(
+        formKey: form,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -556,6 +556,7 @@ class _TeamMemberEditorState extends State<TeamMemberEditor>
               PmsField(ui('Job title (optional)'), controller: title),
               PmsSelect(
                 ui('Delvane role'),
+                required: !self,
                 value: role,
                 items: {
                   'cleaner': ui('Cleaner'),

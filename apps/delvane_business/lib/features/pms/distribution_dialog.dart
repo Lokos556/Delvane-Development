@@ -189,8 +189,8 @@ class _DistributionDialogState extends State<DistributionDialog>
           onPressed: busy || data == null || changed ? null : () => saveRange(),
         ),
       ],
-      child: Form(
-        key: form,
+      child: PmsForm(
+        formKey: form,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -315,6 +315,9 @@ class _DistributionDialogState extends State<DistributionDialog>
               PmsField(
                 ui('${text(d, 'currency', 'HUF')} per night'),
                 controller: base,
+                required: true,
+                // The publish action validates this; range edits do not require it.
+                validator: (_) => null,
                 keyboard: TextInputType.number,
               ),
               Align(
@@ -460,6 +463,7 @@ class _DistributionDialogState extends State<DistributionDialog>
           ),
         PmsSelect(
           ui('Rate plan'),
+          required: true,
           value: input.plan,
           items: {
             for (final m in mappings)

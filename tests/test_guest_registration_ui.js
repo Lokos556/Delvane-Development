@@ -37,3 +37,21 @@ const oldGet=hu.context.document.getElementById;
 hu.context.document.getElementById=id=>id==='nationality'?nationalities:oldGet(id);
 hu.change('hu');assert.equal(nationalities.value,'','Sorting must never automatically select Hungarian nationality');
 console.log('Guest UI language, privacy, nationality and date contracts passed.');
+// Required markers mirror the existing public API contract, and optional
+// identity fields remain optional. Execute rendering rather than only text copy.
+const fieldContext={state:{},NATIONALITY_OPTIONS:[],esc:value=>String(value),Date};
+vm.createContext(fieldContext);
+vm.runInContext(app.slice(app.indexOf('function localToday()'),app.indexOf('function formData()')),fieldContext);
+const fields=fieldContext.renderFields();
+for(const id of ['full_name','date_of_birth','nationality','document_number']){
+  assert(new RegExp('<label for="'+id+'">[^<]+<span aria-hidden="true"> \\*</span></label>').test(fields),id+' required label');
+  assert(new RegExp('<(?:input|select) id="'+id+'"[^>]*aria-required="true"[^>]*required').test(fields),id+' native required');
+}
+for(const id of ['birth_name','birth_place','sex','mother_birth_name','address']){
+  assert(new RegExp('<label for="'+id+'">[^<]+</label>').test(fields),id+' optional label');
+  assert(!new RegExp('id="'+id+'"[^>]*\\brequired\\b').test(fields),id+' stays optional');
+}
+assert.equal(session().context.translate('Fields marked with * are required.'),'A *-gal jelölt mezők kitöltése kötelező.');
+assert.equal(session('en').context.translate('Fields marked with * are required.'),'Fields marked with * are required.');
+assert.equal((app.match(/class="required-note"/g)||[]).length,1);
+console.log('Required identity labels, native semantics and bilingual explanation passed.');

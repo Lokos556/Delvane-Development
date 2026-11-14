@@ -870,8 +870,8 @@ class _NewInboxMessageState extends State<NewInboxMessage>
                 },
         ),
       ],
-      child: Form(
-        key: form,
+      child: PmsForm(
+        formKey: form,
         child: Column(
           children: [
             errors(),

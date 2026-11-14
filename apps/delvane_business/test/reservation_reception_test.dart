@@ -1,3 +1,5 @@
+import 'support/section_navigation.dart';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:delvane_business/app/app.dart';
@@ -9,12 +11,13 @@ import 'package:delvane_business/features/pms/reservation_dialogs.dart';
 import 'package:delvane_business/features/pms/reception_page.dart';
 import 'package:delvane_business/features/pms/pms_shell.dart';
 import 'package:delvane_business/features/pms/pms_dialogs.dart';
+
 import 'support/fake_pms.dart';
 import 'support/workflow_pms.dart';
 
 Future<void> enter(WidgetTester tester, String label, String value) async {
   final field = find.descendant(
-    of: find.widgetWithText(PmsField, label),
+    of: find.byWidgetPredicate((w) => w is PmsField && w.label == label),
     matching: find.byType(TextFormField),
   );
   await tester.ensureVisible(field);
@@ -289,7 +292,7 @@ void main() {
         pms.requests.any((r) => r.path.endsWith('/guest-checkin-links')),
         false,
       );
-      await tester.tap(find.text('Preparation').first);
+      await selectSection(tester, 'Preparation');
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('Send guest check-in link'));
       await tester.tap(find.text('Send guest check-in link'));
@@ -351,16 +354,14 @@ void main() {
       final editor = find.byType(TextField).last;
       await tester.ensureVisible(editor);
       await tester.enterText(editor, 'Draft retained across tabs');
-      await tester.ensureVisible(find.text('Automations 1'));
-      await tester.tap(find.text('Automations 1'));
+      await selectSection(tester, 'Automations 1');
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       await tester.ensureVisible(find.byType(PmsToggle));
       await tester.tap(find.byType(PmsToggle));
       await tester.pumpAndSettle();
       expect(pms.rules.first['enabled'], false);
-      await tester.ensureVisible(find.text('Inbox 0'));
-      await tester.tap(find.text('Inbox 0'));
+      await selectSection(tester, 'Inbox 0');
       await tester.pumpAndSettle();
       expect(find.text('Draft retained across tabs'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
@@ -368,17 +369,14 @@ void main() {
       auth.dispose();
     });
   }
-  test(
-    'date and time input checks match native form shape without doing availability validation',
-    () {
-      expect(validDate('2032-02-29'), true);
-      expect(validDate('2031-02-29'), false);
-      expect(validDate('0000-01-01'), false);
-      expect(optionalTime('23:59'), isNull);
-      expect(optionalTime('24:00'), isNotNull);
-      expect(optionalTime(''), isNull);
-    },
-  );
+  test('date and time input checks match native form shape without doing availability validation', () {
+    expect(validDate('2032-02-29'), true);
+    expect(validDate('2031-02-29'), false);
+    expect(validDate('0000-01-01'), false);
+    expect(optionalTime('23:59'), isNull);
+    expect(optionalTime('24:00'), isNotNull);
+    expect(optionalTime(''), isNull);
+  });
   testWidgets(
     'session revocation removes reservation dialogs from the protected navigator',
     (tester) async {
@@ -509,9 +507,7 @@ void main() {
         'Communication',
         'Activity',
       ]) {
-        final target = find.text(name).first;
-        await tester.ensureVisible(target);
-        await tester.tap(target);
+        await selectSection(tester, name);
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
       }

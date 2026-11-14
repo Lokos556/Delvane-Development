@@ -330,8 +330,8 @@ class _RoomTypeEditorState extends State<RoomTypeEditor>
         onPressed: busy || saved ? null : save,
       ),
     ],
-    child: Form(
-      key: form,
+    child: PmsForm(
+      formKey: form,
       child: Column(
         children: [
           errors(),
@@ -350,6 +350,7 @@ class _RoomTypeEditorState extends State<RoomTypeEditor>
             PmsField(
               ui('Units'),
               controller: units,
+              required: true,
               keyboard: TextInputType.number,
               validator: (v) =>
                   int.tryParse(v ?? '') == null ? 'Enter whole units' : null,
@@ -357,6 +358,7 @@ class _RoomTypeEditorState extends State<RoomTypeEditor>
             PmsField(
               ui('Max guests'),
               controller: guests,
+              required: true,
               keyboard: TextInputType.number,
               validator: (v) =>
                   int.tryParse(v ?? '') == null ? 'Enter whole guests' : null,

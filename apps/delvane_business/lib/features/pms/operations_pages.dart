@@ -203,8 +203,8 @@ class _MaintenanceEditorState extends State<MaintenanceEditor>
         onPressed: busy || saved || property.isEmpty ? null : save,
       ),
     ],
-    child: Form(
-      key: form,
+    child: PmsForm(
+      formKey: form,
       child: Column(
         children: [
           errors(),
@@ -212,6 +212,7 @@ class _MaintenanceEditorState extends State<MaintenanceEditor>
             PmsEmpty(ui('No properties available. Reload the workspace.')),
           PmsSelect(
             ui('Property'),
+            required: true,
             value: property,
             items: {
               for (final p in widget.c.rows('properties'))
@@ -407,14 +408,15 @@ class _StockEditorState extends State<StockEditor>
       ),
       PmsButton(ui('Save'), primary: true, onPressed: busy ? null : save),
     ],
-    child: Form(
-      key: form,
+    child: PmsForm(
+      formKey: form,
       child: Column(
         children: [
           errors(),
           PmsField(
             ui('Current quantity'),
             controller: quantity,
+            required: true,
             keyboard: const TextInputType.numberWithOptions(decimal: true),
             validator: (v) => num.tryParse(v ?? '')?.isFinite != true
                 ? 'Enter a finite quantity'

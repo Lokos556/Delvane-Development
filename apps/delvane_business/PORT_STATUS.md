@@ -1,4 +1,23 @@
 # Delvane PMS Flutter port: current status
+## Form usability and mobile navigation (2026-11-14)
+
+Required labels now show an asterisk and one localized explanation per relevant
+form, following existing rules. Optional/default/readonly fields remain unmarked;
+shared controls cover text/date/dropdown fields and conditional modes. Guest web
+labels now have for/required/aria-required semantics and bilingual required copy.
+
+Responsive PmsSectionPicker replaces scrolling section strips: fitted segments
+when comfortable, otherwise a current-section selector with a checked bottom-sheet
+picker. Used in reservation details, Reception, Team, knowledge scope and the desk.
+AI suggestions use the same picker; Settings has compact destination tiles.
+Caller-owned section state, draft persistence and route/role behavior retained.
+
+Validation: analysis clean; full Flutter 256 passed; isolated backend 60 passed;
+10 guarded JS files passed; font-loaded phone widget previews inspected; Android
+debug and Windows release built successfully. Physical device, camera/browser and
+TalkBack/Narrator checks remain manual. No new backend/schema/migration changes,
+reset, production/staging access, commits or pushes. Flutter/Dart versions preserved.
+See FORM_USABILITY_AND_NAVIGATION.md for audit, limitations and exact commands.
 ## Post-acceptance improvements (2026-11-14)
 
 See POST_ACCEPTANCE_IMPROVEMENTS.md for the 14-item implementation report,

@@ -261,13 +261,14 @@ class _ReservationEditorState extends State<ReservationEditor>
             ] else
               AbsorbPointer(
                 absorbing: busy,
-                child: Form(
-                  key: form,
+                child: PmsForm(
+                  formKey: form,
                   child: Column(
                     children: [
                       PmsColumns([
                         PmsSelect(
                           t('Property'),
+                          required: true,
                           value: property,
                           items: {
                             for (final p in properties)
@@ -343,6 +344,7 @@ class _ReservationEditorState extends State<ReservationEditor>
                         PmsField(
                           t('Guests'),
                           controller: fields['guest_count']!,
+                          required: true,
                           status: failureField == 'guest_count'
                               ? failure
                               : null,
@@ -986,8 +988,10 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          const PmsRequiredNote(),
           PmsField(
             t('Add note'),
+            required: true,
             controller: note,
             lines: 4,
             hint: t('Add an internal note…'),
@@ -1112,6 +1116,13 @@ class _IdentityReviewState extends State<IdentityReview>
               "Guest-submitted details are not verified automatically. Check the guest's identity and data before approving registration for VIZA. Delvane does not store document images.",
             ),
           ),
+          if (confirmed &&
+              (guests ?? <Json>[]).any(
+                (g) =>
+                    g['completeness'] == 'complete' &&
+                    g['verification_status'] != 'verified',
+              ))
+            const PmsRequiredNote(),
           errors(),
           if (guests == null && !busy) PmsButton(ui('Retry'), onPressed: load),
           if (guests == null && busy) const LinearProgressIndicator(),
@@ -1141,6 +1152,7 @@ class _IdentityReviewState extends State<IdentityReview>
                       guest['verification_status'] != 'verified') ...[
                     PmsSelect(
                       ui('Verification method'),
+                      required: true,
                       value: methods[text(guest, 'id')] ?? 'in_person',
                       items: {
                         'in_person': ui('Checked in person'),

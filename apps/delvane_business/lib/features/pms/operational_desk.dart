@@ -1,4 +1,4 @@
-import 'overflow_row.dart';
+import 'section_picker.dart';
 
 import 'dart:math' as math;
 
@@ -163,43 +163,15 @@ class _OperationalDeskState extends State<OperationalDesk>
                             ),
                           ),
                           const Divider(height: 1, color: Color(0xFFE1D6C5)),
-                          PmsOverflowRow(
-                            child: Row(
-                              children: [
-                                for (var i = 0; i < labels.length; i++)
-                                  Padding(
-                                    padding: const EdgeInsets.only(right: 6),
-                                    child: Semantics(
-                                      selected: selected == i,
-                                      child: TextButton(
-                                        style: TextButton.styleFrom(
-                                          foregroundColor: Colors.black,
-                                          backgroundColor: const Color(
-                                            0x6BFFFFFF,
-                                          ),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              10,
-                                            ),
-                                          ),
-                                          textStyle: const TextStyle(
-                                            fontFamily: PmsStyle.font,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                        onPressed: busy
-                                            ? null
-                                            : () =>
-                                                  setState(() => selected = i),
-                                        child: Text(
-                                          '${widget.c.t(labels[i])}${counts[i] == null ? '' : '  ${counts[i]}'}',
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
+                          PmsSectionPicker(
+                            labels: [
+                              for (var i = 0; i < labels.length; i++)
+                                '${widget.c.t(labels[i])}${counts[i] == null ? '' : '  ${counts[i]}'}',
+                            ],
+                            selected: selected,
+                            onChanged: busy
+                                ? null
+                                : (i) => setState(() => selected = i),
                           ),
                           const Divider(height: 1, color: Color(0xFFE6DCCB)),
                           Expanded(

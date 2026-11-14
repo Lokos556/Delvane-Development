@@ -97,6 +97,8 @@ class _LoginPageState extends State<LoginPage> {
                       const SizedBox(height: 12),
                     ],
                     const SizedBox(height: 12),
+                    Text(ui('Fields marked with * are required.')),
+                    const SizedBox(height: 12),
                     TextFormField(
                       onTapOutside: (_) =>
                           FocusManager.instance.primaryFocus?.unfocus(),
@@ -104,7 +106,9 @@ class _LoginPageState extends State<LoginPage> {
                       controller: email,
                       enabled: !widget.auth.busy,
                       keyboardType: TextInputType.emailAddress,
-                      decoration: InputDecoration(labelText: ui('Email')),
+                      decoration: InputDecoration(
+                        labelText: '${ui('Email')} *',
+                      ),
                       validator: (v) => v == null || !v.contains('@')
                           ? ui('Enter your account email.')
                           : null,
@@ -121,7 +125,7 @@ class _LoginPageState extends State<LoginPage> {
                       autocorrect: false,
                       onFieldSubmitted: (_) => _signIn(),
                       decoration: InputDecoration(
-                        labelText: ui('Password'),
+                        labelText: '${ui('Password')} *',
                         suffixIcon: IconButton(
                           tooltip: ui(
                             hidden ? 'Show password' : 'Hide password',

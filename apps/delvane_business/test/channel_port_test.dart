@@ -14,6 +14,7 @@ import 'package:delvane_business/features/pms/pms_style.dart';
 import 'package:delvane_business/features/pms/property_rates_dialog.dart';
 import 'package:delvane_business/features/pms/guest_history_dialog.dart';
 import 'package:delvane_business/features/pms/pms_workflows.dart';
+
 import 'support/fake_pms.dart';
 import 'support/channel_pms.dart';
 
@@ -28,7 +29,7 @@ Future<void> enter(
   bool first = false,
 }) async {
   var field = find.descendant(
-    of: find.widgetWithText(PmsField, label),
+    of: find.byWidgetPredicate((w) => w is PmsField && w.label == label),
     matching: find.byType(TextFormField),
   );
   if (first) field = field.first;
@@ -176,33 +177,30 @@ void main() {
       a.dispose();
     }
   });
-  test(
-    'prices retain decimal strings and integer precision; delivery states are truthful',
-    () {
-      expect(channelPrice('9007199254740993'), 9007199254740993);
-      expect(channelPrice('100.29'), '100.29');
-      expect(channelPrice(''), isNull);
-      expect(() => channelPrice('NaN'), throwsFormatException);
-      expect(deliveryTitle({'no_change': true}), 'No update sent');
-      expect(
-        deliveryTitle({
-          'delivery': {'delivered': [], 'failed': []},
-        }),
-        'Update queued',
-      );
-      expect(
-        deliveryTitle({
-          'delivery': {
-            'delivered': [],
-            'failed': [
-              {'error': 'test'},
-            ],
-          },
-        }),
-        'Saved; delivery will retry',
-      );
-    },
-  );
+  test('prices retain decimal strings and integer precision; delivery states are truthful', () {
+    expect(channelPrice('9007199254740993'), 9007199254740993);
+    expect(channelPrice('100.29'), '100.29');
+    expect(channelPrice(''), isNull);
+    expect(() => channelPrice('NaN'), throwsFormatException);
+    expect(deliveryTitle({'no_change': true}), 'No update sent');
+    expect(
+      deliveryTitle({
+        'delivery': {'delivered': [], 'failed': []},
+      }),
+      'Update queued',
+    );
+    expect(
+      deliveryTitle({
+        'delivery': {
+          'delivered': [],
+          'failed': [
+            {'error': 'test'},
+          ],
+        },
+      }),
+      'Saved; delivery will retry',
+    );
+  });
   for (final role in ['cleaner', 'maintenance']) {
     test(
       '$role is denied channel reads and mutations before transport',
@@ -251,7 +249,11 @@ void main() {
         await t.pumpAndSettle();
         await enter(t, 'Nightly price · USD', '100.29', first: true);
         final stop = find.descendant(
-          of: find.widgetWithText(PmsSelect, 'Stop sell').first,
+          of: find
+              .byWidgetPredicate(
+                (w) => w is PmsSelect && w.label == 'Stop sell',
+              )
+              .first,
           matching: find.byType(DropdownButtonFormField<String>),
         );
         await t.ensureVisible(stop);
@@ -295,7 +297,9 @@ void main() {
       );
       await t.pumpAndSettle();
       final fields = find.descendant(
-        of: find.widgetWithText(PmsField, 'Nightly price · USD'),
+        of: find.byWidgetPredicate(
+          (w) => w is PmsField && w.label == 'Nightly price · USD',
+        ),
         matching: find.byType(TextFormField),
       );
       await t.ensureVisible(fields.last);

@@ -1,3 +1,5 @@
+import 'support/section_navigation.dart';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:delvane_business/app/app.dart';
@@ -10,12 +12,13 @@ import 'package:delvane_business/features/pms/property_dialog.dart';
 import 'package:delvane_business/features/pms/team_page.dart';
 import 'package:delvane_business/features/pms/operations_pages.dart';
 import 'package:delvane_business/features/pms/operations_workflows.dart';
+
 import 'support/fake_pms.dart';
 import 'support/management_pms.dart';
 
 Future<void> field(WidgetTester tester, String label, String value) async {
   final finder = find.descendant(
-    of: find.widgetWithText(PmsField, label),
+    of: find.byWidgetPredicate((w) => w is PmsField && w.label == label),
     matching: find.byType(TextFormField),
   );
   await tester.ensureVisible(finder);
@@ -46,7 +49,9 @@ void main() {
         );
         await tester.pumpAndSettle();
         final roleSelect = find.descendant(
-          of: find.widgetWithText(PmsSelect, 'Delvane role'),
+          of: find.byWidgetPredicate(
+            (w) => w is PmsSelect && w.label == 'Delvane role',
+          ),
           matching: find.byType(DropdownButtonFormField<String>),
         );
         await tester.ensureVisible(roleSelect);
@@ -55,7 +60,9 @@ void main() {
         await tester.tap(find.text('Maintenance').last);
         await tester.pumpAndSettle();
         final activeSelect = find.descendant(
-          of: find.widgetWithText(PmsSelect, 'Account status'),
+          of: find.byWidgetPredicate(
+            (w) => w is PmsSelect && w.label == 'Account status',
+          ),
           matching: find.byType(DropdownButtonFormField<String>),
         );
         await tester.ensureVisible(activeSelect);
@@ -230,34 +237,31 @@ void main() {
       },
     );
   }
-  test(
-    'worker cannot verify maintenance, adjust stock, or finish another worker task',
-    () async {
-      final pms = ManagementPms()..role = 'maintenance';
-      final auth = await signedIn(pms);
-      final worker = PmsController(auth);
-      try {
-        final api = OperationsWorkflows(worker), before = pms.requests.length;
-        await expectLater(
-          api.maintenanceStatus(pms.maintenance, 'verified'),
-          throwsStateError,
-        );
-        await expectLater(
-          api.maintenanceStatus({
-            ...pms.maintenance,
-            'assigned_to': 'another',
-          }, 'resolved'),
-          throwsStateError,
-        );
-        await expectLater(api.stock('s1', 1), throwsStateError);
-        await expectLater(api.finish(pms.task, ''), throwsStateError);
-        expect(pms.requests.length, before);
-      } finally {
-        worker.dispose();
-        auth.dispose();
-      }
-    },
-  );
+  test('worker cannot verify maintenance, adjust stock, or finish another worker task', () async {
+    final pms = ManagementPms()..role = 'maintenance';
+    final auth = await signedIn(pms);
+    final worker = PmsController(auth);
+    try {
+      final api = OperationsWorkflows(worker), before = pms.requests.length;
+      await expectLater(
+        api.maintenanceStatus(pms.maintenance, 'verified'),
+        throwsStateError,
+      );
+      await expectLater(
+        api.maintenanceStatus({
+          ...pms.maintenance,
+          'assigned_to': 'another',
+        }, 'resolved'),
+        throwsStateError,
+      );
+      await expectLater(api.stock('s1', 1), throwsStateError);
+      await expectLater(api.finish(pms.task, ''), throwsStateError);
+      expect(pms.requests.length, before);
+    } finally {
+      worker.dispose();
+      auth.dispose();
+    }
+  });
   for (final width in [1440.0, 390.0]) {
     for (final page in [PmsPage.team, PmsPage.maintenance, PmsPage.supplies]) {
       testWidgets('${page.name} original controls fit width $width', (
@@ -283,15 +287,13 @@ void main() {
           expect(tester.takeException(), isNull);
           if (page == PmsPage.team) {
             expect(find.text('Manage'), findsOneWidget);
-            await tester.ensureVisible(find.text('Access & roles'));
-            await tester.tap(find.text('Access & roles'));
+            await selectSection(tester, 'Access & roles');
             await tester.pumpAndSettle();
             expect(
               find.text('People see only what their job requires.'),
               findsOneWidget,
             );
-            await tester.ensureVisible(find.text('Workload'));
-            await tester.tap(find.text('Workload'));
+            await selectSection(tester, 'Workload');
             await tester.pumpAndSettle();
             expect(find.text('Synthetic Worker'), findsOneWidget);
           }
