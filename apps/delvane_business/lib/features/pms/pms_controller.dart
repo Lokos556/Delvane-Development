@@ -1,3 +1,5 @@
+import 'chat_session.dart';
+
 import 'package:flutter/foundation.dart';
 
 import '../../core/auth/auth_controller.dart';
@@ -40,6 +42,12 @@ class PmsController extends ChangeNotifier {
   late PmsPage page;
   final WebStrings strings = WebStrings.current;
   final Map<String, Object?> data = {};
+  late final chat = PmsChatSession(
+    api,
+    emit,
+    canRead: () => auth.user?.isOperator == true,
+  );
+  String? chatRefreshError;
   bool loading = true, saving = false, _disposed = false;
   int _generation = 0;
   String? error, actionError;
@@ -109,14 +117,24 @@ class PmsController extends ChangeNotifier {
   Future<void> load() async {
     final generation = ++_generation;
     final selected = page;
-    loading = true;
+    final retainChat =
+        selected == PmsPage.intelligence &&
+        data.containsKey('conversation') &&
+        data.containsKey('intelligence') &&
+        data.containsKey('provider');
+    final chatRevision = chat.revision;
+    loading = !retainChat;
     error = null;
-    data.clear();
+    chatRefreshError = null;
+    if (!retainChat) data.clear();
     emit();
     try {
       if (strings.data.isEmpty) await strings.load();
       await auth.revalidate();
       if (_disposed || generation != _generation || auth.user == null) return;
+      if (selected == PmsPage.intelligence && !user.isOperator) {
+        throw const ApiException('Operator access required.', statusCode: 403);
+      }
       final paths = <String, String>{};
       switch (selected) {
         case PmsPage.today:
@@ -211,10 +229,21 @@ class PmsController extends ChangeNotifier {
       }
       if (_disposed || generation != _generation || auth.user == null) return;
       data.addAll(result);
+      if (result['conversation'] != null && chat.revision == chatRevision) {
+        chat.syncHistory(jsonObject(result['conversation']), notify: false);
+      }
       loading = false;
     } catch (e) {
       if (_disposed || generation != _generation) return;
-      error = safeError(e);
+      if (e is ApiException && (e.statusCode == 401 || e.statusCode == 403)) {
+        data.clear();
+        chat.invalidateAccess();
+        error = safeError(e);
+      } else if (retainChat) {
+        chatRefreshError = safeError(e);
+      } else {
+        error = safeError(e);
+      }
       loading = false;
     }
     emit();
@@ -254,6 +283,7 @@ class PmsController extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     ++_generation;
+    chat.dispose();
     super.dispose();
   }
 }

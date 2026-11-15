@@ -11,6 +11,8 @@ import shutil
 import sqlite3
 import base64
 import time
+import threading
+import weakref
 from zoneinfo import ZoneInfo
 import owner_assistant
 import urllib.request
@@ -2925,6 +2927,7 @@ class CommandBody(BaseModel):
 
 class RosaChatBody(BaseModel):
     message: str
+    client_request_id: str | None = None
     conversation_id: str | None = None
     language: str = "en"
 
@@ -5105,8 +5108,8 @@ def _primary_conversation_for_user(con: DBConnection, user: dict[str,Any]):
     return _conversation_for_user(con,user,None)
 
 
-def _chat_store(con: DBConnection, user: dict[str,Any], conversation_id: str, role: str, content: str, provider: str="local", metadata: dict[str,Any]|None=None):
-    mid=new_id("chat"); ts=datetime.now().isoformat(timespec="microseconds")
+def _chat_store(con: DBConnection, user: dict[str,Any], conversation_id: str, role: str, content: str, provider: str="local", metadata: dict[str,Any]|None=None, *, message_id: str|None=None):
+    mid=message_id or new_id("chat"); ts=datetime.now().isoformat(timespec="microseconds")
     con.execute("INSERT INTO rosa_chat_messages(id,organization_id,conversation_id,role,content,provider,metadata_json,created_at) VALUES (?,?,?,?,?,?,?,?)",(mid,user["organization_id"],conversation_id,role,content,provider,json.dumps(metadata or {},ensure_ascii=False),ts))
     con.execute("UPDATE rosa_conversations SET updated_at=? WHERE id=?",(ts,conversation_id))
     return mid
@@ -5650,24 +5653,71 @@ def _owner_assistant_reply(con, user, text, language, context, allow_provider=Tr
     return out
 
 
+_CHAT_RETRY_LOCKS = weakref.WeakValueDictionary()
+_CHAT_RETRY_GUARD = threading.Lock()
+
+@contextmanager
+def _chat_retry_lock(digest):
+    if digest is None:
+        yield
+        return
+    with _CHAT_RETRY_GUARD:
+        lock=_CHAT_RETRY_LOCKS.setdefault(digest,threading.Lock())
+    with lock:
+        yield
+
+
+def _saved_chat_reply(con,user,body,text,language,user_mid,answer_mid):
+    previous=con.execute("SELECT * FROM rosa_chat_messages WHERE id=? AND organization_id=?",(answer_mid,user['organization_id'])).fetchone()
+    if previous is None: return None
+    question=con.execute("SELECT content FROM rosa_chat_messages WHERE id=? AND organization_id=?",(user_mid,user['organization_id'])).fetchone()
+    meta=_safe_json(previous['metadata_json'],{})
+    if not question or question['content']!=text or meta.get('language')!=language or (body.conversation_id and body.conversation_id!=previous['conversation_id']):
+        raise HTTPException(409,"Chat request identifier was already used for another question")
+    return {**{k:meta.get(k) for k in ('route','intent','facts','read_only','external_status')},'answer':previous['content'],'provider':previous['provider'],'proposals':[], 'conversation_id':previous['conversation_id'],'operating_mode':'read_only','user_message_id':user_mid,'assistant_message_id':answer_mid}
+
+
 @app.post("/api/rosa/chat")
 def rosa_chat(body:RosaChatBody,request:Request,rosa_session:str|None=Cookie(default=None)):
     user=require_user(rosa_session); require_roles(user,"owner","manager")
     text=body.message.strip()
     if not text or len(text)>4000: raise HTTPException(400,"Message must contain 1–4000 characters")
     language=body.language if body.language in {"hu","en"} else "en"
-    with db() as con:
+    key=body.client_request_id
+    if key is not None and not re.fullmatch(r"[a-f0-9]{32}",key):
+        raise HTTPException(400,"Invalid chat request identifier")
+    digest=hashlib.sha256((user['organization_id']+'\0'+user['id']+'\0'+key).encode()).hexdigest() if key else None
+    route_id="chat_request_"+digest if digest else new_id("route")
+    user_mid="chat_user_"+digest if digest else None
+    answer_mid="chat_answer_"+digest if digest else None
+    # In-process retries share one computation; persisted deterministic IDs also
+    # prevent duplicate records across workers. No writer lock is held over HTTP.
+    with _chat_retry_lock(digest), db() as con:
+        if key:
+            saved=_saved_chat_reply(con,user,body,text,language,user_mid,answer_mid)
+            if saved is not None: return saved
         conv=_conversation_for_user(con,user,body.conversation_id) if body.conversation_id else _primary_conversation_for_user(con,user)
         cid=conv["id"]; context=_safe_json(conv["context_json"],{})
+        if key: con.commit()  # Persist only possible thread initialization before provider I/O.
         out=_owner_assistant_reply(con,user,text,language,context)
-        _chat_store(con,user,cid,"user",text)
+        if key:
+            inserted=con.execute("INSERT OR IGNORE INTO rosa_ai_routes(id,organization_id,user_id,conversation_id,route,provider,intent,created_at) VALUES (?,?,?,?,?,?,?,?)",(route_id,user['organization_id'],user['id'],cid,'request_pending','local','pending',now_iso())).rowcount
+            if not inserted:
+                saved=_saved_chat_reply(con,user,body,text,language,user_mid,answer_mid)
+                if saved is not None: return saved
+                raise HTTPException(409,"Chat request is still completing; retry the same request")
+        user_mid=_chat_store(con,user,cid,"user",text,metadata={'client_request_id':key},message_id=user_mid)
         metadata={k:out[k] for k in ("route","intent","facts","read_only","external_status")}
-        _chat_store(con,user,cid,"rosa",out["answer"],out["provider"],metadata)
+        metadata.update(client_request_id=key,language=language)
+        answer_mid=_chat_store(con,user,cid,"rosa",out["answer"],out["provider"],metadata,message_id=answer_mid)
         con.execute("UPDATE rosa_conversations SET context_json=?,title=CASE WHEN title='New conversation' THEN ? ELSE title END,updated_at=? WHERE id=?",(json.dumps(out["context"]),text[:60],now_iso(),cid))
         log_route="llm_plan" if out["external_status"]=="ok" else "planner_error" if out["external_status"]=="unavailable" else out["route"]
-        con.execute("INSERT INTO rosa_ai_routes(id,organization_id,user_id,conversation_id,route,provider,intent,created_at) VALUES (?,?,?,?,?,?,?,?)",(new_id("route"),user["organization_id"],user["id"],cid,log_route,out["provider"],out["intent"],now_iso()))
+        if key:
+            con.execute('UPDATE rosa_ai_routes SET conversation_id=?,route=?,provider=?,intent=? WHERE id=?',(cid,log_route,out['provider'],out['intent'],route_id))
+        else:
+            con.execute("INSERT INTO rosa_ai_routes(id,organization_id,user_id,conversation_id,route,provider,intent,created_at) VALUES (?,?,?,?,?,?,?,?)",(route_id,user["organization_id"],user["id"],cid,log_route,out["provider"],out["intent"],now_iso()))
         audit_event(con,user["organization_id"],"rosa.chat","Read-only owner lookup.",actor_user_id=user["id"],entity_type="rosa_conversation",entity_id=cid,metadata={"route":out["route"],"intent":out["intent"]},request=request,session_id=user.get("session_id"))
-        return {**{k:v for k,v in out.items() if k!="context"},"conversation_id":cid,"operating_mode":"read_only"}
+        return {**{k:v for k,v in out.items() if k!="context"},"conversation_id":cid,"operating_mode":"read_only",'user_message_id':user_mid,'assistant_message_id':answer_mid}
 
 @app.post("/api/rosa/proposals/{proposal_id}/resolve")
 def rosa_proposal_resolve(proposal_id:str,body:RosaProposalResolveBody,request:Request,rosa_session:str|None=Cookie(default=None)):

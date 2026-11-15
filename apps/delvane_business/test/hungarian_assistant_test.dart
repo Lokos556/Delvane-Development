@@ -37,7 +37,11 @@ void main() {
           'conversation': {'id': 'unicode-thread'},
           'messages': [],
         };
-        pms.overrides['/api/rosa/chat'] = pms.json({'ok': true});
+        pms.overrides['/api/rosa/chat'] = pms.json({
+          'answer': 'PMS reply',
+          'conversation_id': 'unicode-thread',
+          'read_only': true,
+        });
         pms.overrides['/api/rosa/conversation'] = pms.json(conversation);
         pms.overrides['/api/intelligence'] = pms.json({});
         pms.overrides['/api/rosa/provider'] = pms.json({});
@@ -184,7 +188,11 @@ void main() {
             null,
           );
         }
-        pms.overrides['/api/rosa/chat'] = pms.json({'ok': true});
+        pms.overrides['/api/rosa/chat'] = pms.json({
+          'answer': 'PMS reply',
+          'conversation_id': 'unicode-thread',
+          'read_only': true,
+        });
         pms.overrides['/api/intelligence'] = pms.json(<String, dynamic>{});
         pms.overrides['/api/rosa/provider'] = pms.json(<String, dynamic>{});
         pms.overrides['/api/rosa/conversation'] = pms.json({

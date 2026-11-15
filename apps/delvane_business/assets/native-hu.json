@@ -923,5 +923,9 @@
   "Checking your PMS records…": "A PMS-adatok ellenőrzése…",
   "How many reservations were cancelled?": "Hány lemondott foglalásom van?",
   "Read-only assistant": "Csak lekérdezésre használható asszisztens",
-  "OpenAI configured · Facts from PMS": "OpenAI beállítva · Tények a PMS-ből"
+  "OpenAI configured · Facts from PMS": "OpenAI beállítva · Tények a PMS-ből",
+  "Delvane is responding…": "Delvane válaszol…",
+  "Jump to latest": "Ugrás a legújabb üzenethez",
+  "Couldn't send. Try again.": "Nem sikerült elküldeni. Próbáld újra.",
+  "Couldn't refresh history. Try again.": "Nem sikerült frissíteni az előzményeket. Próbáld újra."
 }

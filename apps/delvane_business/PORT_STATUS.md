@@ -1,4 +1,31 @@
 # Delvane PMS Flutter port: current status
+## Continuous native conversation (2026-11-15)
+
+Confirmed flash/scroll cause: send used c.act's page reload, clearing data and
+replacing/disposal of IntelligenceWorkspace before its scroll callback. New
+PmsChatSession updates the conversation in place with an immediate user message,
+real pending indicator and complete actual response. Retains prior messages during
+requests/background refresh; per-turn localized errors/retry; stable IDs and
+controller state across navigation; authorization loss clears private cache.
+
+Short replies/threads follow the bottom. A bounded newest-message anchor and lazy
+older history reveal long answers from their beginning. User upward scrolling
+suspends following and exposes Jump to latest. IME focus/safe areas and reduced
+motion are covered. No simulated streaming or streaming backend introduced.
+
+A failing duplicate-turn test justified optional client_request_id replay in the
+existing endpoint/storage. Repeated/concurrent/restarted retries reuse one saved
+answer and message pair; legacy callers remain compatible. No schema migration,
+reset or PMS query/provider/auth changes. Restart the backend as well as installing
+the client to use the retry protection.
+
+Validation: analysis clean; full Flutter 272 passed; guarded backend 60 passed;
+font-loaded phone previews rendered/inspected; Android debug and Windows release
+built successfully; diff check clean. Physical Xiaomi/Windows acceptance remains
+manual. No production/staging access, commits or pushes. Flutter/Dart versions,
+app IDs, Unicode/localization and environment isolation retained.
+See CHAT_EXPERIENCE.md for causes, retry semantics, limitations and exact commands.
+
 ## Hungarian assistant input/suggestions fixed (2026-11-15)
 
 Confirmed shared native JSON request defect: HttpClientRequest.write selected

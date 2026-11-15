@@ -174,7 +174,11 @@ void main() {
     'chat submit still uses existing session/CSRF and clears only an accepted message',
     (t) async {
       final pms = visualPms();
-      pms.overrides['/api/rosa/chat'] = pms.json({'ok': true});
+      pms.overrides['/api/rosa/chat'] = pms.json({
+        'answer': 'PMS reply',
+        'conversation_id': 'unicode-thread',
+        'read_only': true,
+      });
       final a = await signedIn(pms);
       try {
         await t.pumpWidget(

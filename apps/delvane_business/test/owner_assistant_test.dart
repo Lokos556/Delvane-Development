@@ -91,7 +91,7 @@ void main() {
         await tester.enterText(composer, 'Who is arriving tomorrow?');
         await tester.testTextInput.receiveAction(TextInputAction.send);
         await tester.pump();
-        expect(find.text('Checking your PMS records…'), findsOneWidget);
+        expect(find.text('Delvane is responding…'), findsOneWidget);
         final request = pms.requests.singleWhere(
           (r) => r.path == '/api/rosa/chat',
         );
@@ -104,9 +104,9 @@ void main() {
         pms.reply.complete(pms.json({'detail': 'PRIVATE PROVIDER TRACE'}, 503));
         await tester.pumpAndSettle();
         expect(input.text, 'Who is arriving tomorrow?');
-        expect(c.actionError, isNotNull);
-        expect(c.actionError, isNot(contains('PRIVATE PROVIDER TRACE')));
-        expect(find.text('Checking your PMS records…'), findsNothing);
+        expect(c.chat.turn?.failed, isTrue);
+        expect(find.text('PRIVATE PROVIDER TRACE'), findsNothing);
+        expect(find.text('Delvane is responding…'), findsNothing);
         expect(tester.takeException(), isNull);
       } finally {
         await tester.pumpWidget(const SizedBox());
