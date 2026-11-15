@@ -1,3 +1,5 @@
+import '../pms/assistant_prompts.dart';
+
 import 'package:delvane_business/core/localization/web_strings.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -21,10 +23,10 @@ class _AiPageState extends State<AiPage> {
     super.dispose();
   }
 
-  void ask(String question) {
+  void ask(String question, {AssistantPrompt? suggestion}) {
     if (question.trim().isEmpty) return;
     final data = widget.controller.snapshot!;
-    final q = question.toLowerCase();
+    final q = (suggestion?.english ?? question).toLowerCase();
     final response = q.contains('task') || q.contains('team')
         ? 'The sample workspace has ${data.tasks.length - widget.controller.completedTasks.length} open tasks. Review Operations for assignments. I have not changed or assigned any work.'
         : q.contains('arrival') || q.contains('arriv')
@@ -69,12 +71,13 @@ class _AiPageState extends State<AiPage> {
           runSpacing: 10,
           children: [
             for (final prompt in [
-              'Summarize demo arrivals',
-              'What tasks are open?',
+              AssistantPrompt.demoArrivals,
+              AssistantPrompt.demoTasks,
             ])
               ActionChip(
-                label: Text(ui(prompt)),
-                onPressed: () => ask(prompt),
+                label: Text(prompt.text(WebStrings.current)),
+                onPressed: () =>
+                    ask(prompt.text(WebStrings.current), suggestion: prompt),
                 avatar: const Icon(Icons.north_east, size: 15),
               ),
           ],
@@ -110,7 +113,7 @@ class _AiPageState extends State<AiPage> {
           onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
           key: const ValueKey('ai-question'),
           controller: input,
-          onSubmitted: ask,
+          onSubmitted: (question) => ask(question),
           decoration: InputDecoration(
             hintText: ui('Ask a demo question…'),
             suffixIcon: IconButton(

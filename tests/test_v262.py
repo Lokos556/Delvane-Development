@@ -67,32 +67,33 @@ def test_action_engine_never_calls_openai(tmp_path,monkeypatch):
     calls=[]
     monkeypatch.setattr(rosa,'_openai_answer',lambda *a,**k: calls.append(a) or 'SHOULD NOT BE USED')
     out=ask(c,"Move today's cleaning from Anna to Erika.")
-    assert out['route']=='action'
-    assert out['proposals']
+    assert out['route']=='read_only'
+    assert out['proposals']==[]
     assert not calls
 
 
 def test_only_fallback_may_call_luna(tmp_path,monkeypatch):
     c=fresh(tmp_path,monkeypatch); login(c)
-    monkeypatch.setattr(rosa,'AI_PROVIDER','openai'); monkeypatch.setattr(rosa,'OPENAI_API_KEY','fake-key')
+    monkeypatch.setattr(rosa,'AI_PROVIDER','openai');monkeypatch.setattr(rosa,'OPENAI_API_KEY','fake-key')
     calls=[]
-    monkeypatch.setattr(rosa,'_openai_answer',lambda *a,**k: calls.append(a) or 'This is the Luna fallback answer.')
-    out=ask(c,'Think through the situation and tell me what pattern I should be worried about.')
-    assert out['route']=='llm'
-    assert out['provider']=='openai'
-    assert len(calls)==1
-    assert out['answer']=='This is the Luna fallback answer.'
+    monkeypatch.setattr(rosa,'_response_api_text',lambda *a,**k:calls.append(k) or '{"intent":"count","scope":"all","property":""}')
+    out=ask(c,'Tell me the size of my booking ledger')
+    assert out['provider']=='openai' and out['route']=='database'
+    assert len(calls)==1 and calls[0]['json_schema']
+    with rosa.db() as con:
+        assert out['facts']['count']==con.execute("SELECT COUNT(*) c FROM reservations WHERE organization_id='org_casa_rosa'").fetchone()['c']
+
 
 
 def test_without_api_complex_request_stays_safe_local_fallback(tmp_path,monkeypatch):
     c=fresh(tmp_path,monkeypatch); login(c)
     out=ask(c,'Think through the situation and tell me what pattern I should be worried about.')
-    assert out['route']=='fallback'
+    assert out['route']=='unknown'
     assert out['provider']=='local'
-    assert 'optional Luna fallback' in out['answer']
+    assert out['external_status']=='not_configured'
     with rosa.db() as con:
         routes=[dict(r) for r in con.execute('SELECT route,provider,intent FROM rosa_ai_routes ORDER BY created_at')]
-        assert routes[-1]['route']=='fallback'
+        assert routes[-1]['route']=='unknown'
 
 
 def test_property_scalar_facts_are_database_route(tmp_path,monkeypatch):

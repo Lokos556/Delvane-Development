@@ -1,4 +1,49 @@
 # Delvane PMS Flutter port: current status
+## Hungarian assistant input/suggestions fixed (2026-11-15)
+
+Confirmed shared native JSON request defect: HttpClientRequest.write selected
+Latin-1 without a charset, corrupting/rejecting Unicode. The real loopback wire
+test reproduced the exception before the fix and passes with explicit UTF-8 bytes
+and application/json; charset=utf-8. Composer/backend had no ASCII-only filter.
+Stable AssistantPrompt identities now supply the same localized displayed/inserted
+text in owner and scripted-demo suggestions. Added the Hungarian attention alias
+so localized submission retains its supported lookup. Draft/history are preserved.
+
+Validation: analysis clean; full Flutter 261 passed; guarded backend 43 passed;
+Android debug and Windows release built successfully; diff check clean. Covers
+IME typing/composition, clipboard paste, actual HTTP bytes, Unicode display/store/
+persistent restore, HU/EN suggestions/language switching and 4000-character/CSRF
+limits. No physical-device result claimed. No reset/migration, production/staging
+access, commits or pushes. Prior uncommitted restoration work preserved.
+See HUNGARIAN_AI_INPUT_FIX.md for root causes, changed files and reinstall commands.
+
+## Read-only owner assistant restored (2026-11-14)
+
+Original Responses API integration and existing Flutter /api/rosa/chat connection
+were found. Fixed missing HU/EN factual routing, incomplete 7-day-only answer
+scope, thread reuse, and legacy assistant write/proposal behavior. Current answers
+come from tenant-scoped parameterized queries; optional OpenAI returns only a
+validated lookup plan, never SQL, factual prose or executable actions. Native UI
+shows read-only/source/loading state and preserves failed drafts. Old proposal
+approval is blocked in every operating mode. Conversation/audit metadata persists;
+PMS records remain read-only. No new migration/reset.
+
+Default persistent launcher remains offline. Explicit --enable-openai permits only
+verified TLS to the Responses endpoint with a process-provided server key. Other
+network/database isolation remains. tzdata added/installed for Windows business
+calendar/DST; organization timezone is used. No key was available in checked local
+configuration/process/user/machine environments: real OpenAI smoke test NOT RUN.
+Mocked provider success/failure, scope, permissions, limits and read-only tests pass.
+
+Validation: broader backend 79 passed; overlapping owner suite 32 passed; final
+scope/date/filter checks passed. Independent-process persistent/disposable proof
+passed. Full Flutter 257 passed; analysis clean; Android debug APK and Windows
+release built successfully. No physical-device result claimed. Unsupported free
+judgment/financial analysis remains explicitly unavailable. No production/staging
+access, commits or pushes. Flutter 3.50.0/Dart 3.14.0 and app IDs retained.
+See OWNER_ASSISTANT_RESTORATION.md, AI_SETUP.md and LOCAL_FIRST_AI.md for architecture,
+exact Xiaomi/server commands, supported date semantics and remaining requirements.
+
 ## Form usability and mobile navigation (2026-11-14)
 
 Required labels now show an asterisk and one localized explanation per relevant

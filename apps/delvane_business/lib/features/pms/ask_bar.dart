@@ -27,8 +27,10 @@ class _PmsAskBarState extends State<PmsAskBar> with PmsActions<PmsAskBar> {
     if (busy || input.text.trim().isEmpty) return;
     await perform(() async {
       final reply = jsonObject(
-        await PmsWorkflows(widget.c)
-            .change('POST', '/api/rosa/ask', {'message': input.text}),
+        await PmsWorkflows(widget.c).change('POST', '/api/rosa/ask', {
+          'message': input.text,
+          'language': widget.c.strings.language,
+        }),
       );
       if (mounted) {
         setState(() {

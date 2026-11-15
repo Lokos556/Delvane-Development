@@ -50,58 +50,51 @@ def test_v26_schema_provider_and_persistent_chat(tmp_path, monkeypatch):
 
 
 def test_observe_action_is_simulated_and_does_not_reassign(tmp_path, monkeypatch):
+    # Owner assistant is read-only in every existing operating/authority mode.
     c=fresh(tmp_path,monkeypatch); login(c)
+    assert c.patch('/api/organization/mode',json={'mode':'observe'}).status_code==200
     with rosa.db() as con:
-        before=[dict(x) for x in con.execute("SELECT id,assigned_to FROM work_tasks WHERE organization_id='org_casa_rosa' AND task_type='cleaning' AND scheduled_date=? AND status!='complete'",(str(rosa.date.today()),))]
-    assert before and all(x["assigned_to"]=="usr_cleaner" for x in before)
-    out=new_chat(c,"Anna called in sick. Move today's cleaning to Erika.")
-    assert out["proposals"] and out["proposals"][0]["status"]=="simulated"
-    assert "OBSERVE" in out["answer"]
+        before=[dict(r) for r in con.execute('SELECT id,assigned_to FROM work_tasks ORDER BY id')]
+        prior=con.execute('SELECT COUNT(*) c FROM rosa_actions').fetchone()['c']
+    out=new_chat(c,"Move today's cleaning from Anna to Erika.")
+    assert out['proposals']==[] and out['read_only'] and out['route']=='read_only'
+    assert c.post('/api/rosa/proposals/historical/resolve',json={'decision':'approve'}).status_code==409
     with rosa.db() as con:
-        after=[dict(x) for x in con.execute("SELECT id,assigned_to FROM work_tasks WHERE organization_id='org_casa_rosa' AND task_type='cleaning' AND scheduled_date=? AND status!='complete'",(str(rosa.date.today()),))]
-        assert after==before
-        action=con.execute("SELECT * FROM rosa_actions WHERE action_type='reassign_cleaning' ORDER BY created_at DESC LIMIT 1").fetchone()
-        assert action and action["status"]=="simulated"
+        assert [dict(r) for r in con.execute('SELECT id,assigned_to FROM work_tasks ORDER BY id')]==before
+        assert con.execute('SELECT COUNT(*) c FROM rosa_actions').fetchone()['c']==prior
+
 
 
 def test_assist_action_requires_approval_then_persists(tmp_path, monkeypatch):
+    # Owner assistant is read-only in every existing operating/authority mode.
     c=fresh(tmp_path,monkeypatch); login(c)
-    r=c.patch("/api/organization/mode",json={"mode":"assist"}); assert r.status_code==200,r.text
+    assert c.patch('/api/organization/mode',json={'mode':'assist'}).status_code==200
+    with rosa.db() as con:
+        before=[dict(r) for r in con.execute('SELECT id,assigned_to FROM work_tasks ORDER BY id')]
+        prior=con.execute('SELECT COUNT(*) c FROM rosa_actions').fetchone()['c']
     out=new_chat(c,"Move today's cleaning from Anna to Erika.")
-    p=out["proposals"][0]
-    assert p["status"]=="awaiting_approval"
+    assert out['proposals']==[] and out['read_only'] and out['route']=='read_only'
+    assert c.post('/api/rosa/proposals/historical/resolve',json={'decision':'approve'}).status_code==409
     with rosa.db() as con:
-        assert con.execute("SELECT COUNT(*) c FROM work_tasks WHERE task_type='cleaning' AND scheduled_date=? AND assigned_to='usr_cleaner2'",(str(rosa.date.today()),)).fetchone()["c"]==0
-    approved=c.post(f"/api/rosa/proposals/{p['id']}/resolve",json={"decision":"approve"})
-    assert approved.status_code==200,approved.text
-    with rosa.db() as con:
-        count=con.execute("SELECT COUNT(*) c FROM work_tasks WHERE organization_id='org_casa_rosa' AND task_type='cleaning' AND scheduled_date=? AND assigned_to='usr_cleaner2'",(str(rosa.date.today()),)).fetchone()["c"]
-        assert count>=1
-    # Derived task refresh must not silently reset a Rosa/human staffing decision.
-    rosa.refresh_cleaning_tasks("org_casa_rosa")
-    with rosa.db() as con:
-        count2=con.execute("SELECT COUNT(*) c FROM work_tasks WHERE organization_id='org_casa_rosa' AND task_type='cleaning' AND scheduled_date=? AND assigned_to='usr_cleaner2'",(str(rosa.date.today()),)).fetchone()["c"]
-        assert count2==count
+        assert [dict(r) for r in con.execute('SELECT id,assigned_to FROM work_tasks ORDER BY id')]==before
+        assert con.execute('SELECT COUNT(*) c FROM rosa_actions').fetchone()['c']==prior
+
 
 
 def test_autonomous_auto_executes_but_never_rule_blocks(tmp_path, monkeypatch):
+    # Owner assistant is read-only in every existing operating/authority mode.
     c=fresh(tmp_path,monkeypatch); login(c)
-    assert c.patch("/api/organization/mode",json={"mode":"autonomous"}).status_code==200
-    assert c.patch("/api/authority/reassign_cleaning",json={"mode":"auto"}).status_code==200
-    out=new_chat(c,"Anna is sick. Move today's cleaning to Erika.")
-    assert out["proposals"][0]["status"]=="executed"
+    assert c.patch('/api/organization/mode',json={'mode':'autonomous'}).status_code==200
     with rosa.db() as con:
-        assert con.execute("SELECT COUNT(*) c FROM work_tasks WHERE organization_id='org_casa_rosa' AND task_type='cleaning' AND scheduled_date=? AND assigned_to='usr_cleaner2'",(str(rosa.date.today()),)).fetchone()["c"]>=1
+        before=[dict(r) for r in con.execute('SELECT id,assigned_to FROM work_tasks ORDER BY id')]
+        prior=con.execute('SELECT COUNT(*) c FROM rosa_actions').fetchone()['c']
+    out=new_chat(c,"Move today's cleaning from Anna to Erika.")
+    assert out['proposals']==[] and out['read_only'] and out['route']=='read_only'
+    assert c.post('/api/rosa/proposals/historical/resolve',json={'decision':'approve'}).status_code==409
+    with rosa.db() as con:
+        assert [dict(r) for r in con.execute('SELECT id,assigned_to FROM work_tasks ORDER BY id')]==before
+        assert con.execute('SELECT COUNT(*) c FROM rosa_actions').fetchone()['c']==prior
 
-    # A never rule cannot be bypassed just because the org is autonomous.
-    assert c.patch("/api/authority/reassign_cleaning",json={"mode":"never"}).status_code==200
-    # reset tasks to Anna directly for the isolated rule test
-    with rosa.db() as con:
-        con.execute("UPDATE work_tasks SET assigned_to='usr_cleaner' WHERE organization_id='org_casa_rosa' AND task_type='cleaning' AND scheduled_date=?",(str(rosa.date.today()),))
-    blocked=new_chat(c,"Move today's cleaning to Erika.")
-    assert blocked["proposals"][0]["status"]=="blocked"
-    with rosa.db() as con:
-        assert con.execute("SELECT COUNT(*) c FROM work_tasks WHERE organization_id='org_casa_rosa' AND task_type='cleaning' AND scheduled_date=? AND assigned_to='usr_cleaner2'",(str(rosa.date.today()),)).fetchone()["c"]==0
 
 
 def test_conversation_tenant_isolation(tmp_path, monkeypatch):

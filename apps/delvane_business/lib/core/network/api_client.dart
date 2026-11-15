@@ -36,7 +36,9 @@ class IoApiTransport implements ApiTransport {
     // Never forward a session or a password through an HTTP redirect.
     request.followRedirects = false;
     headers.forEach(request.headers.set);
-    if (body != null) request.write(jsonEncode(body));
+    // HttpClientRequest.write defaults to Latin-1 without a charset. JSON text
+    // must reach FastAPI as UTF-8, including combining marks and non-Latin text.
+    if (body != null) request.add(utf8.encode(jsonEncode(body)));
     final response = await request.close();
     final bytes = <int>[];
     await for (final chunk in response) {
@@ -134,7 +136,7 @@ class ApiClient {
       final response = await _transport
           .request(method, baseUrl.resolveUri(relative), {
             'Accept': 'application/json',
-            'Content-Type': 'application/json',
+            'Content-Type': 'application/json; charset=utf-8',
             ...?sessionHeaders?.call(),
           }, body)
           .timeout(timeout);

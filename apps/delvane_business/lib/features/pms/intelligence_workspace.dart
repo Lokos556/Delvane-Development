@@ -1,3 +1,4 @@
+import 'assistant_prompts.dart';
 import 'section_picker.dart';
 import 'overflow_row.dart';
 
@@ -8,13 +9,7 @@ import 'pms_controller.dart';
 import 'pms_style.dart';
 import 'operational_desk.dart';
 
-/// Layout of the active v264 workspace; its existing chat/proposal APIs are unchanged.
-const prompts = [
-  'Anything concerning tomorrow?',
-  'Who still needs registration?',
-  "Which properties aren't ready?",
-  "Anna called in sick. Move today's cleaning to Erika.",
-];
+/// Existing operational conversation, now restricted to grounded read-only lookups.
 
 class IntelligenceWorkspace extends StatefulWidget {
   const IntelligenceWorkspace({
@@ -43,13 +38,34 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
 
   Future<void> send() async {
     if (widget.c.saving || widget.input.text.trim().isEmpty) return;
-    await widget.c.act(() async {
+    final accepted = await widget.c.act(() async {
       await widget.c.mutate('POST', '/api/rosa/chat', {
         'message': widget.input.text,
         'language': widget.c.strings.language,
+        if (optionalObject(
+              widget.c.object('conversation')['conversation'],
+            )['id'] !=
+            null)
+          'conversation_id': optionalObject(
+            widget.c.object('conversation')['conversation'],
+          )['id'],
       });
       widget.input.clear();
     });
+    if (accepted && mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !thread.hasClients) return;
+        if (MediaQuery.disableAnimationsOf(context)) {
+          thread.jumpTo(thread.position.maxScrollExtent);
+        } else {
+          thread.animateTo(
+            thread.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+          );
+        }
+      });
+    }
   }
 
   @override
@@ -59,8 +75,10 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
         conversation = c.object('conversation'),
         provider = c.object('provider');
     final mobile = MediaQuery.sizeOf(context).width <= 760;
-    final messages = optionalRows(conversation['messages']),
-        proposals = optionalRows(conversation['proposals']);
+    final messages = optionalRows(conversation['messages']);
+    final localizedPrompts = [
+      for (final prompt in ownerAssistantPrompts) prompt.text(c.strings),
+    ];
     return SizedBox(
       height:
           ((widget.viewportHeight ??
@@ -107,7 +125,7 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
                         if (!mobile)
                           Text(
                             provider['external_fallback_configured'] == true
-                                ? ui('Local-first · External AI ready')
+                                ? ui('OpenAI configured · Facts from PMS')
                                 : ui('Local-first · No external AI'),
                             style: const TextStyle(fontSize: 10),
                           ),
@@ -194,7 +212,7 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
                   ),
           ),
           Expanded(
-            child: messages.isEmpty && proposals.isEmpty
+            child: messages.isEmpty
                 ? Center(
                     child: SingleChildScrollView(
                       child: Padding(
@@ -216,7 +234,7 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
                             const SizedBox(height: 24),
                             Text(
                               ui(
-                                'Answers use the current Delvane database. Writes still pass through authority rules.',
+                                'Read-only assistant. Answers use your accessible PMS records; no bookings, prices or messages are changed.',
                               ),
                               textAlign: TextAlign.center,
                               style: TextStyle(fontSize: 14),
@@ -246,48 +264,29 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
                                 color: message['role'] == 'user'
                                     ? const Color(0xFFFFF4C9)
                                     : const Color(0x99FFFFFF),
-                                child: SelectableText(text(message, 'content')),
-                              ),
-                            ),
-                          ),
-                        for (final proposal in proposals)
-                          PmsCard(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  text(
-                                    proposal,
-                                    'summary',
-                                    text(proposal, 'action_type'),
-                                  ),
-                                ),
-                                PmsBadge(text(proposal, 'status')),
-                                if (proposal['status'] == 'awaiting_approval')
-                                  Wrap(
-                                    spacing: 8,
-                                    children: [
-                                      for (final choice in [
-                                        'approve',
-                                        'decline',
-                                      ])
-                                        PmsButton(
-                                          choice == 'approve'
-                                              ? ui('Approve')
-                                              : ui('Decline'),
-                                          onPressed: c.saving
-                                              ? null
-                                              : () => c.act(() async {
-                                                  await c.mutate(
-                                                    'POST',
-                                                    '/api/rosa/proposals/${idPath(text(proposal, 'id'))}/resolve',
-                                                    {'decision': choice},
-                                                  );
-                                                }),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    SelectableText(text(message, 'content')),
+                                    if (message['role'] != 'user' &&
+                                        optionalObject(
+                                              message['metadata'],
+                                            )['read_only'] ==
+                                            true) ...[
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        ui(
+                                          'Source: accessible PMS records · Read-only',
                                         ),
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          color: PmsStyle.muted,
+                                        ),
+                                      ),
                                     ],
-                                  ),
-                              ],
+                                  ],
+                                ),
+                              ),
                             ),
                           ),
                       ],
@@ -299,13 +298,28 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                Text(
+                  ui('Read-only assistant'),
+                  style: const TextStyle(fontSize: 11, color: PmsStyle.muted),
+                ),
+                const SizedBox(height: 6),
+                if (c.saving) ...[
+                  const LinearProgressIndicator(),
+                  Text(ui('Checking your PMS records…')),
+                  const SizedBox(height: 8),
+                ],
                 PmsSectionPicker(
                   pickerLabel: c.t('TRY ASKING'),
                   allowSegments: false,
                   selected: -1,
-                  labels: [for (final prompt in prompts) c.t(prompt)],
+                  labels: localizedPrompts,
                   onChanged: (i) {
-                    widget.input.text = prompts[i];
+                    widget.input.value = TextEditingValue(
+                      text: localizedPrompts[i],
+                      selection: TextSelection.collapsed(
+                        offset: localizedPrompts[i].length,
+                      ),
+                    );
                     focus.requestFocus();
                   },
                 ),
@@ -360,7 +374,7 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
                     padding: EdgeInsets.only(top: 5),
                     child: Text(
                       ui(
-                        'Answers use the current Delvane database. Writes still pass through authority rules.',
+                        'Read-only assistant. Answers use your accessible PMS records; no bookings, prices or messages are changed.',
                       ),
                       textAlign: TextAlign.center,
                       style: TextStyle(fontSize: 8),

@@ -917,5 +917,11 @@
   "Review the registered guests before reducing the guest count. Submitted identity records cannot be removed automatically.": "A vendégszám csökkentése előtt ellenőrizd a regisztrált vendégeket. A beküldött személyazonosító adatokat nem töröljük automatikusan.",
   "Complete the guest data and identity review first. Registration status cannot be set manually.": "Előbb töltsd ki a vendégadatokat, és végezd el a személyazonosság ellenőrzését. A regisztráció állapota nem állítható be kézzel.",
   "The server could not complete the request. Refresh before trying again.": "A kiszolgáló nem tudta befejezni a műveletet. Újrapróbálás előtt frissítsd az adatokat.",
-  "Fields marked with * are required.": "A *-gal jelölt mezők kitöltése kötelező."
+  "Fields marked with * are required.": "A *-gal jelölt mezők kitöltése kötelező.",
+  "Read-only assistant. Answers use your accessible PMS records; no bookings, prices or messages are changed.": "Csak lekérdezésre használható asszisztens. A hozzáférhető PMS-adatokat használja; nem módosít foglalást, árat és nem küld üzenetet.",
+  "Source: accessible PMS records · Read-only": "Forrás: hozzáférhető PMS-adatok · Csak lekérdezés",
+  "Checking your PMS records…": "A PMS-adatok ellenőrzése…",
+  "How many reservations were cancelled?": "Hány lemondott foglalásom van?",
+  "Read-only assistant": "Csak lekérdezésre használható asszisztens",
+  "OpenAI configured · Facts from PMS": "OpenAI beállítva · Tények a PMS-ből"
 }

@@ -39,34 +39,33 @@ def test_unknown_property_fact_is_local_not_recorded(tmp_path,monkeypatch):
 
 def test_property_name_no_longer_forces_generic_overview(tmp_path,monkeypatch):
     c=fresh(tmp_path,monkeypatch,openai=True)
-    calls=[]
-    monkeypatch.setattr(rosa,'_openai_answer',lambda *a,**k: calls.append(a) or 'Reasoned answer')
+    monkeypatch.setattr(rosa,'_response_api_text',lambda *a,**k:'{"intent":"attention","scope":"upcoming","property":"Aqua"}')
     out=ask(c,'What should I worry about with Aqua?')
-    assert out['route']=='llm'
-    assert out['provider']=='openai'
-    assert calls
+    assert out['provider']=='openai' and out['route']=='database'
+    assert out['facts']['property_id']=='prop_aqua' and 'tasks' in out['facts']
+
 
 
 def test_judgment_tomorrow_uses_luna_but_retrieval_stays_operations(tmp_path,monkeypatch):
     c=fresh(tmp_path,monkeypatch,openai=True)
     calls=[]
-    monkeypatch.setattr(rosa,'_openai_answer',lambda *a,**k: calls.append(a) or 'Priority answer')
+    monkeypatch.setattr(rosa,'_response_api_text',lambda *a,**k:calls.append(a) or '{"intent":"attention","scope":"tomorrow","property":""}')
     out=ask(c,'What should I worry about tomorrow?')
-    assert out['route']=='llm' and out['provider']=='openai'
-    assert len(calls)==1
+    assert out['provider']=='openai' and 'tasks' in out['facts']
     out2=ask(c,'Who arrives tomorrow?',out['conversation_id'])
-    assert out2['route']=='operations' and out2['provider']=='local'
-    assert len(calls)==1
+    assert out2['route']=='operations' and out2['provider']=='local' and len(calls)==1
+
 
 
 def test_followup_why_uses_business_reasoning_context(tmp_path,monkeypatch):
     c=fresh(tmp_path,monkeypatch,openai=True)
-    replies=iter(['Terra first.','Because it has the highest arrival risk.'])
-    monkeypatch.setattr(rosa,'_openai_answer',lambda *a,**k: next(replies))
+    monkeypatch.setattr(rosa,'_response_api_text',lambda *a,**k:'{"intent":"unknown","scope":"all","property":""}')
     first=ask(c,'Which one would you deal with first?')
     second=ask(c,'Why?',first['conversation_id'])
-    assert first['route']=='llm' and second['route']=='llm'
-    assert 'Because' in second['answer']
+    assert first['route']=='unknown' and second['route']=='unknown'
+    assert first['conversation_id']==second['conversation_id']
+    assert 'do not have' in second['answer']
+
 
 
 def test_obvious_general_knowledge_and_prompt_injection_stay_local(tmp_path,monkeypatch):
@@ -83,7 +82,7 @@ def test_obvious_general_knowledge_and_prompt_injection_stay_local(tmp_path,monk
         out=ask(c,prompt)
         assert out['route']=='local'
         assert out['provider']=='local'
-        assert 'Casa Rosa' in out['answer']
+        assert 'PMS records' in out['answer']
     assert not calls
 
 
