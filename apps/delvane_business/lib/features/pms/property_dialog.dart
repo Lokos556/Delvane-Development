@@ -5,6 +5,7 @@ import 'pms_controller.dart';
 import 'pms_dialogs.dart';
 import 'pms_style.dart';
 import 'property_rates_dialog.dart';
+import 'inventory_controls.dart';
 
 class PropertyWorkspace extends StatefulWidget {
   const PropertyWorkspace({
@@ -61,6 +62,17 @@ class _PropertyWorkspaceState extends State<PropertyWorkspace>
       width: 760,
       canClose: !busy,
       actions: [
+        PmsButton(
+          ui('Apartments and rooms'),
+          onPressed: busy
+              ? null
+              : () => showDialog(
+                  context: context,
+                  useRootNavigator: false,
+                  builder: (_) =>
+                      PhysicalInventory(c: widget.c, propertyId: widget.id),
+                ),
+        ),
         PmsButton(
           ui('Rate plans'),
           onPressed: busy || data == null

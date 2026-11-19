@@ -1,0 +1,367 @@
+{
+  "network_contacted": false,
+  "official_validation": false,
+  "operations": {
+    "information": {
+      "file": "PMS Adatszolg\u00e1ltat\u00e1si inform\u00e1ci\u00f3k lek\u00e9rdez\u00e9se v9 WSDL.txt",
+      "sha256": "ae4482091731d142493316c73e9c94565a5a8a8a842d3df88bc11b739a832559",
+      "embedded_schema_compiles": true,
+      "external_schema_dependencies": [],
+      "elements": [
+        "adatszolgaltatasKezdoDatumRequest",
+        "adatszolgaltatasKezdoDatumResponse"
+      ],
+      "enumerations": {
+        "KoltesTipusType": [
+          "BANKKARTYA",
+          "KESZPENZ",
+          "SZEP_KARTYA",
+          "ATUTALAS",
+          "UTALVANY",
+          "UTOLAGOS",
+          "EGYEB"
+        ],
+        "KoltesAlTipusType": [
+          "SZALLASHELY"
+        ],
+        "NemType": [
+          "NO",
+          "FERFI",
+          "EGYEB_VAGY_NEM_ISMERT"
+        ],
+        "LakoegysegTipusType": [
+          "ECONOMY",
+          "STANDARD",
+          "SUPERIOR",
+          "JUNIOR_SUITE",
+          "SUITE",
+          "MOBILHAZ",
+          "UDULOHAZ",
+          "PARCELLA",
+          "SATORHELY_KEMPINGHELY",
+          "EGYEDI",
+          "PRIVAT_SZOBA_KOZOS_FURDOVEL",
+          "PRIVAT_SZOBA_SAJAT_FURDOVEL",
+          "HALOTERMI_AGY",
+          "APARTMAN",
+          "EGYEB"
+        ],
+        "PiaciSzegmensType": [
+          "SZABADIDOS_EGYENI",
+          "SZABADIDOS_CSOPORTOS",
+          "UZLETI_EGYENI",
+          "UZLETI_CSOPORTOS",
+          "ISMERETLEN"
+        ],
+        "ErtekesitesiCsatornaType": [
+          "DIREKT_ONLINE",
+          "DIREKT_HAGYOMANYOS",
+          "KOZVETITO_ONLINE",
+          "KOZVETITO_HAGYOMANYOS"
+        ],
+        "AfaKulcsSzazalekType": [
+          "0",
+          "5",
+          "18",
+          "27"
+        ],
+        "IfaTipusaType": [
+          "SZAZALEKOS",
+          "TETELES",
+          "NINCS"
+        ]
+      }
+    },
+    "verification": {
+      "file": "PMS Ellen\u0151rz\u0151 v\u00e9gpont v9 WSDL.txt",
+      "sha256": "49d0a4f3da5b9f1fbb65cb951d47f00db654a7b7dfdf9c647c1f7908f4b1a1ac",
+      "embedded_schema_compiles": true,
+      "external_schema_dependencies": [],
+      "elements": [
+        "ellenorzesRequest",
+        "ellenorzesResponse"
+      ],
+      "enumerations": {
+        "UzenetStatuszType": [
+          "BEFOGADVA",
+          "TELJESEN_HIBAS",
+          "VIZSGALANDO",
+          "TELJESEN_SIKERES",
+          "UJRA_KULDENDO"
+        ],
+        "KoltesTipusType": [
+          "BANKKARTYA",
+          "KESZPENZ",
+          "SZEP_KARTYA",
+          "ATUTALAS",
+          "UTALVANY",
+          "UTOLAGOS",
+          "EGYEB"
+        ],
+        "KoltesAlTipusType": [
+          "SZALLASHELY"
+        ],
+        "NemType": [
+          "NO",
+          "FERFI",
+          "EGYEB_VAGY_NEM_ISMERT"
+        ],
+        "LakoegysegTipusType": [
+          "ECONOMY",
+          "STANDARD",
+          "SUPERIOR",
+          "JUNIOR_SUITE",
+          "SUITE",
+          "MOBILHAZ",
+          "UDULOHAZ",
+          "PARCELLA",
+          "SATORHELY_KEMPINGHELY",
+          "EGYEDI",
+          "PRIVAT_SZOBA_KOZOS_FURDOVEL",
+          "PRIVAT_SZOBA_SAJAT_FURDOVEL",
+          "HALOTERMI_AGY",
+          "APARTMAN",
+          "EGYEB"
+        ],
+        "PiaciSzegmensType": [
+          "SZABADIDOS_EGYENI",
+          "SZABADIDOS_CSOPORTOS",
+          "UZLETI_EGYENI",
+          "UZLETI_CSOPORTOS",
+          "ISMERETLEN"
+        ],
+        "ErtekesitesiCsatornaType": [
+          "DIREKT_ONLINE",
+          "DIREKT_HAGYOMANYOS",
+          "KOZVETITO_ONLINE",
+          "KOZVETITO_HAGYOMANYOS"
+        ],
+        "AfaKulcsSzazalekType": [
+          "0",
+          "5",
+          "18",
+          "27"
+        ],
+        "IfaTipusaType": [
+          "SZAZALEKOS",
+          "TETELES",
+          "NINCS"
+        ]
+      }
+    },
+    "stay": {
+      "file": "PMS Esem\u00e9nyvez\u00e9relt adatk\u00fcld\u00e9s v9 WSDL.txt",
+      "sha256": "3c96ffa41aea3ef5b1f44ebc2660d67b80bf1d304f8ecd76cb1bba9d43a48c62",
+      "embedded_schema_compiles": true,
+      "external_schema_dependencies": [],
+      "elements": [
+        "esemenyvezereltAdatkuldesRequest",
+        "esemenyvezereltAdatkuldesResponse"
+      ],
+      "enumerations": {
+        "KoltesTipusType": [
+          "BANKKARTYA",
+          "KESZPENZ",
+          "SZEP_KARTYA",
+          "ATUTALAS",
+          "UTALVANY",
+          "UTOLAGOS",
+          "EGYEB"
+        ],
+        "KoltesAlTipusType": [
+          "SZALLASHELY"
+        ],
+        "NemType": [
+          "NO",
+          "FERFI",
+          "EGYEB_VAGY_NEM_ISMERT"
+        ],
+        "LakoegysegTipusType": [
+          "ECONOMY",
+          "STANDARD",
+          "SUPERIOR",
+          "JUNIOR_SUITE",
+          "SUITE",
+          "MOBILHAZ",
+          "UDULOHAZ",
+          "PARCELLA",
+          "SATORHELY_KEMPINGHELY",
+          "EGYEDI",
+          "PRIVAT_SZOBA_KOZOS_FURDOVEL",
+          "PRIVAT_SZOBA_SAJAT_FURDOVEL",
+          "HALOTERMI_AGY",
+          "APARTMAN",
+          "EGYEB"
+        ],
+        "PiaciSzegmensType": [
+          "SZABADIDOS_EGYENI",
+          "SZABADIDOS_CSOPORTOS",
+          "UZLETI_EGYENI",
+          "UZLETI_CSOPORTOS",
+          "ISMERETLEN"
+        ],
+        "ErtekesitesiCsatornaType": [
+          "DIREKT_ONLINE",
+          "DIREKT_HAGYOMANYOS",
+          "KOZVETITO_ONLINE",
+          "KOZVETITO_HAGYOMANYOS"
+        ],
+        "AfaKulcsSzazalekType": [
+          "0",
+          "5",
+          "18",
+          "27"
+        ],
+        "IfaTipusaType": [
+          "SZAZALEKOS",
+          "TETELES",
+          "NINCS"
+        ]
+      }
+    },
+    "reservation": {
+      "file": "PMS Foglal\u00e1si esem\u00e9ny adatk\u00fcld\u00e9s v9 WSDL.txt",
+      "sha256": "bb88bf1e71b4989f81f9f1fddacd5898d170319b004a5e03266ea797c1c6e952",
+      "embedded_schema_compiles": true,
+      "external_schema_dependencies": [],
+      "elements": [
+        "foglalasEsemenyRequest",
+        "foglalasEsemenyResponse"
+      ],
+      "enumerations": {
+        "KoltesTipusType": [
+          "BANKKARTYA",
+          "KESZPENZ",
+          "SZEP_KARTYA",
+          "ATUTALAS",
+          "UTALVANY",
+          "UTOLAGOS",
+          "EGYEB"
+        ],
+        "KoltesAlTipusType": [
+          "SZALLASHELY"
+        ],
+        "NemType": [
+          "NO",
+          "FERFI",
+          "EGYEB_VAGY_NEM_ISMERT"
+        ],
+        "LakoegysegTipusType": [
+          "ECONOMY",
+          "STANDARD",
+          "SUPERIOR",
+          "JUNIOR_SUITE",
+          "SUITE",
+          "MOBILHAZ",
+          "UDULOHAZ",
+          "PARCELLA",
+          "SATORHELY_KEMPINGHELY",
+          "EGYEDI",
+          "PRIVAT_SZOBA_KOZOS_FURDOVEL",
+          "PRIVAT_SZOBA_SAJAT_FURDOVEL",
+          "HALOTERMI_AGY",
+          "APARTMAN",
+          "EGYEB"
+        ],
+        "PiaciSzegmensType": [
+          "SZABADIDOS_EGYENI",
+          "SZABADIDOS_CSOPORTOS",
+          "UZLETI_EGYENI",
+          "UZLETI_CSOPORTOS",
+          "ISMERETLEN"
+        ],
+        "ErtekesitesiCsatornaType": [
+          "DIREKT_ONLINE",
+          "DIREKT_HAGYOMANYOS",
+          "KOZVETITO_ONLINE",
+          "KOZVETITO_HAGYOMANYOS"
+        ],
+        "AfaKulcsSzazalekType": [
+          "0",
+          "5",
+          "18",
+          "27"
+        ],
+        "IfaTipusaType": [
+          "SZAZALEKOS",
+          "TETELES",
+          "NINCS"
+        ]
+      }
+    },
+    "daily_close": {
+      "file": "PMS Napi z\u00e1r\u00e1s adatk\u00fcld\u00e9s v9 WSDL.txt",
+      "sha256": "6d288d410ef9cb4c1e4711be03f9409fe3b20e77cd7ceec6a8adda70c5b147b2",
+      "embedded_schema_compiles": true,
+      "external_schema_dependencies": [],
+      "elements": [
+        "napiZarasRequest",
+        "napiZarasResponse"
+      ],
+      "enumerations": {
+        "NapiZarasBesorolasEnumType": [
+          "UJ",
+          "MODOSITO"
+        ],
+        "KoltesTipusType": [
+          "BANKKARTYA",
+          "KESZPENZ",
+          "SZEP_KARTYA",
+          "ATUTALAS",
+          "UTALVANY",
+          "UTOLAGOS",
+          "EGYEB"
+        ],
+        "KoltesAlTipusType": [
+          "SZALLASHELY"
+        ],
+        "NemType": [
+          "NO",
+          "FERFI",
+          "EGYEB_VAGY_NEM_ISMERT"
+        ],
+        "LakoegysegTipusType": [
+          "ECONOMY",
+          "STANDARD",
+          "SUPERIOR",
+          "JUNIOR_SUITE",
+          "SUITE",
+          "MOBILHAZ",
+          "UDULOHAZ",
+          "PARCELLA",
+          "SATORHELY_KEMPINGHELY",
+          "EGYEDI",
+          "PRIVAT_SZOBA_KOZOS_FURDOVEL",
+          "PRIVAT_SZOBA_SAJAT_FURDOVEL",
+          "HALOTERMI_AGY",
+          "APARTMAN",
+          "EGYEB"
+        ],
+        "PiaciSzegmensType": [
+          "SZABADIDOS_EGYENI",
+          "SZABADIDOS_CSOPORTOS",
+          "UZLETI_EGYENI",
+          "UZLETI_CSOPORTOS",
+          "ISMERETLEN"
+        ],
+        "ErtekesitesiCsatornaType": [
+          "DIREKT_ONLINE",
+          "DIREKT_HAGYOMANYOS",
+          "KOZVETITO_ONLINE",
+          "KOZVETITO_HAGYOMANYOS"
+        ],
+        "AfaKulcsSzazalekType": [
+          "0",
+          "5",
+          "18",
+          "27"
+        ],
+        "IfaTipusaType": [
+          "SZAZALEKOS",
+          "TETELES",
+          "NINCS"
+        ]
+      }
+    }
+  }
+}

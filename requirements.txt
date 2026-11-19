@@ -3,3 +3,5 @@ uvicorn>=0.30
 pydantic>=2
 cryptography>=43
 tzdata>=2025.2
+lxml>=6,<7
+bcrypt>=4,<6

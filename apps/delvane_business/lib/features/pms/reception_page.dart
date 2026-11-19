@@ -8,6 +8,7 @@ import 'pms_dialogs.dart';
 import 'pms_style.dart';
 import 'pms_workflows.dart';
 import 'guest_history_dialog.dart';
+import 'actual_stay_controls.dart';
 
 class ReceptionPage extends StatefulWidget {
   const ReceptionPage({
@@ -160,6 +161,7 @@ class _ReceptionPageState extends State<ReceptionPage>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        ActualOccupancyPanel(c: widget.controller),
         PmsColumns(
           [
             for (final entry in {

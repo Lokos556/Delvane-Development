@@ -1,3 +1,5 @@
+import 'actual_stay_controls.dart';
+import 'financial_controls.dart';
 import 'mobile_calendar_day.dart';
 
 import 'dart:async';
@@ -923,6 +925,8 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        ActualOccupancyPanel(c: c),
+        BusinessClosingPanel(c: c),
         PmsPageHeader(
           key: const ValueKey('today-header'),
           eyebrow: WebStrings.current.language == 'hu'
@@ -1622,15 +1626,17 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
                                   .where(
                                     (r) =>
                                         text(
-                                              r,
-                                              'arrival_date',
-                                            ).compareTo(iso) <=
-                                            0 &&
-                                        text(
-                                              r,
-                                              'departure_date',
-                                            ).compareTo(iso) >
-                                            0,
+                                                  r,
+                                                  'arrival_date',
+                                                ).compareTo(iso) <=
+                                                0 &&
+                                            text(
+                                                  r,
+                                                  'departure_date',
+                                                ).compareTo(iso) >
+                                                0 ||
+                                        (r['stay_type'] == 'day_use' &&
+                                            r['arrival_date'] == iso),
                                   )
                                   .toList();
                               if (MediaQuery.sizeOf(context).width <= 760) {
@@ -1949,6 +1955,8 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        ActualOccupancyPanel(c: c),
+        BusinessClosingPanel(c: c),
         heading(
           ui('OPERATIONS'),
           ui('One living timeline.'),

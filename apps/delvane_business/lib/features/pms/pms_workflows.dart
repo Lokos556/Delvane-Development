@@ -59,6 +59,25 @@ class PmsWorkflows {
 String workflowError(Object error) {
   if (error is ApiException) {
     const messages = {
+      'stay_group_unit_context':'Select guests occupying the same unit, or perform separate operations.',
+      'invalid_stay_window': 'Check the stay dates and planned time window.',
+      'stay_unit_unavailable':
+          'This unit is inactive or unavailable on the selected date.',
+      'guest_already_arrived': 'This guest already has an active arrival.',
+      'guest_not_arrived':
+          'Record an actual arrival before checking this guest out.',
+      'stay_allocation_required':
+          'Assign a planned physical unit before confirming arrival.',
+      'actual_occupancy_conflict': 'Another stay is still occupying this unit.',
+      'actual_capacity_exceeded':
+          'The unit does not have enough physical places for these guests.',
+      'physical_time_conflict':
+          'This unit is booked during part of the selected time window.',
+      'aggregate_time_conflict':
+          'The selected time window exceeds room-type inventory.',
+      'stay_booking_not_confirmed':
+          'Confirm the reservation before recording an actual stay.',
+
       "guest_records_review_required": "Review the registered guests before reducing the guest count. Submitted identity records cannot be removed automatically.",
       "registration_review_required": "Complete the guest data and identity review first. Registration status cannot be set manually.",
 

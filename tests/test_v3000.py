@@ -1,4 +1,5 @@
 import json
+from datetime import date, timedelta
 import sqlite3
 import sys
 from pathlib import Path
@@ -39,13 +40,18 @@ def test_rate_plan_creation_and_mapping(tmp_path,monkeypatch):
 
 def test_viza_id_scan_requires_owner_verification_before_queueing(tmp_path,monkeypatch):
     client,db_file,property_id,_=fresh(tmp_path,monkeypatch)
+    # This test exercises completion of a single-guest stay. A seeded booking
+    # may contain several guests; scanning one must not complete those stays.
+    arrival=date.today()+timedelta(days=300)
+    made=client.post('/api/reservations',json={'property_id':property_id,
+        'guest_name':'Fictional scanner guest','arrival_date':str(arrival),
+        'departure_date':str(arrival+timedelta(days=2)),'guest_count':1})
+    assert made.status_code==200,made.text
+    res={'id':made.json()['id']}
     with sqlite3.connect(db_file) as con:
         con.row_factory=sqlite3.Row
-        res=con.execute("SELECT id FROM reservations WHERE property_id=? AND status='confirmed' LIMIT 1",(property_id,)).fetchone()
-        rec=con.execute("SELECT id FROM guest_records WHERE reservation_id=? LIMIT 1",(res['id'],)).fetchone()
-        if not rec:
-            con.execute("INSERT INTO guest_records(id,organization_id,reservation_id,full_name,completeness) VALUES (?,?,?,?,?)",('guest-test','org_casa_rosa',res['id'],'Old Name','incomplete'))
-            rec=con.execute("SELECT id FROM guest_records WHERE reservation_id=? LIMIT 1",(res['id'],)).fetchone()
+        rec=con.execute("SELECT id FROM guest_records WHERE reservation_id=?",(res['id'],)).fetchone()
+        assert con.execute("SELECT COUNT(*) FROM guest_records WHERE reservation_id=?",(res['id'],)).fetchone()[0]==1
     r=client.post('/api/government/viza/id-scan',json={'reservation_id':res['id'],'guest_record_id':rec['id'],'full_name':'Test Guest','date_of_birth':'1990-01-02','nationality':'HUN','document_type':'ID','document_number':'TEST123','address':'Eger'})
     assert r.status_code==200,r.text
     assert r.json()['registration_status']=='pending'

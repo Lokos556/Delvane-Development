@@ -16,6 +16,10 @@ import 'pms_dialogs.dart';
 import 'pms_style.dart';
 import 'pms_workflows.dart';
 import 'guest_history_dialog.dart';
+import 'booking_reporting_controls.dart';
+import 'guest_reporting_controls.dart';
+import 'actual_stay_controls.dart';
+import 'financial_controls.dart';
 
 List<String> reservationRequests(Object? value) {
   final decoded = value is String
@@ -43,8 +47,9 @@ class _ReservationEditorState extends State<ReservationEditor>
   final form = GlobalKey<FormState>();
   final fields = <String, TextEditingController>{};
   List<Json> properties = [], rooms = [];
-  String property = '', room = '', source = 'Direct';
+  String property = '', room = '', source = 'Direct', stayType = 'overnight';
   String? selectedGuestId;
+  final bookingDetails = BookingReportingState();
   bool loading = true, roomLoading = false;
   int request = 0;
   bool get editing => widget.reservation != null;
@@ -57,6 +62,8 @@ class _ReservationEditorState extends State<ReservationEditor>
         DateTime.tryParse(widget.initialDate ?? '') ??
         DateTime.now().add(const Duration(days: 1));
     for (final key in [
+      'planned_arrival_time',
+      'planned_departure_time',
       'guest_name',
       'arrival_date',
       'departure_date',
@@ -79,6 +86,13 @@ class _ReservationEditorState extends State<ReservationEditor>
       );
       fields['guest_count']!.text = '2';
     }
+    stayType = text(r, 'stay_type', 'overnight');
+    if (fields['planned_arrival_time']!.text.isEmpty) {
+      fields['planned_arrival_time']!.text = '10:00';
+    }
+    if (fields['planned_departure_time']!.text.isEmpty) {
+      fields['planned_departure_time']!.text = '13:00';
+    }
     source = text(r, 'source', 'Direct');
     property = text(r, 'property_id');
     room = text(r, 'room_type_id');
@@ -94,6 +108,9 @@ class _ReservationEditorState extends State<ReservationEditor>
       if (property.isNotEmpty) rooms = await widget.api.rooms(property);
       if (!rooms.any((r) => r['id'] == room)) {
         room = rooms.isEmpty ? '' : text(rooms.first, 'id');
+      }
+      if (editing) {
+        await bookingDetails.load(widget.api, text(widget.reservation!, 'id'));
       }
       loading = false;
     });
@@ -134,6 +151,16 @@ class _ReservationEditorState extends State<ReservationEditor>
       'property_id': property,
       'room_type_id': room.isEmpty ? null : room,
       'source': source,
+      'stay_type': stayType,
+      'planned_arrival_time': stayType == 'day_use'
+          ? fields['planned_arrival_time']!.text
+          : null,
+      'planned_departure_time': stayType == 'day_use'
+          ? fields['planned_departure_time']!.text
+          : null,
+      'reporting': bookingDetails.reporting,
+      if (bookingDetails.allocationsChanged)
+        'allocations': bookingDetails.allocations,
       'guest_name': fields['guest_name']!.text.trim(),
       'arrival_date': fields['arrival_date']!.text,
       'departure_date': fields['departure_date']!.text,
@@ -178,6 +205,7 @@ class _ReservationEditorState extends State<ReservationEditor>
   @override
   void dispose() {
     ++request;
+    bookingDetails.dispose();
     for (final f in fields.values) {
       f.dispose();
     }
@@ -265,6 +293,49 @@ class _ReservationEditorState extends State<ReservationEditor>
                   formKey: form,
                   child: Column(
                     children: [
+                      PmsSelect(
+                        'Stay type',
+                        value: stayType,
+                        items: {
+                          'overnight': ui('Overnight stay'),
+                          'day_use': ui('Day use — no overnight stay'),
+                        },
+                        onChanged: (v) => setState(() {
+                          stayType = v;
+                          if (v == 'day_use') {
+                            fields['departure_date']!.text =
+                                fields['arrival_date']!.text;
+                          }
+                        }),
+                      ),
+                      if (stayType == 'day_use') ...[
+                        Text(
+                          ui(
+                            'Day-use requires explicit physical units and time windows. External channels may remain closed conservatively.',
+                          ),
+                        ),
+                        PmsColumns([
+                          PmsField(
+                            'Planned arrival time',
+                            controller: fields['planned_arrival_time']!,
+                            required: true,
+                            validator: optionalTime,
+                          ),
+                          PmsField(
+                            'Planned departure time',
+                            controller: fields['planned_departure_time']!,
+                            required: true,
+                            validator: optionalTime,
+                          ),
+                        ], columns: 2),
+                      ],
+                      BookingReportingControls(
+                        state: bookingDetails,
+                        api: widget.api,
+                        propertyId: property,
+                        arrival: fields['arrival_date']!.text,
+                        departure: fields['departure_date']!.text,
+                      ),
                       PmsColumns([
                         PmsSelect(
                           t('Property'),
@@ -330,7 +401,11 @@ class _ReservationEditorState extends State<ReservationEditor>
                       ], columns: 2),
                       PmsCard(
                         child: Text(
-                          nights > 0
+                          stayType == 'day_use'
+                              ? ui(
+                                  'Same-day use: zero guest nights. Arrival and departure are recorded separately.',
+                                )
+                              : nights > 0
                               ? ui(
                                   '$nights nights. Occupied nights: ${fields['arrival_date']!.text} through ${isoDate(end!.subtract(const Duration(days: 1)))}. Checkout: ${fields['departure_date']!.text}; that night remains available.',
                                 )
@@ -523,6 +598,30 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
         canClose: !busy,
         width: 1040,
         headerActions: [
+          PmsButton(
+            ui('Reservation folio'),
+            onPressed: busy || data == null
+                ? null
+                : () => showDialog(
+                    context: context,
+                    useRootNavigator: false,
+                    builder: (_) =>
+                        FolioDialog(api: widget.api, reservationId: widget.id),
+                  ),
+          ),
+          PmsButton(
+            ui('Actual guest stays'),
+            onPressed: data == null || busy
+                ? null
+                : () => showDialog(
+                    context: context,
+                    useRootNavigator: false,
+                    builder: (_) => ActualStayDialog(
+                      api: widget.api,
+                      reservationId: widget.id,
+                    ),
+                  ),
+          ),
           if (data != null)
             PmsButton(
               t('Edit booking'),
@@ -734,7 +833,9 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
             text(gp, 'full_name'),
             style: const TextStyle(fontWeight: FontWeight.w700),
           ),
-          Text(ui('${ui('Language')}: ${text(gp, 'preferred_language', '—')}')),
+          Text(
+            ui('${ui('Language')}: ${text(gp, 'preferred_language', '—')}'),
+          ),
           GuestHistorySummary(summary: optionalObject(gp['history_summary'])),
           for (final pref in optionalRows(gp['preferences']).take(4))
             Text(
@@ -1104,6 +1205,19 @@ class _IdentityReviewState extends State<IdentityReview>
       canClose: !busy,
       actions: [
         PmsButton(
+          ui('Actual guest stays'),
+          onPressed: busy
+              ? null
+              : () => showDialog(
+                  context: context,
+                  useRootNavigator: false,
+                  builder: (_) => ActualStayDialog(
+                    api: widget.api,
+                    reservationId: widget.id,
+                  ),
+                ),
+        ),
+        PmsButton(
           ui('Done'),
           onPressed: busy ? null : () => Navigator.pop(context),
         ),
@@ -1134,6 +1248,21 @@ class _IdentityReviewState extends State<IdentityReview>
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(text(guest, 'full_name')),
+                  PmsButton(
+                    ui('Residence and tourism tax'),
+                    onPressed: busy
+                        ? null
+                        : () async {
+                            await perform(
+                              () => editGuestReporting(
+                                context,
+                                widget.api,
+                                text(guest, 'id'),
+                              ),
+                            );
+                            if (mounted) await load();
+                          },
+                  ),
                   PmsBadge(
                     text(guest, 'verification_status', 'not_submitted'),
                     tone: text(guest, 'verification_status'),

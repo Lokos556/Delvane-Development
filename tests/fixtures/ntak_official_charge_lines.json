@@ -1,0 +1,1175 @@
+[
+  {
+    "worksheet_row": 2,
+    "source_cells": [
+      "Alkoholos Ital",
+      "Koktél, kevert ital",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "ALKOHOLOSITAL",
+    "subcategory": "KOKTEL",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 3,
+    "source_cells": [
+      "Alkoholos Ital",
+      "Likőr",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "ALKOHOLOSITAL",
+    "subcategory": "LIKOR",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 4,
+    "source_cells": [
+      "Alkoholos Ital",
+      "Sör",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "ALKOHOLOSITAL",
+    "subcategory": "SOR",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 5,
+    "source_cells": [
+      "Alkoholos Ital",
+      "Bor",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "ALKOHOLOSITAL",
+    "subcategory": "BOR",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 6,
+    "source_cells": [
+      "Alkoholos Ital",
+      "Párlat",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "ALKOHOLOSITAL",
+    "subcategory": "PARLAT",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 7,
+    "source_cells": [
+      "Alkoholos Ital",
+      "Pezsgő",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "ALKOHOLOSITAL",
+    "subcategory": "PEZSGO",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 8,
+    "source_cells": [
+      "Alkoholos Ital",
+      "Italcsomag (alkoholos italokból)",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "ALKOHOLOSITAL",
+    "subcategory": "ITALCSOMAG",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 9,
+    "source_cells": [
+      "Állatkert",
+      "Állatkerti program",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "ALLATKERT",
+    "subcategory": "ALLATKERTI_PROGRAM",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 10,
+    "source_cells": [
+      "Állatkert",
+      "Vadasparki program",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "ALLATKERT",
+    "subcategory": "VADASPARKI_PROGRAM",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 11,
+    "source_cells": [
+      "Egyéb",
+      "Borravaló",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "EGYEB",
+    "subcategory": "BORRAVALO",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 12,
+    "source_cells": [
+      "Egyéb",
+      "Egyéb",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "EGYEB",
+    "subcategory": "EGYEB",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 13,
+    "source_cells": [
+      "Egyéb",
+      "Szervizdíj",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "EGYEB",
+    "subcategory": "SZERVIZDIJ",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 14,
+    "source_cells": [
+      "Étel",
+      "Reggeli",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "ETEL",
+    "subcategory": "REGGELI",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 15,
+    "source_cells": [
+      "Étel",
+      "Előétel",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "ETEL",
+    "subcategory": "ELOETEL",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 16,
+    "source_cells": [
+      "Étel",
+      "Főétel",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "ETEL",
+    "subcategory": "FOETEL",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 17,
+    "source_cells": [
+      "Étel",
+      "Köret",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "ETEL",
+    "subcategory": "KORET",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 18,
+    "source_cells": [
+      "Étel",
+      "Savanyúság/saláta",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "ETEL",
+    "subcategory": "SAVANYUSAG_SALATA",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 19,
+    "source_cells": [
+      "Étel",
+      "Szendvics",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "ETEL",
+    "subcategory": "SZENDVICS",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 20,
+    "source_cells": [
+      "Étel",
+      "Leves",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "ETEL",
+    "subcategory": "LEVES",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 21,
+    "source_cells": [
+      "Étel",
+      "Főétel körettel",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "ETEL",
+    "subcategory": "FOETEL_KORETTEL",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 22,
+    "source_cells": [
+      "Étel",
+      "Ételcsomag",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "ETEL",
+    "subcategory": "ETELCSOMAG",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 23,
+    "source_cells": [
+      "Étel",
+      "Kóstolóétel, kóstolófalat",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "ETEL",
+    "subcategory": "KOSTOLO",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 24,
+    "source_cells": [
+      "Étel",
+      "Desszert",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "ETEL",
+    "subcategory": "DESSZERT",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 25,
+    "source_cells": [
+      "Étel",
+      "Snack",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "ETEL",
+    "subcategory": "SNACK",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 26,
+    "source_cells": [
+      "Étel",
+      "Egyéb",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "ETEL",
+    "subcategory": "EGYEB",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 27,
+    "source_cells": [
+      "Étel",
+      "Péksütemény, pékáru",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "ETEL",
+    "subcategory": "PEKSUTEMENY",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 28,
+    "source_cells": [
+      "Helyben készített alkoholmentes ital",
+      "Limonádé/szörp/frissen facsart ital",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "ALKMENTESITAL_HELYBEN",
+    "subcategory": "LIMONADE_SZORP_FACSART",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 29,
+    "source_cells": [
+      "Helyben készített alkoholmentes ital",
+      "Alkoholmentes koktél, alkoholmentes kevert ital",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "ALKMENTESITAL_HELYBEN",
+    "subcategory": "ALKOHOLMENTES_KOKTEL",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 30,
+    "source_cells": [
+      "Helyben készített alkoholmentes ital",
+      "Tea, forrócsoki és egyéb tejalapú italok",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "ALKMENTESITAL_HELYBEN",
+    "subcategory": "TEA_FORROCSOKOLADE",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 31,
+    "source_cells": [
+      "Helyben készített alkoholmentes ital",
+      "Kávé",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "ALKMENTESITAL_HELYBEN",
+    "subcategory": "KAVE",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 32,
+    "source_cells": [
+      "Helyben készített alkoholmentes ital",
+      "Víz",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "ALKMENTESITAL_HELYBEN",
+    "subcategory": "VIZ",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 33,
+    "source_cells": [
+      "Helyben készített alkoholmentes ital",
+      "Italcsomag (helyben készített, alkoholmentes italokból)",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "ALKMENTESITAL_HELYBEN",
+    "subcategory": "ITALCSOMAG",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 34,
+    "source_cells": [
+      "Idegenforgalmi adó",
+      "-",
+      0,
+      400,
+      "1db",
+      400,
+      "Nem"
+    ],
+    "category": "IFA",
+    "subcategory": null,
+    "amount": "400",
+    "vat": "0",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 35,
+    "source_cells": [
+      "Kalandpark",
+      "Kalandparki program",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "KALANDPARK",
+    "subcategory": "KALANDPARKI_PROGRAM",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 36,
+    "source_cells": [
+      "Kalandpark",
+      "Élményközponti program",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "KALANDPARK",
+    "subcategory": "ELMENYKOZPONTI_PROGRAM",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 37,
+    "source_cells": [
+      "Közfürdő",
+      "Fürdő program",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "KOZFURDO",
+    "subcategory": "FURDO_PROGRAM",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 38,
+    "source_cells": [
+      "Közfürdő",
+      "Egészségügyi szolgáltatás",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "KOZFURDO",
+    "subcategory": "EGESZSEGUGYI_SZOLGALTATAS",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 39,
+    "source_cells": [
+      "Közfürdő",
+      "Strand program",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "KOZFURDO",
+    "subcategory": "STRAND_PROGRAM",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 40,
+    "source_cells": [
+      "Közfürdő",
+      "Uszodai program",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "KOZFURDO",
+    "subcategory": "USZODAI_PROGRAM",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 41,
+    "source_cells": [
+      "Közfürdő",
+      "Wellness program",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "KOZFURDO",
+    "subcategory": "WELLNESS_PROGRAM",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 42,
+    "source_cells": [
+      "Muzeális intézmény, vár, kastély",
+      "Múzeumpedagógia",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "MUZEUM_VAR_KASTELY",
+    "subcategory": "MUZEUMPEDAGOGIA",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 43,
+    "source_cells": [
+      "Muzeális intézmény, vár, kastély",
+      "Tárlatvezetés",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "MUZEUM_VAR_KASTELY",
+    "subcategory": "TARLATVEZETES",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 44,
+    "source_cells": [
+      "Muzeális intézmény, vár, kastély",
+      "Egyházi létesítmény látogatása",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "MUZEUM_VAR_KASTELY",
+    "subcategory": "EGYHAZI_LETESITMENY_LATOGATASA",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 45,
+    "source_cells": [
+      "Muzeális intézmény, vár, kastély",
+      "Várlátogatás",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "MUZEUM_VAR_KASTELY",
+    "subcategory": "VARLATOGATAS",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 46,
+    "source_cells": [
+      "Muzeális intézmény, vár, kastély",
+      "Egyéb műemlék látogatása",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "MUZEUM_VAR_KASTELY",
+    "subcategory": "EGYEB_MUEMLEK_LATOGATASA",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 47,
+    "source_cells": [
+      "Muzeális intézmény, vár, kastély",
+      "Oktatási program",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "MUZEUM_VAR_KASTELY",
+    "subcategory": "OKTATASI_PROGRAM",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 48,
+    "source_cells": [
+      "Muzeális intézmény, vár, kastély",
+      "Kiállítás",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "MUZEUM_VAR_KASTELY",
+    "subcategory": "KIALLITAS",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 49,
+    "source_cells": [
+      "Muzeális intézmény, vár, kastély",
+      "Kastélylátogatás",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "MUZEUM_VAR_KASTELY",
+    "subcategory": "KASTELYLATOGATAS",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 50,
+    "source_cells": [
+      "Nem helyben készített alkoholmentes ital",
+      "Rostos üdítő",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "ALKMENTESITAL_NEM_HELYBEN",
+    "subcategory": "ROSTOS_UDITO",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 51,
+    "source_cells": [
+      "Nem helyben készített alkoholmentes ital",
+      "Italcsomag (nem helyben készített, alkoholmentes italokból)",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "ALKMENTESITAL_NEM_HELYBEN",
+    "subcategory": "ITALCSOMAG",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 52,
+    "source_cells": [
+      "Nem helyben készített alkoholmentes ital",
+      "Szénsavmentes üdítő",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "ALKMENTESITAL_NEM_HELYBEN",
+    "subcategory": "SZENSAVMENTES_UDITO",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 53,
+    "source_cells": [
+      "Nem helyben készített alkoholmentes ital",
+      "Víz",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "ALKMENTESITAL_NEM_HELYBEN",
+    "subcategory": "VIZ",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 54,
+    "source_cells": [
+      "Nem helyben készített alkoholmentes ital",
+      "Szénsavas üdítő",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "ALKMENTESITAL_NEM_HELYBEN",
+    "subcategory": "SZENSAVAS_UDITO",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 55,
+    "source_cells": [
+      "Szállásdíj",
+      "-",
+      0.05,
+      28000,
+      "1db",
+      28000,
+      "Igen"
+    ],
+    "category": "SZALLASDIJ",
+    "subcategory": null,
+    "amount": "28000",
+    "vat": "5",
+    "in_package": true
+  },
+  {
+    "worksheet_row": 56,
+    "source_cells": [
+      "Természetes fürdőhely",
+      "Szabadvízi strand program",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "TERMESZETES_FURDO",
+    "subcategory": "SZABADVIZI_STRAND_PROGRAM",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 57,
+    "source_cells": [
+      "Turisztikai közlekedési infrastruktúrához közlekedési eszköz",
+      "Tavi hajózás",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "TURISZTIKAI_KOZLEKEDES",
+    "subcategory": "TAVI_HAJOZAS",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 58,
+    "source_cells": [
+      "Turisztikai közlekedési infrastruktúrához közlekedési eszköz",
+      "Folyami hajózás",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "TURISZTIKAI_KOZLEKEDES",
+    "subcategory": "FOLYAMI_HAJOZAS",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 59,
+    "source_cells": [
+      "Turisztikai közlekedési infrastruktúrához közlekedési eszköz",
+      "Hop on hop off program",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "TURISZTIKAI_KOZLEKEDES",
+    "subcategory": "HOP_ON_HOP_OFF",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 60,
+    "source_cells": [
+      "Védett természeti terület bemutatóhelye",
+      "Oktatási program",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "VEDETT_TERMESZETI_TERULET",
+    "subcategory": "OKTATASI_PROGRAM",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 61,
+    "source_cells": [
+      "Védett természeti terület bemutatóhelye",
+      "Nemzeti Park látogatás",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "VEDETT_TERMESZETI_TERULET",
+    "subcategory": "NEMZETI_PARK_LATOGATAS",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 62,
+    "source_cells": [
+      "Védett természeti terület bemutatóhelye",
+      "Túrák/Kirándulások",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "VEDETT_TERMESZETI_TERULET",
+    "subcategory": "TURAK_KIRANDULASOK",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 63,
+    "source_cells": [
+      "Védett természeti terület bemutatóhelye",
+      "Tárlatvezetés",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "VEDETT_TERMESZETI_TERULET",
+    "subcategory": "TARLATVEZETES",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 64,
+    "source_cells": [
+      "Védett természeti terület bemutatóhelye",
+      "Barlanglátogatás",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "VEDETT_TERMESZETI_TERULET",
+    "subcategory": "BARLANGLATOGATAS",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 65,
+    "source_cells": [
+      "Védett természeti terület bemutatóhelye",
+      "Parklátogatás",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "VEDETT_TERMESZETI_TERULET",
+    "subcategory": "PARKLATOGATAS",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 66,
+    "source_cells": [
+      "Védett természeti terület bemutatóhelye",
+      "Tematikus bemutatóhely látogatás",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "VEDETT_TERMESZETI_TERULET",
+    "subcategory": "TEMATIKUS_BEMUTATOHELY_LATOGATAS",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 67,
+    "source_cells": [
+      "Vidámpark",
+      "Vidámparki program",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "VIDAMPARK",
+    "subcategory": "VIDAMPARKI_PROGRAM",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 68,
+    "source_cells": [
+      "Zenés, táncos rendezvény",
+      "Koncert",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "ZENES_TANCOS_RENDEZVENY",
+    "subcategory": "KONCERT",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 69,
+    "source_cells": [
+      "Zenés, táncos rendezvény",
+      "Kulturális rendezvény",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "ZENES_TANCOS_RENDEZVENY",
+    "subcategory": "KULTURALIS_RENDEZVENY",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  },
+  {
+    "worksheet_row": 70,
+    "source_cells": [
+      "Zenés, táncos rendezvény",
+      "Fesztivál",
+      "Tetszés szerint",
+      1,
+      "1db",
+      1,
+      "Tetszés szerint"
+    ],
+    "category": "ZENES_TANCOS_RENDEZVENY",
+    "subcategory": "FESZTIVAL",
+    "amount": "1",
+    "vat": "27",
+    "in_package": false
+  }
+]

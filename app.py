@@ -15,6 +15,15 @@ import threading
 import weakref
 from zoneinfo import ZoneInfo
 import owner_assistant
+import ntak_reporting
+import physical_units
+import reservation_allocations
+import reservation_reporting
+import guest_reporting
+import guest_stays
+import financial_ledger
+import business_days
+import day_use
 import urllib.request
 import urllib.error
 import xml.etree.ElementTree as ET
@@ -824,6 +833,18 @@ def init_db(reset: bool = False):
         ensure_v3070_schema(con)
         ensure_v3071_schema(con)
         ensure_v3072_schema(con)
+        ntak_reporting.migrate(con)
+        physical_units.migrate(con,now_iso())
+        reservation_allocations.migrate(con,now_iso())
+        reservation_reporting.migrate(_sys.modules[__name__],con)
+        guest_reporting.migrate(con,now_iso())
+        guest_stays.migrate(con,now_iso())
+        day_use.migrate(_sys.modules[__name__],con)
+        financial_ledger.migrate(_sys.modules[__name__],con)
+        business_days.migrate(_sys.modules[__name__],con)
+        add_column_if_missing(con,"ntak_jobs","predecessor_job_id","TEXT")
+        con.execute("CREATE TABLE IF NOT EXISTS ntak_job_predecessors(job_id TEXT NOT NULL REFERENCES ntak_jobs(id),predecessor_job_id TEXT NOT NULL REFERENCES ntak_jobs(id),PRIMARY KEY(job_id,predecessor_job_id))")
+        con.execute("INSERT OR IGNORE INTO schema_migrations(version,name,applied_at) VALUES (?,?,?)",(3079,"stay_reporting_causal_dependencies",now_iso()))
     if DEMO_MODE:
         refresh_cleaning_tasks("org_casa_rosa")
         seed_v2_demo()
@@ -922,6 +943,9 @@ def _associate_guest(con,org,reservation_id,guest_id):
 
 
 def _record_cancellation(con,org,reservation_id,initiator="unknown",reason=None,source=None):
+    if con.execute('SELECT id FROM guest_occupancy WHERE reservation_id=? AND ended_at IS NULL AND voided=0',(reservation_id,)).fetchone():raise HTTPException(409,'Record actual departures before cancelling an occupied booking')
+    con.execute("UPDATE day_use_allocations SET state='cancelled',retired_at=?,retired_reason='Reservation cancelled' WHERE reservation_id=? AND state='active'",(now_iso(),reservation_id))
+    con.execute("UPDATE reservation_unit_allocations SET state='cancelled',retired_at=?,retired_reason='Reservation cancelled' WHERE reservation_id=? AND state='active'",(now_iso(),reservation_id))
     if initiator not in {"guest","host","platform_system","unknown"}: raise pms_error("invalid_fields","initiator")
     con.execute("""UPDATE reservations SET cancelled_at=COALESCE(cancelled_at,?),
         cancellation_initiator=CASE WHEN cancellation_initiator='unknown' OR cancellation_initiator IS NULL THEN ? ELSE cancellation_initiator END,
@@ -2651,7 +2675,7 @@ def refresh_cleaning_tasks(org_id: str):
         valid_source_keys: set[str] = set()
         for prop in props:
             outgoing = con.execute(
-                """SELECT * FROM reservations WHERE organization_id=? AND property_id=? AND status='confirmed'
+                """SELECT * FROM reservations WHERE organization_id=? AND property_id=? AND status='confirmed' AND stay_type='overnight'
                    AND departure_date>=? AND departure_date<=? ORDER BY departure_date""",
                 (org_id, prop["id"], str(date.today()-timedelta(days=1)), str(date.today()+timedelta(days=14))),
             ).fetchall()
@@ -2705,6 +2729,8 @@ def refresh_cleaning_tasks(org_id: str):
         for task in con.execute("SELECT id FROM work_tasks WHERE organization_id=? AND task_type='cleaning'",(org_id,)).fetchall():
             ensure_task_checklist(con,org_id,task["id"])
 
+        day_use.refresh_cleaning(_sys.modules[__name__],con,org_id)
+
 
 def session_user(token: str | None) -> dict[str, Any] | None:
     if not token:
@@ -2757,6 +2783,8 @@ def _worker_property_access(con, user, property_id):
 
 
 def _lock_reservation(con, reservation_id, org_id=None):
+    # Lock property before booking, matching physical inventory/allocation writes.
+    con.execute("UPDATE properties SET id=id WHERE id IN (SELECT property_id FROM reservations WHERE id=?)",(reservation_id,))
     # Serialize guest slots, token consumption and booking changes in both supported DBs.
     query="UPDATE reservations SET id=id WHERE id=?"
     args=[reservation_id]
@@ -2851,6 +2879,11 @@ class NoteBody(BaseModel):
 
 
 class ReservationCreateBody(BaseModel):
+    stay_type: str = 'overnight'
+    planned_arrival_time: str | None = None
+    planned_departure_time: str | None = None
+    reporting: dict | None = None
+    allocations: list[reservation_allocations.Assignment] | None = None
     guest_id: str | None = None
     property_id: str
     room_type_id: str | None = None
@@ -2891,6 +2924,11 @@ class AuthorityBody(BaseModel):
 
 
 class ReservationUpdateBody(BaseModel):
+    stay_type: str | None = None
+    planned_arrival_time: str | None = None
+    planned_departure_time: str | None = None
+    reporting: dict | None = None
+    allocations: list[reservation_allocations.Assignment] | None = None
     guest_id: str | None = None
     property_id: str | None = None
     room_type_id: str | None = None
@@ -3930,7 +3968,8 @@ def property_overview(property_id: str, rosa_session: str | None = Cookie(defaul
         }
 
 
-def validate_reservation_dates(arrival: str, departure: str):
+def validate_reservation_dates(arrival: str, departure: str, stay_type='overnight', start=None, end=None):
+    if stay_type!='overnight':return day_use.validate(arrival,departure,stay_type,start,end)
     try:
         a, d = date.fromisoformat(arrival), date.fromisoformat(departure)
     except (ValueError, TypeError):
@@ -3940,6 +3979,16 @@ def validate_reservation_dates(arrival: str, departure: str):
 
 
 def check_overlap(con, org: str, property_id: str, arrival: str, departure: str, ignore_id: str | None = None, room_type_id: str | None = None):
+    if room_type_id and con.execute("SELECT id FROM reservation_unit_allocations WHERE property_id=? LIMIT 1",(property_id,)).fetchone():
+        room=con.execute("SELECT inventory_count FROM room_types WHERE id=?",(room_type_id,)).fetchone()
+        day=date.fromisoformat(arrival)
+        while day<date.fromisoformat(departure):
+            count=reservation_allocations.occupied(con,org,property_id,day,room_type_id,ignore_id)
+            own=con.execute("SELECT * FROM reservations WHERE id=?",(ignore_id,)).fetchone() if ignore_id else None
+            required=reservation_allocations.demand(con,own,day).get(room_type_id,0) if own and reservation_allocations.active(con,own["id"]) else 1
+            if count+required>int(room['inventory_count'] if room else 1):return {"id":"aggregate_inventory_conflict"}
+            day+=timedelta(days=1)
+        return None
     q = """SELECT r.id,r.guest_name,r.arrival_date,r.departure_date,rt.inventory_count
            FROM reservations r
            LEFT JOIN room_types rt ON rt.id=r.room_type_id
@@ -4119,11 +4168,12 @@ def _sync_certification_remote_availability_baseline(
 @app.post("/api/reservations")
 def reservation_create(body: ReservationCreateBody, rosa_session: str | None = Cookie(default=None)):
     user=require_user(rosa_session); require_roles(user,"owner","manager")
-    validate_reservation_dates(body.arrival_date,body.departure_date)
+    validate_reservation_dates(body.arrival_date,body.departure_date,body.stay_type,body.planned_arrival_time,body.planned_departure_time)
     if not body.guest_name.strip(): raise pms_error("guest_name_required","guest_name")
     if body.guest_count < 1: raise pms_error("invalid_guest_count","guest_count")
     if body.registration_status!="incomplete": raise pms_error("registration_review_required","registration_status",409)
     with db() as con:
+        con.execute("UPDATE properties SET id=id WHERE id=? AND organization_id=?",(body.property_id,user['organization_id']))
         prop=con.execute("SELECT * FROM properties WHERE id=? AND organization_id=?",(body.property_id,user["organization_id"])).fetchone()
         if not prop: raise pms_error("property_unavailable","property_id",404)
         fallback=con.execute("SELECT id FROM room_types WHERE organization_id=? AND property_id=? AND active=1 ORDER BY created_at,id LIMIT 1",(user["organization_id"],body.property_id)).fetchone()
@@ -4131,13 +4181,17 @@ def reservation_create(body: ReservationCreateBody, rosa_session: str | None = C
         if not room_type_id: raise pms_error("room_unavailable","room_type_id",404)
         room=con.execute("SELECT * FROM room_types WHERE id=? AND organization_id=? AND property_id=? AND active=1",(room_type_id,user["organization_id"],body.property_id)).fetchone()
         if not room: raise pms_error("room_unavailable","room_type_id",404)
-        if body.guest_count>int(room["max_guests"] or 1): raise pms_error("capacity_exceeded","guest_count")
+        if body.allocations is None and body.guest_count>int(room["max_guests"] or 1): raise pms_error("capacity_exceeded","guest_count")
         conflict=check_overlap(con,user["organization_id"],body.property_id,body.arrival_date,body.departure_date,room_type_id=room_type_id)
-        if conflict: raise pms_error("availability_conflict","arrival_date",409)
+        if conflict and body.stay_type!='day_use': raise pms_error("availability_conflict","arrival_date",409)
+        if body.stay_type=='overnight' and body.allocations is None and con.execute("SELECT id FROM reservations WHERE property_id=? AND stay_type='day_use' AND status='confirmed' LIMIT 1",(body.property_id,)).fetchone():
+            day_use.aggregate_check(con,{'id':'prospective','organization_id':user['organization_id'],'property_id':body.property_id,'stay_type':'overnight','arrival_date':body.arrival_date,'departure_date':body.departure_date},{room_type_id:1})
         rid=new_id("res")
         created=now_iso()
         con.execute("""INSERT INTO reservations (id,organization_id,property_id,room_type_id,source,external_ref,guest_name,arrival_date,departure_date,guest_count,total_huf,payment_status,registration_status,arrival_time,special_requests,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
           (rid,user["organization_id"],body.property_id,room_type_id,body.source.strip() or "Direct",body.external_ref,body.guest_name.strip(),body.arrival_date,body.departure_date,body.guest_count,body.total_huf,body.payment_status,body.registration_status,body.arrival_time,json.dumps(body.special_requests),"confirmed",created,created))
+        con.execute('UPDATE reservations SET stay_type=?,planned_arrival_time=?,planned_departure_time=? WHERE id=?',(body.stay_type,body.planned_arrival_time,body.planned_departure_time,rid))
+        if body.stay_type=='day_use' and not body.allocations:raise HTTPException(422,'Day-use requires planned physical units')
         con.execute("INSERT INTO reservation_events VALUES (?,?,?,?,?,?,?)",(new_id("reve"),user["organization_id"],rid,"created",f"Reservation created for {body.guest_name.strip()}.",json.dumps({"source":body.source,"property":prop['name']}),created))
         # Ensure every booked guest has a first-class registration slot. The first
         # slot starts with the reservation guest name; additional slots are neutral
@@ -4172,7 +4226,15 @@ def reservation_create(body: ReservationCreateBody, rosa_session: str | None = C
                 # capacity (for example Double=4). The fresh reservation state
                 # is authoritative, so never merge those stale jobs.
                 con.execute("DELETE FROM channel_ari_outbox WHERE integration_id=? AND endpoint='/api/v1/availability' AND status IN ('queued','retry')",(integration["id"],))
-        _queue_reservation_availability(con,user["organization_id"],body.property_id,body.arrival_date,body.departure_date,reason="a reservation was created",room_type_id=room_type_id)
+        if body.stay_type!='day_use':
+            _queue_reservation_availability(con,user["organization_id"],body.property_id,body.arrival_date,body.departure_date,reason="a reservation was created",room_type_id=room_type_id)
+        con.execute("UPDATE reservations SET ntak_booking_id=id,booking_created_at=created_at WHERE id=?",(rid,))
+        if body.reporting is not None:reservation_reporting.save(con,user['organization_id'],rid,body.reporting,now_iso())
+        if body.allocations is not None:
+            row=dict(con.execute('SELECT * FROM reservations WHERE id=?',(rid,)).fetchone())
+            reservation_allocations.replace(con,row,[a.model_dump(mode='json') for a in body.allocations],user['id'],'Normal reservation form',now_iso())
+            _queue_reservation_availability(con,user['organization_id'],body.property_id,body.arrival_date,body.departure_date,reason='Initial physical allocation',force=True,room_type_id=room_type_id)
+        ntak_reporting.capture_reservation(con,user["organization_id"],rid)
     delivery=_drain_channex_ari_outbox(organization_id=user["organization_id"],limit=2,ignore_throttle=True)
     refresh_cleaning_tasks(user["organization_id"])
     return {"ok":True,"id":rid,"channex_delivery":delivery}
@@ -4283,13 +4345,21 @@ def retry_reservation_channex_availability(reservation_id: str, rosa_session: st
 @app.patch("/api/reservations/{reservation_id}")
 def reservation_update(reservation_id: str, body: ReservationUpdateBody, rosa_session: str | None = Cookie(default=None)):
     user=require_user(rosa_session); require_roles(user,"owner","manager")
-    data=body.model_dump(exclude_unset=True)
-    allowed={"property_id","room_type_id","guest_name","arrival_date","departure_date","guest_count","source","external_ref","total_huf","payment_status","registration_status","arrival_time","special_requests","status","guest_id"}
+    data=body.model_dump(exclude_unset=True,mode='json')
+    reporting=data.pop("reporting",None)
+    allocations=data.pop("allocations",None)
+    allowed={"property_id","room_type_id","guest_name","arrival_date","departure_date","guest_count","source","external_ref","total_huf","payment_status","registration_status","arrival_time","special_requests","status","guest_id","stay_type","planned_arrival_time","planned_departure_time"}
     data={k:v for k,v in data.items() if k in allowed}
     with db() as con:
         _lock_reservation(con,reservation_id,user["organization_id"])
         old=con.execute("SELECT * FROM reservations WHERE id=? AND organization_id=?",(reservation_id,user["organization_id"])).fetchone()
         if not old: raise pms_error("reservation_not_found",None,404)
+        if financial_ledger.managed(con,reservation_id) and any(k in data and data[k]!=old[k] for k in ('total_huf','payment_status','property_id')):
+            raise HTTPException(409,{'code':'financial_ledger_authoritative'})
+        visits=con.execute('SELECT * FROM guest_occupancy WHERE reservation_id=? AND voided=0',(reservation_id,)).fetchall()
+        if visits and data.get('property_id',old['property_id'])!=old['property_id']:raise HTTPException(409,'A booking with actual occupancy history cannot move to another property')
+        if any(v['ended_at'] is None for v in visits) and data.get('stay_type',old['stay_type'])!=old['stay_type']:raise HTTPException(409,'Record actual departures before changing the stay type')
+
         if "guest_id" in data:
             guest_id=data.pop("guest_id")
             if guest_id: _associate_guest(con,user["organization_id"],reservation_id,guest_id)
@@ -4312,17 +4382,23 @@ def reservation_update(reservation_id: str, body: ReservationUpdateBody, rosa_se
         if "registration_status" in data: _validate_registration_label(con,old,data["registration_status"])
         if "guest_name" in data and not str(data["guest_name"] or "").strip(): raise pms_error("guest_name_required","guest_name")
         if not con.execute("SELECT id FROM properties WHERE id=? AND organization_id=?",(data.get("property_id",old["property_id"]),user["organization_id"])).fetchone(): raise pms_error("property_unavailable","property_id",404)
-        arrival=data.get("arrival_date",old["arrival_date"]); departure=data.get("departure_date",old["departure_date"]); prop_id=data.get("property_id",old["property_id"]); room_type_id=data.get("room_type_id",old["room_type_id"] if "room_type_id" in old.keys() else None); status=data.get("status",old["status"]); validate_reservation_dates(arrival,departure)
+        arrival=data.get("arrival_date",old["arrival_date"]); departure=data.get("departure_date",old["departure_date"]); prop_id=data.get("property_id",old["property_id"]); room_type_id=data.get("room_type_id",old["room_type_id"] if "room_type_id" in old.keys() else None); status=data.get("status",old["status"]); validate_reservation_dates(arrival,departure,data.get('stay_type',old['stay_type']),data.get('planned_arrival_time',old['planned_arrival_time']),data.get('planned_departure_time',old['planned_departure_time']))
         if not room_type_id:
             fallback=con.execute("SELECT id FROM room_types WHERE organization_id=? AND property_id=? AND active=1 ORDER BY created_at,id LIMIT 1",(user["organization_id"],prop_id)).fetchone()
             room_type_id=fallback["id"] if fallback else None
         if room_type_id:
             room=con.execute("SELECT * FROM room_types WHERE id=? AND organization_id=? AND property_id=? AND active=1",(room_type_id,user["organization_id"],prop_id)).fetchone()
             if not room: raise pms_error("room_unavailable","room_type_id",404)
-            if data.get("guest_count",old["guest_count"])>int(room["max_guests"] or 1): raise pms_error("capacity_exceeded","guest_count")
-        if status=='confirmed':
+            if allocations is None and not reservation_allocations.active(con,reservation_id) and data.get("guest_count",old["guest_count"])>int(room["max_guests"] or 1): raise pms_error("capacity_exceeded","guest_count")
+        if allocations is None:
+            reservation_allocations.sync_change(con,dict(old),{**dict(old),**data,"room_type_id":room_type_id},now_iso())
+        else:
+            reservation_allocations.replace(con,{**dict(old),**data,"room_type_id":room_type_id},allocations,user['id'],'Normal reservation form',now_iso())
+        if status=='confirmed' and data.get('stay_type',old['stay_type'])!='day_use':
             conflict=check_overlap(con,user["organization_id"],prop_id,arrival,departure,reservation_id,room_type_id)
             if conflict: raise pms_error("availability_conflict","arrival_date",409)
+        if status=='confirmed' and data.get('stay_type',old['stay_type'])=='overnight' and not reservation_allocations.active(con,reservation_id) and con.execute("SELECT id FROM reservations WHERE property_id=? AND stay_type='day_use' AND status='confirmed' LIMIT 1",(prop_id,)).fetchone():
+            day_use.aggregate_check(con,{**dict(old),**data,'property_id':prop_id,'room_type_id':room_type_id},{room_type_id:1})
         if "special_requests" in data: data["special_requests"]=json.dumps(data["special_requests"])
         if data:
             before={k:old[k] for k in data if k in old.keys()}
@@ -4333,6 +4409,7 @@ def reservation_update(reservation_id: str, body: ReservationUpdateBody, rosa_se
             con.execute("INSERT INTO reservation_events VALUES (?,?,?,?,?,?,?)",(new_id("reve"),user["organization_id"],reservation_id,"updated","Reservation details changed.",json.dumps({"before":before,"after":data}),now_iso()))
             con.execute("INSERT INTO activity(organization_id,actor_user_id,message,created_at) VALUES (?,?,?,?)",(user["organization_id"],user["id"],f"{user['full_name']} updated reservation for {data.get('guest_name',old['guest_name'])}.",now_iso()))
             if data.get("status")=="cancelled" and old["status"]!="cancelled": _record_cancellation(con,user["organization_id"],reservation_id,source="operator_status_update")
+            if 'guest_count' in data:_ensure_guest_records(con,con.execute('SELECT * FROM reservations WHERE id=?',(reservation_id,)).fetchone())
             _sync_registration(con,reservation_id,user["organization_id"])
             # A date/room/property/status change affects two inventory windows: the
             # old stay must be reopened and the new stay must be consumed. Queue both
@@ -4340,7 +4417,7 @@ def reservation_update(reservation_id: str, body: ReservationUpdateBody, rosa_se
             # Channex integration. Sending them as two back-to-back requests can leave
             # Channex with only one side of the move if one task is delayed/rejected.
             availability_changed = any(k in data for k in (
-                "property_id", "room_type_id", "arrival_date", "departure_date", "status"
+                "property_id", "room_type_id", "arrival_date", "departure_date", "status", "stay_type", "planned_arrival_time", "planned_departure_time"
             ))
             if availability_changed:
                 queued_availability = []
@@ -4354,6 +4431,14 @@ def reservation_update(reservation_id: str, body: ReservationUpdateBody, rosa_se
                     reason="a reservation was changed (new stay window)",force=True,room_type_id=room_type_id
                 ))
                 _merge_channex_availability_outboxes(con, queued_availability)
+        if reporting is not None:reservation_reporting.save(con,user['organization_id'],reservation_id,reporting,now_iso())
+        if allocations is not None:
+            row=dict(con.execute('SELECT * FROM reservations WHERE id=?',(reservation_id,)).fetchone())
+            previous=reservation_allocations.active(con,reservation_id)
+            reservation_allocations.replace(con,row,allocations,user['id'],'Normal reservation form',now_iso())
+            for rt in {row['room_type_id']}|{a['room_type_id'] for a in previous+reservation_allocations.active(con,reservation_id)}:
+                _queue_reservation_availability(con,user['organization_id'],row['property_id'],row['arrival_date'],row['departure_date'],reason='Physical allocations changed',force=True,room_type_id=rt)
+        ntak_reporting.capture_reservation(con,user["organization_id"],reservation_id)
     delivery=_drain_channex_ari_outbox(organization_id=user["organization_id"],limit=2,ignore_throttle=True)
     refresh_cleaning_tasks(user["organization_id"])
     return {"ok":True,"channex_delivery":delivery}
@@ -4411,6 +4496,7 @@ def reservation_cancel(reservation_id: str, body: CancellationBody | None = None
                 reason="a reservation was cancelled (historical stay reconciliation)",
                 force=True,room_type_id=room_type_id or None
             )
+        ntak_reporting.capture_reservation(con,user["organization_id"],reservation_id)
     delivery=_drain_channex_ari_outbox(organization_id=user["organization_id"],limit=2,ignore_throttle=True)
     refresh_cleaning_tasks(user["organization_id"])
     return {"ok":True,"channex_delivery":delivery}
@@ -4861,6 +4947,9 @@ def start_task(task_id: str, rosa_session: str | None = Cookie(default=None)):
         task = con.execute("SELECT * FROM work_tasks WHERE id=? AND organization_id=? AND assigned_to=?", (task_id,user["organization_id"],user["id"])).fetchone()
         if not task or (task["task_type"]=="cleaning" and user["role"]!="cleaner"):
             raise HTTPException(404, "Task not found")
+        if (task['source_key'] or '').startswith('day-use-cleaning:'):
+            uid=task['source_key'].rsplit(':',1)[-1]
+            if con.execute('SELECT id FROM guest_occupancy WHERE unit_id=? AND ended_at IS NULL AND voided=0',(uid,)).fetchone():raise HTTPException(409,'Guests are still physically occupying this unit')
         if task["status"] == "complete":
             raise HTTPException(409, "Task is already complete")
         con.execute("UPDATE work_tasks SET status='in_progress',started_at=COALESCE(started_at,?) WHERE id=?", (now_iso(),task_id))
@@ -6409,9 +6498,7 @@ def _reservation_availability(con: DBConnection, org_id: str, property_id: str, 
     if room_type_id:
         cap_row=con.execute("SELECT inventory_count FROM room_types WHERE id=? AND organization_id=? AND property_id=?",(room_type_id,org_id,property_id)).fetchone()
         capacity=max(1,int(cap_row["inventory_count"] or 1)) if cap_row else 1
-        occupied=con.execute("""SELECT COUNT(*) c FROM reservations
-            WHERE organization_id=? AND property_id=? AND room_type_id=? AND status='confirmed'
-              AND arrival_date<=? AND departure_date>?""",(org_id,property_id,room_type_id,stay_date.isoformat(),stay_date.isoformat())).fetchone()["c"]
+        occupied=reservation_allocations.occupied(con,org_id,property_id,stay_date,room_type_id,include_day_use=True)
         return max(0,capacity-int(occupied))
     occupied=con.execute("""SELECT 1 FROM reservations
                              WHERE organization_id=? AND property_id=? AND status='confirmed'
@@ -6420,8 +6507,19 @@ def _reservation_availability(con: DBConnection, org_id: str, property_id: str, 
     return 0 if occupied else 1
 
 
-def _queue_reservation_availability(con: DBConnection, org_id: str, property_id: str, date_from: str, date_to: str, *, reason: str, force: bool = False, room_type_id: str | None = None) -> list[str]:
+def _queue_reservation_availability(con: DBConnection, org_id: str, property_id: str, date_from: str, date_to: str, *, reason: str, force: bool = False, room_type_id: str | None = None, _allocation_fanout: bool = True) -> list[str]:
     """Recalculate availability for every mapped local room type."""
+    if date_from==date_to:date_to=(date.fromisoformat(date_to)+timedelta(days=1)).isoformat()
+    if _allocation_fanout:
+        reservation_allocations.reconcile_property(con,org_id,property_id,now_iso())
+        types={r['room_type_id'] for r in con.execute("SELECT DISTINCT room_type_id FROM reservation_unit_allocations WHERE organization_id=? AND property_id=? AND date_from<? AND date_to>?",(org_id,property_id,date_to,date_from))}
+        types.update(r['room_type_id'] for r in con.execute("SELECT DISTINCT room_type_id FROM day_use_allocations WHERE organization_id=? AND property_id=? AND date_from>=? AND date_from<?",(org_id,property_id,date_from,date_to)))
+        if types:
+            types.add(room_type_id)
+            result=[]
+            for rt in sorted(types,key=lambda v:v or ''):
+                result+=_queue_reservation_availability(con,org_id,property_id,date_from,date_to,reason=reason,force=force,room_type_id=rt,_allocation_fanout=False)
+            return result
     try:
         start=max(date.today(),date.fromisoformat(date_from)); checkout=date.fromisoformat(date_to)
     except (TypeError,ValueError): return []
@@ -7248,8 +7346,11 @@ def _queue_government_events(con: DBConnection, org_id: str, property_id: str, r
     prop=con.execute("SELECT id,name,address,checkin_time,checkout_time,max_guests FROM properties WHERE id=? AND organization_id=?",(property_id,org_id)).fetchone()
     guests=rows(con.execute("SELECT id,full_name,date_of_birth,nationality,document_type,document_number,completeness FROM guest_records WHERE reservation_id=? AND organization_id=? ORDER BY id",(reservation_id,org_id)))
     payload=json.dumps({"reservation":dict(reservation),"property":dict(prop) if prop else None,"guest_records":guests},sort_keys=True,ensure_ascii=False,separators=(",",":"))
+    if event_type.startswith("reservation."):
+        ntak_reporting.capture_reservation(con,org_id,reservation_id)
     certified=os.getenv("ROSA_MTU_CERTIFIED","0")=="1"
     for system in ("NTAK","VIZA"):
+        if system=="NTAK" and ntak_reporting.configuration(con,org_id,property_id): continue
         connection=con.execute("SELECT status FROM government_connections WHERE organization_id=? AND property_id=? AND system=?",(org_id,property_id,system)).fetchone()
         ready=certified and connection and connection["status"]=="ready"
         con.execute("INSERT OR IGNORE INTO government_outbox(id,organization_id,property_id,reservation_id,system,event_type,payload_json,status,attempts,external_receipt,last_error,created_at,sent_at) VALUES (?,?,?,?,?,?,?, ?,0,NULL,NULL,?,NULL)",
@@ -7385,6 +7486,10 @@ def _apply_channex_event(con: DBConnection, integration: Any, event: dict[str, A
         desired={"guest_name":event["guest_name"],"arrival_date":event["arrival_date"],"departure_date":event["departure_date"],"guest_count":event["guest_count"],"status":"confirmed"}
         if room_type_id: desired["room_type_id"]=room_type_id
         provider_total=_channex_total_huf(event.get("payload") or {})
+        if financial_ledger.managed(con,reservation_id):
+            if provider_total is not None and provider_total!=existing['total_huf']:
+                audit_event(con,org,'financial.provider_quote_conflict','Provider quote differs from authoritative folio.',entity_type='reservation',entity_id=reservation_id)
+            provider_total=None
         if provider_total is not None:
             desired["total_huf"]=provider_total
         diffs={key:value for key,value in desired.items() if existing[key]!=value}
@@ -7894,13 +7999,18 @@ def _government_payload(con: DBConnection, outbox: Any) -> dict[str,Any]:
 
 
 def _government_outbox_worker_once(limit:int=10)->int:
+    with db() as con:
+        guest_stays.recover_pending(_sys.modules[__name__],con,limit=limit)
+        business_days.automatic(_sys.modules[__name__],con,limit=limit)
+        business_days.recover(_sys.modules[__name__],con,limit=limit)
+    ntak_processed=ntak_reporting.worker_once(db,limit=limit)
     # Do not pretend to transmit to MTU before the official test package exists.
     # Once configured, this worker is the single durable boundary used by both systems.
     with db() as con:
         rows_=con.execute("""SELECT o.*,g.status connection_status,g.public_config_json,g.encrypted_credentials
                             FROM government_outbox o JOIN government_connections g
                             ON g.organization_id=o.organization_id AND g.property_id=o.property_id AND g.system=o.system
-                            WHERE o.status IN ('queued','retry') AND o.created_at<=?
+                            WHERE o.status IN ('queued','retry') AND NOT EXISTS (SELECT 1 FROM ntak_jobs n WHERE n.id=o.id) AND o.created_at<=?
                             ORDER BY o.created_at LIMIT ?""",(now_iso(),max(1,min(50,limit)))).fetchall()
         processed=0
         for item in rows_:
@@ -7910,7 +8020,7 @@ def _government_outbox_worker_once(limit:int=10)->int:
             # Transport remains guarded until the certified transport adapter is installed.
             con.execute("UPDATE government_outbox SET status='waiting_for_transport',last_error=? WHERE id=?",(state["reason"],item["id"]))
             processed+=1
-        return processed
+        return processed+ntak_processed
 
 
 async def _government_outbox_worker_loop():
@@ -8192,36 +8302,13 @@ def _xml_escape(value: Any) -> str:
 
 
 def _ntak_start_date_request_xml(connection: Any) -> str:
-    cfg=_safe_json(connection.get("public_config_json") if isinstance(connection,dict) else connection["public_config_json"],{})
-    reg=str(cfg.get("registration_id") or "")
-    software_id=str(cfg.get("software_id") or "")
-    software_version=str(cfg.get("software_version") or "2.10.21")
-    provider_vat=str(cfg.get("provider_vat") or "")
-    provider_name=str(cfg.get("provider_name") or "")
-    property_name=str(cfg.get("property_name") or "")
+    from ntak_contracts import ContractError, start_date_request
     import uuid
-    return """<?xml version="1.0" encoding="UTF-8"?>
-<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:v9="http://mtu.gov.hu/ntak/v9">
-  <soapenv:Header/>
-  <soapenv:Body>
-    <v9:adatszolgaltatasKezdoDatumRequest>
-      <v9:uzenetAdatok>
-        <v9:uzenetId>{message_id}</v9:uzenetId>
-        <v9:uzenetKuldesIdeje>{sent_at}</v9:uzenetKuldesIdeje>
-      </v9:uzenetAdatok>
-      <v9:szoftverAdatok>
-        <v9:szoftverVerzio>{software_version}</v9:szoftverVerzio>
-        <v9:szoftverAzonosito>{software_id}</v9:szoftverAzonosito>
-      </v9:szoftverAdatok>
-      <v9:szallashely>
-        <v9:szallasRegisztraciosSzam>{registration_id}</v9:szallasRegisztraciosSzam>
-        <v9:szallashelySzolgaltatoAdoszam>{provider_vat}</v9:szallashelySzolgaltatoAdoszam>
-        <v9:szallasNev>{property_name}</v9:szallasNev>
-        <v9:szallashelySzolgaltatoNev>{provider_name}</v9:szallashelySzolgaltatoNev>
-      </v9:szallashely>
-    </v9:adatszolgaltatasKezdoDatumRequest>
-  </soapenv:Body>
-</soapenv:Envelope>""".format(message_id=_xml_escape(str(uuid.uuid4())),sent_at=_xml_escape(_ntak_iso_now()),software_version=_xml_escape(software_version),software_id=_xml_escape(software_id),registration_id=_xml_escape(reg),provider_vat=_xml_escape(provider_vat),property_name=_xml_escape(property_name),provider_name=_xml_escape(provider_name))
+    cfg=_safe_json(connection.get("public_config_json") if isinstance(connection,dict) else connection["public_config_json"],{})
+    try:
+        return start_date_request(cfg,str(uuid.uuid4()),_ntak_iso_now()).decode("utf-8")
+    except ContractError as exc:
+        raise HTTPException(422,str(exc)) from None
 
 
 def _government_test_readiness(connection: Any) -> dict[str,Any]:
@@ -8914,6 +9001,8 @@ def reservation_operational_update(reservation_id: str, body: ReservationOperati
         if body.arrival_time is not None: updates["arrival_time"]=body.arrival_time.strip() or None
         if body.payment_status is not None:
             if body.payment_status not in allowed_payment: raise HTTPException(400,"Invalid payment status")
+            if financial_ledger.managed(con,reservation_id) and body.payment_status!=r['payment_status']:
+                raise HTTPException(409,{'code':'financial_ledger_authoritative'})
             updates["payment_status"]=body.payment_status
         if body.registration_status is not None:
             if body.registration_status not in allowed_registration: raise HTTPException(400,"Invalid registration status")
@@ -9202,3 +9291,26 @@ def demo_reset(rosa_session: str | None = Cookie(default=None)):
         raise HTTPException(404,"Not available")
     init_db(reset=True)
     return {"ok":True}
+
+
+# Reporting routes use the same session, CSRF middleware and database boundary.
+import sys as _sys
+from ntak_api import install as _install_ntak_routes
+_install_ntak_routes(_sys.modules[__name__])
+
+physical_units.install(_sys.modules[__name__])
+
+reservation_allocations.install(_sys.modules[__name__])
+
+@app.get('/api/reservations/{reservation_id}/reporting-details')
+def reservation_reporting_details(reservation_id:str,rosa_session:str|None=Cookie(default=None)):
+    user=require_user(rosa_session);require_roles(user,'owner','manager')
+    with db() as con:
+        if not con.execute('SELECT id FROM reservations WHERE id=? AND organization_id=?',(reservation_id,user['organization_id'])).fetchone():raise HTTPException(404,'Reservation not found')
+        return reservation_reporting.snapshot(_sys.modules[__name__],con,reservation_id,user['organization_id'])
+
+guest_reporting.install(_sys.modules[__name__])
+
+guest_stays.install(_sys.modules[__name__])
+financial_ledger.install(_sys.modules[__name__])
+business_days.install(_sys.modules[__name__])
