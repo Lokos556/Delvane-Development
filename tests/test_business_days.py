@@ -124,6 +124,8 @@ def test_normal_closing_three_actual_nights_two_units_ooo_oos_and_identity_gate(
     assert data['ifaAdatok']['ifaMertek']=='400.00' and f['ifa_obligation_huf']=='800.00'
     assert sum(Decimal(x['osszeg']) for x in data['egyebTerhelesek']['egyebTerheles'])==21400
     assert data['egyebKoltesek']['egyebKoltes'][0]['koltesTipus']=='BANKKARTYA'
+    other=client.get(PROP+'/financial-entries',params={'business_date':str(day)}).json()
+    assert len(other['entries'])==len(other['history'])==5
     assert data['szobaAdatok']['kiadottSzobak']==2 and len(data['lakoegysegEjszakak']['lakoegysegEjszaka'])==2
 
 
@@ -267,3 +269,37 @@ def test_timezone_boundary_historical_rate_and_pending_outcome_recovery(client):
     resolved,f,p=snapshot(client,day);assert resolved['blocker'] is None
     assert p['napiFeltoltes']['napiZarasBesorolas']['besorolas']=='MODOSITO'
     assert p['napiFeltoltes']['ifaAdatok']['ifaMertek']=='500.00'
+
+
+def test_concurrent_closing_creates_one_logical_snapshot(client):
+    from concurrent.futures import ThreadPoolExecutor
+    rt,units=setup(client);day=app.date.today()-timedelta(days=1);calendar(client,day);operating(client,day,False);client.put(BASE,json=CONFIG)
+    def finalize(_):
+        with app.db() as con:return days.close(app,con,'org_casa_rosa','prop_flora',day,days.Close(reason='Fictional concurrent close'),'usr_owner')
+    with ThreadPoolExecutor(2) as pool:out=list(pool.map(finalize,range(2)))
+    assert sum(r['duplicate'] for r in out)==1
+    with app.db() as con:
+        assert con.execute('SELECT COUNT(*) n FROM daily_snapshots').fetchone()['n']==1
+        assert con.execute("SELECT COUNT(*) n FROM ntak_jobs WHERE operation='daily_close'").fetchone()['n']==1
+
+
+def test_linked_refund_corrects_original_day_without_negative_reporting(client):
+    rt,units=setup(client);day=app.date.today()-timedelta(days=2);calendar(client,day);operating(client,day);client.put(BASE,json=CONFIG)
+    client.put(PROP+'/ifa-rates',json={'effective_from':str(day),'tax_type':'NINCS','rate':'0','reason':'Fictional zero rate'})
+    rid,gids=party(client,day,day+timedelta(days=2),1,units[0][0],'Fictional refund guest')
+    at=datetime.fromisoformat(str(day)+'T14:00:00+01:00');assert act(client,rid,gids,at,uid=units[0][0])[0].status_code==200
+    item=charge();item.update(unit_price='100');post(client,rid,item,day,units[0][0])
+    original=post(client,rid,payment('BANKKARTYA','100'),day,units[0][0]);assert close(client,day).status_code==200
+    old,_,_=snapshot(client,day)
+    with app.db() as con:con.execute("UPDATE ntak_jobs SET state='succeeded',error_code=NULL WHERE id=?",(old['job_id'],))
+    refund=payment('BANKKARTYA','30',direction='refund',refund_of=original);post(client,rid,refund,day+timedelta(days=1),units[0][0])
+    assert close(client,day,'TERHELES_VAGY_KOLTES_JAV').status_code==200
+    new,f,p=snapshot(client,day)
+    item=p['napiFeltoltes']['lakoegysegEjszakak']['lakoegysegEjszaka'][0]['ertekesitettLakoegyseg']['koltesek']['koltes'][0]
+    assert item['osszeg']=='70.00' and item['koltesTipus']=='BANKKARTYA'
+    operating(client,day+timedelta(days=1));assert close(client,day+timedelta(days=1)).status_code==200
+    current,f,p=snapshot(client,day+timedelta(days=1));assert current['blocker'] is None
+    assert f['totals']['refunds']=='30.00'
+    assert client.get(f'/api/reservations/{rid}/folio').json()['totals']['balance']=='30.00'
+    with app.db() as con:
+        assert con.execute('SELECT total_huf FROM financial_entries WHERE id=?',(original,)).fetchone()['total_huf']=='100.00'

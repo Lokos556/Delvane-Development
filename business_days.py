@@ -145,6 +145,14 @@ def collect(backend,con,org,prop,day):
         parties={rid for rid,unit,du in groups if unit==uid and not du}
         if len(parties)>1:blocks.append('contradictory_actual_unit_occupancy')
     entries=ledger.active(con,org,prop,day=day)
+    all_finance=ledger.active(con,org,prop)
+    for e in entries:
+        if e['kind']=='payment' and e['direction']=='payment':
+            refunded=sum((Decimal(x['total_huf']) for x in all_finance if x['direction']=='refund' and x['refund_of']==ledger.root_id(con,e)),Decimal(0))
+            e['reporting_total_huf']=ledger.money(Decimal(e['total_huf'])-refunded)
+        if e['kind']=='payment' and e['direction']=='refund' and e['refund_of']:
+            original=con.execute('SELECT business_date FROM financial_entries WHERE id=?',(e['refund_of'],)).fetchone()
+            e['refund_original_business_date']=original['business_date']
     involved={rid for rid,uid,du in groups}|{rid for rid,uid in departure_groups}
     for r in con.execute("SELECT id FROM reservations WHERE organization_id=? AND property_id=? AND status='confirmed' AND arrival_date<=? AND departure_date>?",(org,prop,d,d)):
         if r['id'] not in involved:blocks.append('planned_stay_requires_actual_review')
@@ -202,7 +210,7 @@ def guest_xml(con,org,prop,gid,source):
 
 def financial_xml(entry):
     if entry['kind']=='payment':
-        result={'osszeg':entry['total_huf'],'koltesTipus':entry['payment_method']}
+        result={'osszeg':entry.get('reporting_total_huf',entry['total_huf']),'koltesTipus':entry['payment_method']}
         if entry['payment_subtype']:result['koltesAlTipus']=entry['payment_subtype']
     else:
         result={'osszeg':entry['total_huf'],'fokategoria':entry['category'],'afaKulcs':{'szazalek':int(entry['vat'])}}
@@ -236,7 +244,11 @@ def payload(con,org,prop,facts,classification,protocol_id=None,reason=None,close
             s=sold(*key);targets[key]=s;checkout.append({'ertekesitettLakoegyseg':s})
     for e in facts['entries']:
         value=financial_xml(e);kind=e['kind'];rid=e['reservation_id']
-        if kind=='payment' and e['direction']=='refund':raise ReportingBlocked('refund_requires_original_day_correction')
+        if kind=='payment' and e['direction']=='refund':
+            if not e['refund_of']:raise ReportingBlocked('refund_requires_original_day_correction')
+            original_day=con.execute('SELECT state,dirty FROM business_days WHERE organization_id=? AND property_id=? AND business_date=?',(org,prop,e['refund_original_business_date'])).fetchone()
+            if not original_day or original_day['state']!='closed' or original_day['dirty']:raise ReportingBlocked('refund_original_day_revision_required')
+            continue # Refund is reported by correcting the original day's payment, never a negative current-day item.
         if not rid:
             if kind=='charge' and e['category'] in ('IFA','SZALLASDIJ'):raise ReportingBlocked('charge_requires_booking_unit')
             group,member=('egyebTerhelesek','egyebTerheles') if kind=='charge' else ('egyebKoltesek','egyebKoltes')
@@ -266,7 +278,11 @@ def classification(con,org,prop,day):
     # versions too: a rejected correction does not erase the accepted initial day.
     jobs=con.execute('''SELECT j.state,j.error_code,j.attempts FROM daily_snapshots s JOIN ntak_jobs j ON j.id=s.job_id
       WHERE s.organization_id=? AND s.property_id=? AND s.business_date=? ORDER BY s.revision DESC''',(org,prop,str(day))).fetchall()
-    if any(j['state'] in ('accepted','sending','uncertain','retry','resend_required') for j in jobs):raise ReportingBlocked('prior_closing_outcome_pending')
+    for j in jobs:
+        processed=j['state']=='succeeded' or j['state']=='review_required' and j['error_code'] is None
+        unsent=j['attempts']==0 and j['state'] in ('ready','blocked')
+        security_block=j['state']=='blocked' and j['error_code']=='signature_profile_unresolved'
+        if not (processed or unsent or security_block or j['state'] in ('rejected','superseded')):raise ReportingBlocked('prior_closing_outcome_pending')
     if any(j['state']=='succeeded' or j['state']=='review_required' and j['error_code'] is None for j in jobs):return 'MODOSITO'
     return 'UJ'
 
@@ -390,6 +406,8 @@ def install(backend):
     def calendar_day(property_id:str,business_date:date,body:DayState,rosa_session:str|None=Cookie(default=None)):
         with backend.db() as con:
             u=authorize(con,rosa_session,property_id)
+            previous=con.execute('SELECT operating FROM business_days WHERE organization_id=? AND property_id=? AND business_date=?',(u['organization_id'],property_id,str(business_date))).fetchone()
+            if previous and previous['operating']==int(body.operating):return {'ok':True,'duplicate':True}
             con.execute('''INSERT INTO business_days(organization_id,property_id,business_date,operating,state,actor_id,reason,updated_at) VALUES (?,?,?,?,'open',?,?,?)
               ON CONFLICT(organization_id,property_id,business_date) DO UPDATE SET operating=excluded.operating,dirty=CASE WHEN business_days.state='closed' THEN 1 ELSE 0 END,actor_id=excluded.actor_id,reason=excluded.reason,updated_at=excluded.updated_at''',
               (u['organization_id'],property_id,str(business_date),int(body.operating),u['id'],body.reason,backend.now_iso()))

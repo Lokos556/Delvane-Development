@@ -235,4 +235,84 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+  testWidgets(
+    'property charge correction keeps its history and source endpoint',
+    (tester) async {
+      final fake = FakePms();
+      final auth = await signedIn(fake);
+      final c = PmsController(auth);
+      WebStrings.current.language = 'en';
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox());
+        c.dispose();
+        auth.dispose();
+        WebStrings.current.language = 'en';
+      });
+      final entry = {
+        'id': 'e1',
+        'kind': 'charge',
+        'description': 'Fictional other charge',
+        'unit_price': '100',
+        'quantity': '1',
+        'business_date': '2032-05-09',
+        'category': 'ETEL',
+        'subcategory': 'FOETEL',
+        'vat': '27',
+        'in_package': 0,
+        'total_huf': '100.00',
+        'reason': 'Original posting',
+      };
+      fake.overrides['/api/properties/p1/financial-entries'] = ApiResponse(
+        200,
+        jsonEncode({
+          ...catalog,
+          'business_date': '2032-05-09',
+          'entries': [entry],
+          'history': [entry],
+        }),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: pmsTheme(),
+          home: Scaffold(
+            body: PropertyFinanceDialog(
+              api: PmsWorkflows(c),
+              propertyId: 'p1',
+              businessDate: '2032-05-09',
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Correct entry'));
+      await tester.tap(find.text('Correct entry'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(field('Unit price'));
+      await tester.enterText(field('Unit price'), '80');
+      await tester.ensureVisible(field('Reason'));
+      await tester.enterText(
+        field('Reason'),
+        'Fictional corrected other charge',
+      );
+      await tester.ensureVisible(find.text('Save entry'));
+      await tester.tap(find.text('Save entry'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Confirm'));
+      await tester.pumpAndSettle();
+      final body =
+          fake.requests
+                  .where(
+                    (r) =>
+                        r.method == 'POST' &&
+                        r.path == '/api/properties/p1/financial-entries',
+                  )
+                  .single
+                  .body
+              as Map;
+      expect(body['supersedes'], 'e1');
+      expect(body['unit_price'], '80');
+      expect(body['business_date'], '2032-05-09');
+      expect(tester.takeException(), isNull);
+    },
+  );
 }

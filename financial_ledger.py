@@ -37,7 +37,9 @@ def dec(value, *, positive=False, places=2):
         if not isinstance(value,str): raise ValueError()
         d=Decimal(value)
         if not d.is_finite() or abs(d)>Decimal('999999999999') or d<0 or (positive and d<=0):raise ValueError()
-        return d.quantize(Decimal(1).scaleb(-places),rounding=ROUND_HALF_UP)
+        rounded=d.quantize(Decimal(1).scaleb(-places),rounding=ROUND_HALF_UP)
+        if positive and rounded<=0:raise ValueError()
+        return rounded
     except (InvalidOperation,ValueError):raise HTTPException(422,{'code':'invalid_decimal'}) from None
 
 
@@ -62,6 +64,8 @@ def migrate(backend,con):
     CREATE INDEX IF NOT EXISTS idx_financial_reservation ON financial_entries(reservation_id);
     ''')
     con.execute('INSERT OR IGNORE INTO schema_migrations(version,name,applied_at) VALUES (?,?,?)',(3081,'operational_decimal_financial_ledger',backend.now_iso()))
+    backend.add_column_if_missing(con,'financial_entries','refund_of','TEXT REFERENCES financial_entries(id)')
+    con.execute('INSERT OR IGNORE INTO schema_migrations(version,name,applied_at) VALUES (?,?,?)',(3084,'refund_original_payment_links',backend.now_iso()))
 
 
 class Posting(BaseModel):
@@ -86,6 +90,7 @@ class Posting(BaseModel):
     unit_id:str|None=None
     guest_id:str|None=None
     supersedes:str|None=None
+    refund_of:str|None=None
     voided:bool=False
     reason:str=Field(min_length=3,max_length=500)
 
@@ -117,6 +122,12 @@ def scoped(backend,con,org,rid):
 def managed(con,rid):return con.execute('SELECT 1 FROM financial_folios WHERE reservation_id=?',(rid,)).fetchone() is not None
 
 
+def root_id(con,entry):
+    while entry['supersedes']:
+        entry=con.execute('SELECT * FROM financial_entries WHERE id=?',(entry['supersedes'],)).fetchone()
+    return entry['id']
+
+
 def sync(backend,con,r):
     t=totals(active(con,r['organization_id'],r['property_id'],rid=r['id']))
     status='paid' if Decimal(t['balance'])<=0 else 'partial' if Decimal(t['payments'])>Decimal(t['refunds']) else 'unpaid'
@@ -127,6 +138,7 @@ def sync(backend,con,r):
 
 
 def post(backend,con,org,prop,body,actor,rid=None):
+    import business_days
     if not con.execute('SELECT id FROM properties WHERE id=? AND organization_id=?',(prop,org)).fetchone():raise HTTPException(404,'Property not found')
     con.execute('UPDATE properties SET id=id WHERE id=? AND organization_id=?',(prop,org))
     r=scoped(backend,con,org,rid) if rid else None
@@ -147,7 +159,7 @@ def post(backend,con,org,prop,body,actor,rid=None):
         if body.vat not in enum('AfaKulcsSzazalekType'):raise HTTPException(422,'Invalid VAT classification')
         if body.category=='IFA' and (body.vat!='0' or body.in_package):raise HTTPException(422,'IFA must be outside the package with zero VAT')
         if body.category=='SZALLASDIJ' and not body.in_package:raise HTTPException(422,'Accommodation must be in the package')
-        if body.payment_method or body.payment_subtype or body.direction!='payment':raise HTTPException(422,'Charge cannot have payment fields')
+        if body.payment_method or body.payment_subtype or body.direction!='payment' or body.refund_of:raise HTTPException(422,'Charge cannot have payment fields')
     else:
         if quantity!=1 or body.payment_method not in enum('KoltesTipusType'):raise HTTPException(422,'Invalid payment classification')
         if (body.payment_method=='SZEP_KARTYA' and body.payment_subtype!='SZALLASHELY') or (body.payment_method!='SZEP_KARTYA' and body.payment_subtype):raise HTTPException(422,'Invalid payment subtype')
@@ -162,6 +174,21 @@ def post(backend,con,org,prop,body,actor,rid=None):
         previous=con.execute('SELECT * FROM financial_entries WHERE id=? AND organization_id=? AND property_id=?',(body.supersedes,org,prop)).fetchone()
         if not previous or previous['reservation_id']!=rid:raise HTTPException(404,'Original entry not found')
         if previous['kind']!=body.kind or con.execute('SELECT id FROM financial_entries WHERE supersedes=?',(body.supersedes,)).fetchone():raise HTTPException(409,'Only the current matching entry can be corrected')
+    if body.kind=='payment' and body.direction=='refund' and body.refund_of:
+        original=con.execute('SELECT * FROM financial_entries WHERE id=? AND organization_id=? AND property_id=?',(body.refund_of,org,prop)).fetchone()
+        if not original or original['reservation_id']!=rid or original['kind']!='payment' or original['direction']!='payment':raise HTTPException(404,'Original payment not found')
+        if original['business_date']>str(body.business_date):raise HTTPException(422,'Refund cannot precede its original payment')
+        target=root_id(con,original)
+        if target!=body.refund_of:raise HTTPException(422,'Refund must reference the original payment identity')
+        refunds=[e for e in active(con,org,prop,rid=rid) if e['direction']=='refund' and e['refund_of']==target and e['id']!=body.supersedes]
+        current_payment=next((e for e in active(con,org,prop,rid=rid) if root_id(con,e)==target),None)
+        if not current_payment or not body.voided and sum((Decimal(e['total_huf']) for e in refunds),huf)>Decimal(current_payment['total_huf']):raise HTTPException(409,'Refund exceeds the current original payment')
+        business_days.mark_dirty(con,org,prop,original['business_date'],actor,body.reason)
+    elif body.refund_of:raise HTTPException(422,'Only a refund can reference an original payment')
+    if previous and previous['kind']=='payment' and previous['direction']=='payment':
+        refunded=sum((Decimal(e['total_huf']) for e in active(con,org,prop,rid=rid) if e['direction']=='refund' and e['refund_of']==root_id(con,previous)),Decimal(0))
+        if refunded and (body.voided or huf<refunded):raise HTTPException(409,'Correct linked refunds before reducing the original payment')
+        if refunded and str(body.business_date)!=previous['business_date']:raise HTTPException(409,'Correct linked refunds before moving the original payment date')
     # A closed-day change is retained as a normal source correction and flags all affected revisions.
     import business_days
     for d in {str(body.business_date),previous['business_date'] if previous else str(body.business_date)}:
@@ -178,12 +205,22 @@ def post(backend,con,org,prop,body,actor,rid=None):
 
 def folio(backend,con,org,rid):
     r=scoped(backend,con,org,rid);entries=active(con,org,r['property_id'],rid=rid)
+    for entry in entries:entry['root_id']=root_id(con,entry)
     return {'managed':managed(con,rid),'reservation_id':rid,'property_id':r['property_id'],'quoted_total_huf':r['total_huf'] if not managed(con,rid) else con.execute('SELECT original_quote_huf FROM financial_folios WHERE reservation_id=?',(rid,)).fetchone()['original_quote_huf'],
       'totals':totals(entries),'entries':entries,'history':[dict(e) for e in con.execute('SELECT * FROM financial_entries WHERE reservation_id=? AND organization_id=? ORDER BY posted_at,id',(rid,org))],
       'recording_only':True,'categories':CATEGORIES,'vat_rates':enum('AfaKulcsSzazalekType'),'payment_methods':enum('KoltesTipusType')}
 
 
 def install(backend):
+    @backend.app.get('/api/properties/{property_id}/financial-entries')
+    def property_finance(property_id:str,business_date:date,rosa_session:str|None=Cookie(default=None)):
+        user=backend.require_user(rosa_session);backend.require_roles(user,'owner','manager')
+        with backend.db() as con:
+            if not con.execute('SELECT id FROM properties WHERE id=? AND organization_id=?',(property_id,user['organization_id'])).fetchone():raise HTTPException(404,'Property not found')
+            entries=[e for e in active(con,user['organization_id'],property_id,day=business_date) if not e['reservation_id']]
+            for entry in entries:entry['root_id']=root_id(con,entry)
+            return {'business_date':str(business_date),'entries':entries,'totals':totals(entries),'categories':CATEGORIES,'vat_rates':enum('AfaKulcsSzazalekType'),'payment_methods':enum('KoltesTipusType'),
+              'history':[dict(r) for r in con.execute('SELECT * FROM financial_entries WHERE organization_id=? AND property_id=? AND reservation_id IS NULL AND business_date=? ORDER BY posted_at,id',(user['organization_id'],property_id,str(business_date)))]}
     @backend.app.get('/api/reservations/{reservation_id}/folio')
     def get(reservation_id:str,rosa_session:str|None=Cookie(default=None)):
         user=backend.require_user(rosa_session);backend.require_roles(user,'owner','manager')

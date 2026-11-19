@@ -1253,5 +1253,18 @@
   "Bank transfer": "Átutalás",
   "Voucher": "Utalvány",
   "Deferred payment": "Utólagos",
-  "Other hospitality services": "Egyéb vendéglátás"
+  "Other hospitality services": "Egyéb vendéglátás",
+  "Original payment": "Eredeti befizetés",
+  "Choose original payment": "Válassza ki az eredeti befizetést",
+  "Add other charge": "Egyéb terhelés hozzáadása",
+  "Record other payment": "Egyéb befizetés rögzítése",
+  "Historical sources changed; review and save a new full revision.": "A korábbi nap adatai megváltoztak. Ellenőrizze, majd mentse az új, teljes változatot.",
+  "Other financial entries": "Egyéb pénzügyi tételek",
+  "Review other financial entries": "Egyéb pénzügyi tételek ellenőrzése",
+  "Guest identity normalization needs official clarification. The closed day is saved.": "A vendégazonosító képzéséhez hivatalos pontosítás szükséges. A lezárt napot mentettük.",
+  "Wait for the original report processing outcome. The correction is saved.": "Várja meg az eredeti jelentés feldolgozási eredményét. A javítást mentettük.",
+  "Assign financial entries to the correct physical unit, then revise the day.": "Rendelje a pénzügyi tételeket a megfelelő lakóegységhez, majd javítsa a napot.",
+  "Link the refund to its original payment and revise the original business day.": "Kapcsolja a visszatérítést az eredeti befizetéshez, majd javítsa az eredeti üzleti napot.",
+  "Local reporting is not enabled. The closed day is saved.": "A helyi adatszolgáltatás nincs engedélyezve. A lezárt napot mentettük.",
+  "Reporting is blocked. Review the source facts and reporting prerequisites.": "Az adatszolgáltatás akadályozott. Ellenőrizze az alapadatokat és a beküldés feltételeit."
 }

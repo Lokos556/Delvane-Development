@@ -599,17 +599,6 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
         width: 1040,
         headerActions: [
           PmsButton(
-            ui('Reservation folio'),
-            onPressed: busy || data == null
-                ? null
-                : () => showDialog(
-                    context: context,
-                    useRootNavigator: false,
-                    builder: (_) =>
-                        FolioDialog(api: widget.api, reservationId: widget.id),
-                  ),
-          ),
-          PmsButton(
             ui('Actual guest stays'),
             onPressed: data == null || busy
                 ? null
@@ -646,6 +635,20 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             errors(),
+            PmsButton(
+              ui('Reservation folio'),
+              onPressed: busy || data == null
+                  ? null
+                  : () => showDialog(
+                      context: context,
+                      useRootNavigator: false,
+                      builder: (_) => FolioDialog(
+                        api: widget.api,
+                        reservationId: widget.id,
+                      ),
+                    ),
+            ),
+
             if (data == null && !busy) PmsButton(ui('Retry'), onPressed: load),
             if (data != null) ...[
               PmsCard(
@@ -833,9 +836,7 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
             text(gp, 'full_name'),
             style: const TextStyle(fontWeight: FontWeight.w700),
           ),
-          Text(
-            ui('${ui('Language')}: ${text(gp, 'preferred_language', '—')}'),
-          ),
+          Text(ui('${ui('Language')}: ${text(gp, 'preferred_language', '—')}')),
           GuestHistorySummary(summary: optionalObject(gp['history_summary'])),
           for (final pref in optionalRows(gp['preferences']).take(4))
             Text(

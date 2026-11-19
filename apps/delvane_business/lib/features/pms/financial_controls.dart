@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import 'actual_stay_controls.dart';
+import 'ntak_reporting_dialog.dart';
 import '../workspace/workspace_models.dart';
 import 'pms_style.dart';
 import 'pms_dialogs.dart';
@@ -244,7 +245,8 @@ class _FinancialEntryDialogState extends State<FinancialEntryDialog>
       method = 'KESZPENZ',
       direction = 'payment',
       unit = '',
-      guest = '';
+      guest = '',
+      refundOf = '';
   bool package = true, voided = false;
   List<Json> units = [], guests = [];
   bool get charge => widget.kind == 'charge';
@@ -268,7 +270,7 @@ class _FinancialEntryDialogState extends State<FinancialEntryDialog>
             '${e[k] ?? switch (k) {
                   'quantity' || 'exchange_rate' => '1',
                   'currency' => 'HUF',
-                  'business_date' => DateTime.now().toIso8601String().substring(0, 10),
+                  'business_date' => '${widget.catalog['business_date'] ?? DateTime.now().toIso8601String().substring(0, 10)}',
                   _ => '',
                 }}',
       );
@@ -281,17 +283,20 @@ class _FinancialEntryDialogState extends State<FinancialEntryDialog>
     package = e.isEmpty ? true : e['in_package'] == 1;
     unit = '${e['unit_id'] ?? ''}';
     guest = '${e['guest_id'] ?? ''}';
-    perform(() async {
-      final d = await widget.api.object(
-        widget.path.replaceFirst('/folio', '/actual-stay'),
-      );
-      if (mounted) {
-        setState(() {
-          units = optionalRows(d['planned_allocations']);
-          guests = optionalRows(d['guests']);
-        });
-      }
-    });
+    refundOf = '${e['refund_of'] ?? ''}';
+    if (widget.path.endsWith('/folio')) {
+      perform(() async {
+        final d = await widget.api.object(
+          widget.path.replaceFirst('/folio', '/actual-stay'),
+        );
+        if (mounted) {
+          setState(() {
+            units = optionalRows(d['planned_allocations']);
+            guests = optionalRows(d['guests']);
+          });
+        }
+      });
+    }
   }
 
   @override
@@ -337,6 +342,9 @@ class _FinancialEntryDialogState extends State<FinancialEntryDialog>
           'payment_method': method,
           'payment_subtype': method == 'SZEP_KARTYA' ? 'SZALLASHELY' : null,
           'direction': direction,
+          'refund_of': direction == 'refund' && refundOf.isNotEmpty
+              ? refundOf
+              : null,
         },
       });
     });
@@ -452,6 +460,19 @@ class _FinancialEntryDialogState extends State<FinancialEntryDialog>
                 items: {'payment': ui('Payment'), 'refund': ui('Refund')},
                 onChanged: (v) => setState(() => direction = v),
               ),
+              if (direction == 'refund')
+                PmsSelect(
+                  'Original payment',
+                  value: refundOf,
+                  items: {
+                    '': ui('Choose original payment'),
+                    for (final e in optionalRows(widget.catalog['entries']))
+                      if (e['kind'] == 'payment' && e['direction'] == 'payment')
+                        '${e['root_id'] ?? e['id']}':
+                            '${e['description']} - ${e['total_huf']} HUF',
+                  },
+                  onChanged: (v) => setState(() => refundOf = v),
+                ),
             ],
             PmsSelect(
               'Physical unit',
@@ -484,6 +505,96 @@ class _FinancialEntryDialogState extends State<FinancialEntryDialog>
       ),
     );
   }
+}
+
+class PropertyFinanceDialog extends StatefulWidget {
+  const PropertyFinanceDialog({
+    super.key,
+    required this.api,
+    required this.propertyId,
+    required this.businessDate,
+  });
+  final PmsWorkflows api;
+  final String propertyId, businessDate;
+  @override
+  State<PropertyFinanceDialog> createState() => _PropertyFinanceDialogState();
+}
+
+class _PropertyFinanceDialogState extends State<PropertyFinanceDialog>
+    with PmsActions<PropertyFinanceDialog> {
+  Json? data;
+  String get path => '/api/properties/${widget.propertyId}/financial-entries';
+  @override
+  void initState() {
+    super.initState();
+    refresh();
+  }
+
+  Future<void> refresh() => perform(() async {
+    final d = await widget.api.object(
+      '$path?business_date=${widget.businessDate}',
+    );
+    if (mounted) {
+      setState(() => data = d);
+    }
+  });
+  Future<void> edit(Json e) async {
+    await showDialog(
+      context: context,
+      useRootNavigator: false,
+      builder: (_) => FinancialEntryDialog(
+        api: widget.api,
+        path: path,
+        kind: '${e['kind']}',
+        catalog: data!,
+        entry: e,
+      ),
+    );
+    if (mounted) {
+      refresh();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => PmsModal(
+    title: ui('Other financial entries'),
+    width: 800,
+    mobileSheet: true,
+    actions: [
+      PmsButton(
+        ui('Close'),
+        onPressed: busy ? null : () => Navigator.pop(context),
+      ),
+    ],
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        errors(),
+        Text('${ui('Business date')}: ${widget.businessDate}'),
+        if (data != null) ...[
+          for (final e in optionalRows(data!['entries']))
+            ListTile(
+              title: Text('${e['description']} - ${e['total_huf']} HUF'),
+              subtitle: Text('${e['business_date']}'),
+              trailing: PmsButton(
+                ui('Correct entry'),
+                onPressed: busy ? null : () => edit(e),
+              ),
+            ),
+          ExpansionTile(
+            title: Text(ui('Financial history')),
+            children: [
+              for (final e in optionalRows(data!['history']))
+                ListTile(
+                  title: Text('${e['description']} - ${e['total_huf']} HUF'),
+                  subtitle: Text('${e['posted_at']} - ${e['reason']}'),
+                ),
+            ],
+          ),
+        ],
+      ],
+    ),
+  );
 }
 
 class BusinessClosingPanel extends StatefulWidget {
@@ -575,6 +686,31 @@ class _BusinessDayDialogState extends State<BusinessDayDialog>
       c.dispose();
     }
     super.dispose();
+  }
+
+  Future<void> other(String kind) async {
+    Json? catalog;
+    final ok = await perform(() async {
+      catalog = await widget.api.object(
+        '$base/financial-entries?business_date=${day.text}',
+      );
+    });
+    if (!ok || !mounted) {
+      return;
+    }
+    await showDialog(
+      context: context,
+      useRootNavigator: false,
+      builder: (_) => FinancialEntryDialog(
+        api: widget.api,
+        path: '$base/financial-entries',
+        kind: kind,
+        catalog: catalog!,
+      ),
+    );
+    if (mounted) {
+      refresh();
+    }
   }
 
   Future<void> refresh() => perform(() async {
@@ -690,6 +826,44 @@ class _BusinessDayDialogState extends State<BusinessDayDialog>
           ],
         ),
         if (data != null) ...[
+          Wrap(
+            spacing: 8,
+            children: [
+              PmsButton(
+                ui('Add other charge'),
+                onPressed: busy ? null : () => other('charge'),
+              ),
+              PmsButton(
+                ui('Record other payment'),
+                onPressed: busy ? null : () => other('payment'),
+              ),
+            ],
+          ),
+          if (jsonObject(data!['day'])['dirty'] == 1)
+            Text(
+              ui(
+                'Historical sources changed; review and save a new full revision.',
+              ),
+            ),
+          PmsButton(
+            ui('Review other financial entries'),
+            onPressed: busy
+                ? null
+                : () async {
+                    await showDialog(
+                      context: context,
+                      useRootNavigator: false,
+                      builder: (_) => PropertyFinanceDialog(
+                        api: widget.api,
+                        propertyId: widget.propertyId,
+                        businessDate: day.text,
+                      ),
+                    );
+                    if (mounted) {
+                      refresh();
+                    }
+                  },
+          ),
           Text(
             '${ui('Guest nights')}: ${data!['guest_nights']} \u00b7 ${ui('Sold units')}: ${data!['sold_units']}',
           ),
@@ -743,7 +917,7 @@ class _BusinessDayDialogState extends State<BusinessDayDialog>
                 '${ui('Revision')} ${s['revision']} \u00b7 ${s['business_date']}',
               ),
               subtitle: Text(
-                '${ui('Reporting status')}: ${ui('${s['reporting_state'] ?? s['blocker'] ?? 'Pending'}')}\n${ui(correctionLabels['${s['correction_reason']}'] ?? 'Initial daily report')}',
+                '${ui('Reporting status')}: ${ntakState(s['reporting_state'] as String?)}\n${ui(correctionLabels['${s['correction_reason']}'] ?? 'Initial daily report')}\n${s['blocker'] == null ? (s['error_code'] == null ? '' : ntakProblem(s['error_code'] as String?)) : closingReportingProblem(s['blocker'] as String?)}',
               ),
             ),
         ],
@@ -779,3 +953,15 @@ const closingMessages = {
       'A closed property day contains actual stays or financial activity.',
   'missing_guest_reporting_profile': 'Complete the effective guest residence and tax profile. The actual event is saved.',
 };
+
+String closingReportingProblem(String? code) => ui(switch (code) {
+  'identity_normalization_unresolved' => 'Guest identity normalization needs official clarification. The closed day is saved.',
+  'prior_closing_outcome_pending' =>
+    'Wait for the original report processing outcome. The correction is saved.',
+  'financial_unit_assignment_required' => 'Assign financial entries to the correct physical unit, then revise the day.',
+  'refund_requires_original_day_correction' ||
+  'refund_original_day_revision_required' => 'Link the refund to its original payment and revise the original business day.',
+  'reporting_not_enabled' =>
+    'Local reporting is not enabled. The closed day is saved.',
+  _ => 'Reporting is blocked. Review the source facts and reporting prerequisites.',
+});
