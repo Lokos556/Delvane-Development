@@ -8,6 +8,8 @@ from zoneinfo import ZoneInfo
 import hashlib
 import json
 import uuid
+import ntak_diagnostics
+import ntak_evidence
 from ntak_contracts import ContractError
 from ntak_protocol import ReportingBlocked, request_xml, reservation_payload, response, validate_business
 from ntak_transport import UnresolvedOfficialTransport, require_resolved_operation
@@ -98,6 +100,17 @@ def enqueue(con, org, prop, config, operation, logical_key, payload, *, reservat
     con.execute('''INSERT INTO ntak_jobs(id,organization_id,property_id,environment,operation,logical_key,message_id,configuration_json,payload_json,state,error_code,missing_fields_json,next_attempt_at,created_at,updated_at)
                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
                 (job,org,prop,environment,operation,logical_key,message_id,dump(identity),dump(payload),state,code,dump(fields),created,created,created))
+    ntak_evidence.capture(con,con.execute('SELECT * FROM ntak_jobs WHERE id=?',(job,)).fetchone(),created)
+    if reservation_id:
+        for prior in con.execute('''SELECT j.id FROM ntak_jobs j JOIN government_outbox o ON o.id=j.id
+          WHERE j.id<>? AND j.organization_id=? AND j.property_id=? AND j.environment=? AND j.operation=? AND o.reservation_id=?''',
+          (job,org,prop,environment,operation,reservation_id)).fetchall():
+            ntak_evidence.link(con,job,prior['id'],'reservation_revision' if operation=='reservation' else 'reservation_event',created)
+    if operation=='daily_close' and payload.get('napiFeltoltes',{}).get('lezartNap'):
+        day=payload['napiFeltoltes']['lezartNap']
+        for prior in con.execute("SELECT id,payload_json FROM ntak_jobs WHERE id<>? AND organization_id=? AND property_id=? AND environment=? AND operation='daily_close'",(job,org,prop,environment)).fetchall():
+            if json.loads(prior['payload_json']).get('napiFeltoltes',{}).get('lezartNap')==day:
+                ntak_evidence.link(con,job,prior['id'],'daily_version',created)
     return job
 
 
@@ -170,6 +183,7 @@ def worker_once(db, *, transport=None, now=None, limit=10):
     with db() as con:
         schedule_daily(con,now)
         for job in con.execute("SELECT * FROM ntak_jobs WHERE state='sending' AND lease_until<?", (stamp(now),)).fetchall():
+            ntak_evidence.event(con,job['id'],None,'interrupted',{'state':'accepted' if job['processing_id'] else 'uncertain','processing_id':job['processing_id']},stamp(now))
             set_state(con,job,'accepted' if job['processing_id'] else 'uncertain','worker_interrupted',now,lease_token=None,lease_until=None,next_attempt_at=stamp(now))
         due = con.execute("SELECT id FROM ntak_jobs WHERE state IN ('ready','retry','accepted') AND next_attempt_at<=? ORDER BY created_at,id LIMIT ?", (stamp(now),limit)).fetchall()
     processed = 0
@@ -207,6 +221,9 @@ def worker_once(db, *, transport=None, now=None, limit=10):
               WHERE j.organization_id=? AND j.property_id=? AND a.created_at>?''', (job['organization_id'],job['property_id'],stamp(now-timedelta(hours=1)))).fetchone()['c']
             if used >= 900:
                 set_state(con,job,job['state'],'hourly_rate_limit',now,next_attempt_at=stamp(now+timedelta(minutes=5))); continue
+            try: ntak_evidence.capture(con,job,stamp(now))
+            except ReportingBlocked:
+                set_state(con,job,'blocked','immutable_evidence_conflict',now); continue
             token = str(uuid.uuid4())
             claimed = con.execute("UPDATE ntak_jobs SET state='sending',lease_token=?,lease_until=?,attempts=attempts+1 WHERE id=? AND state=?", (token,stamp(now+timedelta(minutes=2)),job['id'],job['state'])).rowcount
             if claimed != 1: continue
@@ -222,20 +239,29 @@ def worker_once(db, *, transport=None, now=None, limit=10):
             attempt = str(uuid.uuid4())
             con.execute('''INSERT INTO government_delivery_attempts(id,organization_id,outbox_id,system,attempt_no,state,request_hash,created_at)
               VALUES (?,?,?,'NTAK',?,'started',?,?)''', (attempt,job['organization_id'],job['id'],job['attempts']+1,hashlib.sha256(xml).hexdigest(),stamp(now)))
+            ntak_evidence.request(con,job,attempt,operation,xml,stamp(now))
+        received = None
         try:
             received = adapter.exchange(operation,xml,property_id=job['property_id'],environment=job['environment'])
             result = response(operation,received,job['processing_id'])
         except ReportingBlocked as exc:
-            result = {'state':'blocked','codes':[exc.code]}
+            result = {'state':'blocked','codes':[exc.code],'diagnostics':[{'severity':'error','code':exc.code,'field':'GLOBAL'}]}
         except Exception:
             # A timeout, malformed response or unknown fault may follow acceptance.
             result = {'state':'accepted' if poll else 'uncertain','codes':['outcome_unknown']}
         with db() as con:
             live = con.execute('SELECT * FROM ntak_jobs WHERE id=? AND lease_token=?',(job['id'],token)).fetchone()
-            if not live: continue
+            if received is not None:
+                ntak_evidence.event(con,job['id'],attempt,'response',ntak_evidence.received(received),stamp(now))
+            if not live:
+                ntak_evidence.event(con,job['id'],attempt,'late_outcome',{'state':'uncertain','lease_current':False,'operation':operation,
+                    'protocol_state':result['state'],'processing_id':result.get('processing_id') or job['processing_id']},stamp(now))
+                continue
             state = result['state']; codes = result.get('codes',[])
-            import re
-            safe_codes=[c for c in codes if re.fullmatch(r'[A-Za-z_]{1,80}',c)][:25]
+            local_codes={'signature_profile_unresolved','information_response_contract_unresolved',
+                         'outcome_unknown','soap_fault'}
+            safe_codes=[c if c in ntak_diagnostics.CATALOG or c in ntak_diagnostics.LOCAL_SECURITY or c in local_codes
+                        else 'remote_validation_error' for c in codes][:25]
             code = safe_codes[0] if safe_codes else ('remote_validation_error' if codes else None)
             updates = {'lease_token':None,'lease_until':None,'next_attempt_at':stamp(now+timedelta(minutes=5))}
             if state == 'rejected' and 'SzerverHiba' in codes:
@@ -256,6 +282,7 @@ def worker_once(db, *, transport=None, now=None, limit=10):
                     corrected=json.loads(job['payload_json'])
                     corrected['napiFeltoltes']['napiZarasBesorolas']={'besorolas':'MODOSITO','jegyzokonyvAzonosito':job['id'].replace('-','')[:25],'indoklas':'NTAK processing recovery: '+('FeldolgozasHiba' if 'FeldolgozasHiba' in codes else 'EgyedisegKorlatozas')}
                     successor=enqueue(con,job['organization_id'],job['property_id'],config,'daily_close',job['logical_key']+':protocol-correction',corrected,now=now)
+                    ntak_evidence.link(con,successor,job['id'],'protocol_correction',stamp(now))
                     con.execute('UPDATE ntak_jobs SET protocol_resends=2 WHERE id=?',(successor,))
                     con.execute('UPDATE ntak_daily_requirements SET job_id=? WHERE job_id=?',(successor,job['id']))
                     state='replaced_by_correction'; code=None
@@ -265,6 +292,10 @@ def worker_once(db, *, transport=None, now=None, limit=10):
                 updates.update(processing_id=result['processing_id'],accepted_at=stamp(now),retries=0)
             set_state(con,job,state,code,now,**updates)
             con.execute('UPDATE government_outbox SET attempts=attempts+1 WHERE id=?',(job['id'],))
+            ntak_evidence.event(con,job['id'],attempt,'outcome',{'operation':operation,'protocol_state':result['state'],
+                'state':state,'codes':safe_codes,'processing_id':result.get('processing_id') or job['processing_id'],'lease_current':True},stamp(now))
+            ntak_diagnostics.record(con, job, attempt, 'verification' if poll else 'receipt',
+                                    result.get('diagnostics', []), stamp(now))
             # Store only bounded known-format error keys, no returned guest values/prose.
             con.execute('UPDATE government_delivery_attempts SET state=?,response_summary=? WHERE id=?',(state,dump({'codes':safe_codes,'processing_id':result.get('processing_id')}),attempt))
             if state=='succeeded':

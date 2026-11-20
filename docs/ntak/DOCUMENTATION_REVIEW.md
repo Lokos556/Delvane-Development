@@ -163,3 +163,12 @@ ELO_01B continues to block specifically on EGYEBKULFOLDI versus supplied OrszagK
 ## Tasks10-14 checkpoint - 2026-11-19
 
 Current implementation/status and all27 validation cases are in [NTAK_HANDOFF.md](NTAK_HANDOFF.md) and [TASKS10_14_IMPLEMENTATION.md](TASKS10_14_IMPLEMENTATION.md). Earlier first-batch capability/test tables above are historical. The issued endpoint/certificate supersedes the old pending-issuance statement only; installation/key matching/trust/signing interoperability remain unverified. Final information response/interval, signature-reference policy, first identity normalization, country and after-arrival policy gates are unchanged. Financial categories and daily-close business rules were implemented from the existing supplied PDF/XSD; official schemas were not changed. The historical scanner failure is not a new failure in this checkpoint; selected current scanner tests pass. The separately reproduced legacy v293 registration-status failure remains documented in the handoff.
+
+
+## Task15 diagnostics review — 2026-11-20
+
+Interface9.07 section9.5 pp89-100 defines GLOBAL/field references and66 catalog keys. The unchanged response WSDLs define `HibaType` (`mezoNeve`, `kuldottErtek`, `hibaKulcs`, `hibaUzenet`) and separate error/warning lists. Task15 retains only schema vocabulary, known keys and severity for operational diagnostics, with local HU/EN guidance. Remote values/prose are deliberately excluded; full encrypted SOAP evidence belongs to Task16.
+
+Additional verification-contract discrepancy: section7.3.3 p45 describes a synchronous verification-request error response with a top-level `hibaLista`. Supplied **PMS Ellenőrző végpont v9 WSDL.txt**, `ellenorzesResponse`, instead permits only one-or-more `uzenetValaszok` (`UzenetValaszokType`). It has no top-level error-list branch. A negative test retains strict rejection of that non-schema shape; after a poll it leaves the original reference/outcome unresolved. Need the official matching error-response contract or confirmation that the rejection is exclusively a SOAP Fault. No schema modification or invented response branch was retained. A SOAP Fault while polling now stops for review with its original reference; it cannot prove rejection of the original business report. Free-text fault details remain hidden.
+
+No new authority document was supplied during this batch. Existing signing, final-date, normalization, country and after-arrival policy discrepancies remain unresolved. See [TASK15_DIAGNOSTICS.md](TASK15_DIAGNOSTICS.md).

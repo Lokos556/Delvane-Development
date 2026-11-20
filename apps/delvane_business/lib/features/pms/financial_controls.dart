@@ -649,9 +649,11 @@ class BusinessDayDialog extends StatefulWidget {
     super.key,
     required this.api,
     required this.propertyId,
+    this.initialBusinessDate,
   });
   final PmsWorkflows api;
   final String propertyId;
+  final String? initialBusinessDate;
   @override
   State<BusinessDayDialog> createState() => _BusinessDayDialogState();
 }
@@ -677,6 +679,9 @@ class _BusinessDayDialogState extends State<BusinessDayDialog>
   @override
   void initState() {
     super.initState();
+    if (widget.initialBusinessDate != null) {
+      day.text = widget.initialBusinessDate!;
+    }
     refresh();
   }
 

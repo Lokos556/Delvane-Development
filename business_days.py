@@ -314,6 +314,10 @@ def capture(backend,con,snapshot):
     if previous:
         con.execute("UPDATE ntak_jobs SET state='superseded',error_code='replaced_by_recovery' WHERE id=?",(previous['id'],))
         con.execute("UPDATE government_outbox SET status='superseded' WHERE id=?",(previous['id'],))
+    for ancestor in con.execute('SELECT job_id FROM daily_snapshots WHERE organization_id=? AND property_id=? AND business_date=? AND revision<? AND job_id IS NOT NULL',(org,prop,snapshot['business_date'],snapshot['revision'])).fetchall():
+        ntak_reporting.ntak_evidence.link(con,job,ancestor['job_id'],'source_correction',backend.now_iso())
+    if previous and previous['id']!=job:
+        ntak_reporting.ntak_evidence.link(con,job,previous['id'],'blocked_source_recovery',backend.now_iso())
     con.execute('UPDATE daily_snapshots SET job_id=?,blocker=?,classification=? WHERE id=?',(job,blocked.code if blocked else None,cls,snapshot['id']))
     return job
 

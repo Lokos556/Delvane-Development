@@ -6,6 +6,7 @@ import json
 import os
 import uuid
 from fastapi import APIRouter, Cookie, HTTPException, Request
+from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field
 import ntak_reporting as reporting
 from ntak_protocol import ReportingBlocked, header, request_xml, validate_business
@@ -38,6 +39,15 @@ class Recovery(BaseModel):
     action: str
     reason: str = Field(min_length=3,max_length=500)
     processing_id: str | None = None
+
+
+class EvidenceAction(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    reason: str = Field(min_length=3,max_length=500)
+
+
+class ReplayAction(EvidenceAction):
+    request_id: uuid.UUID
 
 
 def install(backend):
@@ -79,6 +89,53 @@ def install(backend):
                 'last_success_at':success,'certificate':cert,'connected':False,'officially_validated':False,
                 'transmission_enabled':False,'blockers':['signature_profile_unresolved','official_endpoint_pending'],
                 'information_query_blocked':True}
+
+    @router.get('/properties/{property_id}/jobs/{job_id}/diagnostics')
+    def diagnostics(property_id: str, job_id: str, rosa_session: str | None=Cookie(default=None)):
+        user=access(rosa_session,property_id)
+        with backend.db() as con:
+            job=con.execute("""SELECT j.*,o.reservation_id FROM ntak_jobs j
+                JOIN government_outbox o ON o.id=j.id
+                WHERE j.id=? AND j.organization_id=? AND j.property_id=?""",
+                (job_id,user['organization_id'],property_id)).fetchone()
+            if not job: raise HTTPException(404,'Reporting job not found')
+            results=reporting.ntak_diagnostics.history(con,user['organization_id'],property_id,job_id)
+            for result in results: result.pop('diagnostics_json')
+            source={'kind':'reservation','reservation_id':job['reservation_id']} if job['reservation_id'] else {'kind':'business_day' if job['operation']=='daily_close' else 'property_settings'}
+            if source['kind']=='business_day':
+                day=json.loads(job['payload_json']).get('napiFeltoltes',{}).get('lezartNap')
+                try: source['business_date']=date.fromisoformat(day).isoformat()
+                except (ValueError,TypeError): pass
+            return {'job_id':job_id,'state':job['state'],'results':results,'source':source,
+                    'transmission_enabled':False}
+
+    @router.post('/properties/{property_id}/jobs/{job_id}/evidence-export')
+    def evidence_export(property_id:str,job_id:str,body:EvidenceAction,request:Request,rosa_session:str|None=Cookie(default=None)):
+        user=access(rosa_session,property_id,write=True)
+        with backend.db() as con:
+            con.execute('BEGIN IMMEDIATE' if con.backend=='sqlite' else 'SET TRANSACTION ISOLATION LEVEL REPEATABLE READ')
+            job=con.execute('SELECT * FROM ntak_jobs WHERE id=? AND organization_id=? AND property_id=?',(job_id,user['organization_id'],property_id)).fetchone()
+            if not job:raise HTTPException(404,'Reporting job not found')
+            try:
+                package=reporting.ntak_evidence.export(con,job)
+                content=reporting.ntak_evidence.canonical(package).encode('utf8')
+            except ReportingBlocked as exc:raise HTTPException(409,{'code':exc.code}) from None
+            content_hash=reporting.ntak_evidence.digest(content)
+            reporting.ntak_evidence.access(con,job_id,user['id'],'export',{'reason':body.reason,'package_hash':content_hash},reporting.stamp())
+            audit(con,user,property_id,'evidence_export',request,{'job_id':job_id,'package_hash':content_hash})
+        return Response(content,media_type='application/json',headers={'Content-Disposition':'attachment; filename="delvane-ntak-evidence.json"','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','X-Evidence-SHA256':content_hash})
+
+    @router.post('/properties/{property_id}/jobs/{job_id}/replay')
+    def replay(property_id:str,job_id:str,body:ReplayAction,request:Request,rosa_session:str|None=Cookie(default=None)):
+        user=access(rosa_session,property_id,write=True)
+        with backend.db() as con:
+            con.execute('UPDATE ntak_jobs SET id=id WHERE id=? AND organization_id=? AND property_id=?',(job_id,user['organization_id'],property_id))
+            job=con.execute('SELECT * FROM ntak_jobs WHERE id=? AND organization_id=? AND property_id=?',(job_id,user['organization_id'],property_id)).fetchone()
+            if not job:raise HTTPException(404,'Reporting job not found')
+            try:result=reporting.ntak_evidence.replay(con,job,str(body.request_id),user['id'],body.reason,reporting.stamp())
+            except ReportingBlocked as exc:raise HTTPException(409,{'code':exc.code}) from None
+            if not result['duplicate']:audit(con,user,property_id,'protocol_replay_acknowledged',request,{'job_id':job_id})
+        return result
 
     @router.get('/forms')
     def forms(rosa_session: str|None=Cookie(default=None)):
@@ -214,7 +271,8 @@ def install(backend):
             elif body.action=='retry_after_resolution' and job['state']=='retry_exhausted':
                 reporting.set_state(con,job,'accepted' if job['processing_id'] else 'retry',None,datetime.now(timezone.utc),retries=0,next_attempt_at=reporting.stamp())
             else: raise HTTPException(409,'This state cannot safely be retried; correct the source facts or obtain the processing identifier')
-            audit(con,user,property_id,'recovery',request,{'job_id':job_id,'action':body.action,'reason':body.reason})
+            reporting.ntak_evidence.access(con,job_id,user['id'],'recovery',{'action':body.action,'reason':body.reason,'processing_id':body.processing_id},reporting.stamp())
+            audit(con,user,property_id,'recovery',request,{'job_id':job_id,'action':body.action})
         return {'ok':True,'transmission_enabled':False}
 
     backend.app.include_router(router)

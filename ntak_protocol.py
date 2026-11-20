@@ -140,10 +140,15 @@ def response(operation, xml, processing_id=None):
     root = parse_xml(xml)
     # SOAP faults are rejected; raw strings/guest values never become log messages.
     if root.find('.//{' + SOAP + '}Fault') is not None:
-        return {'state': 'rejected', 'codes': ['soap_fault']}
+        return {'state': 'review_required' if operation == 'verification' else 'rejected', 'codes': ['soap_fault']}
     node = validate(operation, xml, response=True)
     def codes(parent, group):
         return [n.text or '' for n in parent.findall('.//{' + NAMESPACE + '}' + group + '/{' + NAMESPACE + '}hiba/{' + NAMESPACE + '}hibaKulcs')]
+    def diagnostics(parent):
+        return [{'severity': severity, 'field': n.findtext('{'+NAMESPACE+'}mezoNeve'),
+                 'code': n.findtext('{'+NAMESPACE+'}hibaKulcs')}
+                for group, severity in [('hibaLista', 'error'), ('figyelmeztetesLista', 'warning')]
+                for n in parent.findall('{'+NAMESPACE+'}'+group+'/{'+NAMESPACE+'}hiba')]
     if operation == 'verification':
         matches = [v for v in node if v.findtext('{' + NAMESPACE + '}feldolgozasAzonosito') == processing_id]
         if len(matches) != 1:
@@ -152,10 +157,10 @@ def response(operation, xml, processing_id=None):
         status = result.findtext('{' + NAMESPACE + '}statusz')
         mapping = {'BEFOGADVA': 'accepted', 'TELJESEN_SIKERES': 'succeeded',
                    'TELJESEN_HIBAS': 'rejected', 'VIZSGALANDO': 'review_required', 'UJRA_KULDENDO': 'resend_required'}
-        return {'state': mapping[status], 'codes': codes(result, 'hibaLista'), 'warnings': codes(result, 'figyelmeztetesLista')}
+        return {'state': mapping[status], 'codes': codes(result, 'hibaLista'), 'warnings': codes(result, 'figyelmeztetesLista'), 'diagnostics': diagnostics(result)}
     receipt = node.findtext('{' + NAMESPACE + '}feldolgozasAzonosito')
     return {'state': 'accepted' if receipt else 'rejected', 'processing_id': receipt,
-            'codes': codes(node, 'hibaLista'), 'warnings': codes(node, 'figyelmeztetesLista')}
+            'codes': codes(node, 'hibaLista'), 'warnings': codes(node, 'figyelmeztetesLista'), 'diagnostics': diagnostics(node)}
 
 
 def guest_hash(canonical_identity: str, permanent_bcrypt_salt: bytes):

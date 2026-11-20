@@ -2,6 +2,10 @@ import 'package:material_ui/material_ui.dart';
 import 'pms_controller.dart';
 import 'pms_dialogs.dart';
 import 'pms_style.dart';
+import 'financial_controls.dart';
+import 'pms_workflows.dart';
+import 'reservation_dialogs.dart';
+import 'ntak_evidence_dialog.dart';
 
 String ntakState(String? state) => ui(switch (state) {
   'ready' || 'retry' => 'Waiting to submit',
@@ -91,6 +95,9 @@ class _NtakReportingDialogState extends State<NtakReportingDialog> with PmsActio
               Text('${ui(switch (job['operation']) { 'reservation' => 'Reservation report', 'stay' => 'Guest stay event', 'daily_close' => 'Daily closing', _ => 'Reporting information' })} · ${ntakState(job['state'])}'),
               Text('${ui('Attempts')}: ${job['attempts']}'),
               if (job['error_code'] != null) Text(ntakProblem(job['error_code'])),
+              PmsButton(ui('Reporting diagnostics'), onPressed: busy ? null : () => showDialog<void>(
+                context: context, useRootNavigator: false,
+                builder: (_) => NtakDiagnosticsDialog(c: widget.c, propertyId: widget.propertyId, jobId: '${job['id']}'))),
               if (job['state'] == 'accepted') Text(ui('Receipt received. Final processing has not completed.')),
               if (job['processing_id'] != null) SelectableText('${ui('Processing reference')}: ${job['processing_id']}'),
               if (owner && ['uncertain','retry_exhausted'].contains(job['state']))
@@ -186,4 +193,134 @@ class _NtakRecoveryDialogState extends State<NtakRecoveryDialog> with PmsActions
       if(widget.uncertain)PmsField('Processing reference',controller:receipt,required:true),
       PmsField('Resolution evidence',controller:reason,required:true,lines:3),
     ])));
+}
+
+String ntakGuidance(String? group) => ui(switch (group) {
+  'required' => 'Complete the required source details.',
+  'format' => 'Check the source field format and official classification.',
+  'range' => 'Review the source value against the official limits.',
+  'tax' => 'Review the guest exemption, dated tax rate and tax ledger.',
+  'capacity' =>
+    'Review physical capacity, operational periods and actual occupancy.',
+  'history' => 'Review the reporting history before correcting the source.',
+  'connection' =>
+    'Ask an administrator to review the connection. Do not resend blindly.',
+  _ =>
+    'An unrecognized diagnostic requires review. Submitted values are hidden.',
+});
+
+class NtakDiagnosticsDialog extends StatefulWidget {
+  const NtakDiagnosticsDialog({
+    super.key,
+    required this.c,
+    required this.propertyId,
+    required this.jobId,
+  });
+  final PmsController c;
+  final String propertyId, jobId;
+  @override
+  State<NtakDiagnosticsDialog> createState() => _NtakDiagnosticsDialogState();
+}
+
+class _NtakDiagnosticsDialogState extends State<NtakDiagnosticsDialog>
+    with PmsActions<NtakDiagnosticsDialog> {
+  Json? data;
+  @override
+  void initState() {
+    super.initState();
+    load();
+  }
+
+  Future<bool> load() => perform(() async {
+    final result = await widget.c.api.get(
+      '/api/government/ntak/properties/${Uri.encodeComponent(widget.propertyId)}/jobs/${Uri.encodeComponent(widget.jobId)}/diagnostics',
+    );
+    if (mounted) {
+      setState(() => data = Map<String, dynamic>.from(result as Map));
+    }
+  });
+  Future<void> source() async {
+    final value = data?['source'] as Map? ?? {};
+    if (value['kind'] == 'property_settings') {
+      Navigator.of(context).pop();
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      useRootNavigator: false,
+      builder: (_) => value['kind'] == 'reservation'
+          ? ReservationWorkspace(
+              api: PmsWorkflows(widget.c),
+              id: '${value['reservation_id']}',
+              openReception: () {
+                widget.c.navigate(PmsPage.today);
+              },
+            )
+          : BusinessDayDialog(
+              api: PmsWorkflows(widget.c),
+              propertyId: widget.propertyId,
+              initialBusinessDate: value['business_date'] as String?,
+            ),
+    );
+    if (mounted) await load();
+  }
+
+  @override
+  Widget build(BuildContext context) => PmsModal(
+    title: ui('Reporting diagnostics'),
+    width: 760,
+    actions: [
+      if (widget.c.user.role == 'owner')
+        PmsButton(ui('NTAK evidence package'), onPressed: busy ? null : () => showDialog<void>(
+          context: context, useRootNavigator: false,
+          builder: (_) => NtakEvidenceDialog(c: widget.c, propertyId: widget.propertyId, jobId: widget.jobId))),
+      if (data != null &&
+          [
+            'reservation',
+            'business_day',
+          ].contains((data!['source'] as Map?)?['kind']))
+        PmsButton(ui('Open source workflow'), onPressed: busy ? null : source),
+    ],
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        errors(),
+        Text(
+          ui(
+            'Correct normal PMS source records. Historical reporting results remain unchanged.',
+          ),
+        ),
+        Text(ui('Submitted values and remote free-text messages are hidden.')),
+        if (data != null) ...[
+          Text(ntakState(data!['state'] as String?)),
+          if ((data!['results'] as List? ?? []).isEmpty)
+            Text(
+              ui(
+                'No persisted field results are available for this submission.',
+              ),
+            ),
+          for (final result in (data!['results'] as List? ?? [])) ...[
+            const SizedBox(height: 12),
+            Text(
+              '${ui(result['phase'] == 'verification' ? 'Processing result' : 'Submission receipt')} · ${result['created_at']}',
+            ),
+            for (final item in result['diagnostics'] as List)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${ui(item['severity'] == 'warning' ? 'Warning' : 'Error')}: ${item['code']}',
+                    ),
+                    SelectableText('${ui('Field')}: ${item['field']}'),
+                    Text(ntakGuidance(item['guidance'] as String?)),
+                  ],
+                ),
+              ),
+          ],
+        ],
+      ],
+    ),
+  );
 }

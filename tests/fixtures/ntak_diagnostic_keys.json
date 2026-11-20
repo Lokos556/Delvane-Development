@@ -1,0 +1,269 @@
+{
+  "source": "Interface v9.07 section9.5, tables pp91-100; whitespace-wrapped keys joined",
+  "keys": [
+    {
+      "code": "NemUres",
+      "page": 91
+    },
+    {
+      "code": "KotelezoMezo",
+      "page": 91
+    },
+    {
+      "code": "Formatum",
+      "page": 91
+    },
+    {
+      "code": "ElsodlegesMax",
+      "page": 91
+    },
+    {
+      "code": "ElsodlegesMin",
+      "page": 91
+    },
+    {
+      "code": "MasodlagosMax",
+      "page": 91
+    },
+    {
+      "code": "MasodlagosMin",
+      "page": 92
+    },
+    {
+      "code": "HibasErtek",
+      "page": 92
+    },
+    {
+      "code": "Negativ",
+      "page": 92
+    },
+    {
+      "code": "NegativTerhelesHiba",
+      "page": 92
+    },
+    {
+      "code": "EgyedisegKorlatozas",
+      "page": 92
+    },
+    {
+      "code": "IsmetlodoAzonosito",
+      "page": 92
+    },
+    {
+      "code": "JovobeliDatum",
+      "page": 92
+    },
+    {
+      "code": "JovobeniErkezes",
+      "page": 92
+    },
+    {
+      "code": "MultbeliTavozas",
+      "page": 92
+    },
+    {
+      "code": "MultbeliDatum",
+      "page": 93
+    },
+    {
+      "code": "NemTalalhato",
+      "page": 93
+    },
+    {
+      "code": "MagasEletkor",
+      "page": 93
+    },
+    {
+      "code": "HibasSzuletesiEv",
+      "page": 93
+    },
+    {
+      "code": "ErvenytelenIfa",
+      "page": 93
+    },
+    {
+      "code": "TargynaponErvenyesIfa",
+      "page": 93
+    },
+    {
+      "code": "KotelezoSzallasdij",
+      "page": 93
+    },
+    {
+      "code": "HibasOrszagKod",
+      "page": 93
+    },
+    {
+      "code": "FoglalasOrszagKod",
+      "page": 94
+    },
+    {
+      "code": "IrszHiba",
+      "page": 94
+    },
+    {
+      "code": "NappaliHasznalatHiba",
+      "page": 94
+    },
+    {
+      "code": "ElteresRegisztraltAdatokban",
+      "page": 94
+    },
+    {
+      "code": "SzerverHiba",
+      "page": 94
+    },
+    {
+      "code": "AdatszolgaltatasTiltva",
+      "page": 94
+    },
+    {
+      "code": "JavithatosagIdokorlat",
+      "page": 94
+    },
+    {
+      "code": "HibasKitoltes",
+      "page": 95
+    },
+    {
+      "code": "HibasKategoria",
+      "page": 95
+    },
+    {
+      "code": "nemUzemeloSzobak",
+      "page": 95
+    },
+    {
+      "code": "FeldolgozasHiba",
+      "page": 95
+    },
+    {
+      "code": "UresMezo",
+      "page": 95
+    },
+    {
+      "code": "NemKuldendoElem",
+      "page": 96
+    },
+    {
+      "code": "ifaTipusHiba",
+      "page": 96
+    },
+    {
+      "code": "lemondasFrissites",
+      "page": 96
+    },
+    {
+      "code": "MarLetezoUjZaras",
+      "page": 96
+    },
+    {
+      "code": "OsszesSzobaszamEllentmondas",
+      "page": 96
+    },
+    {
+      "code": "KiadottDarabszamElteres",
+      "page": 96
+    },
+    {
+      "code": "TobbKiadott",
+      "page": 96
+    },
+    {
+      "code": "FerohelyekEllentmondasa",
+      "page": 96
+    },
+    {
+      "code": "HibasFerohelyOsszeg",
+      "page": 97
+    },
+    {
+      "code": "UzemenKivuliSzobakSzama",
+      "page": 97
+    },
+    {
+      "code": "HibasKiadhatoHelySzam",
+      "page": 97
+    },
+    {
+      "code": "HibasKiadottHelySzam",
+      "page": 97
+    },
+    {
+      "code": "HibasOosOsszeg",
+      "page": 97
+    },
+    {
+      "code": "HibasOooOsszeg",
+      "page": 97
+    },
+    {
+      "code": "HianyzoIfaMertek",
+      "page": 97
+    },
+    {
+      "code": "FoglalasSzintuIfa",
+      "page": 97
+    },
+    {
+      "code": "IfaTerhelesHianya",
+      "page": 98
+    },
+    {
+      "code": "AdatszolgaltatasIdokorlat",
+      "page": 98
+    },
+    {
+      "code": "NemHatalyosIfaMentesseg",
+      "page": 98
+    },
+    {
+      "code": "HianyzoSzolgaltatoAdatokAdoszam",
+      "page": 99
+    },
+    {
+      "code": "NemTalalhatoPms",
+      "page": 99
+    },
+    {
+      "code": "ElteroKuldorendszer",
+      "page": 99
+    },
+    {
+      "code": "NemTalalhatoSzolgaltatasiHely",
+      "page": 99
+    },
+    {
+      "code": "HianyzoAlairas",
+      "page": 99
+    },
+    {
+      "code": "HibasAlgoritmus",
+      "page": 99
+    },
+    {
+      "code": "UresTanusitvany",
+      "page": 99
+    },
+    {
+      "code": "TanusitvanyTipusHiba",
+      "page": 99
+    },
+    {
+      "code": "ElteresCNadatok",
+      "page": 99
+    },
+    {
+      "code": "ElteresOUadatok",
+      "page": 99
+    },
+    {
+      "code": "ElteresOIDadatok",
+      "page": 99
+    },
+    {
+      "code": "NemMegbizhatoTanusítvany",
+      "page": 100
+    }
+  ]
+}

@@ -850,6 +850,8 @@ def init_db(reset: bool = False):
         day_use.migrate(_sys.modules[__name__],con)
         financial_ledger.migrate(_sys.modules[__name__],con)
         business_days.migrate(_sys.modules[__name__],con)
+        ntak_reporting.ntak_diagnostics.migrate(con,now_iso())
+        ntak_reporting.ntak_evidence.migrate(con,now_iso())
         add_column_if_missing(con,"ntak_jobs","predecessor_job_id","TEXT")
         con.execute("CREATE TABLE IF NOT EXISTS ntak_job_predecessors(job_id TEXT NOT NULL REFERENCES ntak_jobs(id),predecessor_job_id TEXT NOT NULL REFERENCES ntak_jobs(id),PRIMARY KEY(job_id,predecessor_job_id))")
         con.execute("INSERT OR IGNORE INTO schema_migrations(version,name,applied_at) VALUES (?,?,?)",(3079,"stay_reporting_causal_dependencies",now_iso()))

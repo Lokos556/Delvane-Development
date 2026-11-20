@@ -2,6 +2,22 @@
 
 Checkpoint: 2026-11-19, after Tasks10-14. **Not ready for official validation. Official transmission is disabled.** NTAK work is to pause here while the user prioritizes VIZA; this batch did not begin VIZA or Tasks15-20. This file is intended to work without the previous chat.
 
+## Task18 focused readiness update — 2026-11-20
+
+**Task18 is partial offline groundwork, not an approved signer/transport.** [TASK18_SIGNING_READINESS.md](TASK18_SIGNING_READINESS.md) is the current security source map and implementation report. Explicit p63 prose requires one Body reference; the illustrative two-reference/duplicate-Timestamp example is inconsistent, not a valid interoperability vector. RSA4096 CSR requirements and the3-day early-expiry rule are confirmed in pp30-32. Current issuer/software mapping, accepted digest/reference profile, response security and test/production trust still prevent full wire completion.
+
+`ntak_security.py` adds explicit canonicalization, SignatureValue-only RSA primitives, literal CN/tax and timestamp checks and operator-bound verified TLS foundations. Nothing connects these to live transport; the existing default gate remains unchanged. Task15 recognizes fixed local preflight failures and both documented CN/OID error-key spellings. No migration; latest3089. VIZA, Tasks16-17 encrypted evidence and Task5 normalization remain preserved.19/20 remain unstarted. Use the new report before selecting further work; no credential regeneration or endpoint probing.
+
+## Latest checkpoint update: Tasks16-17 — 2026-11-20
+
+**Tasks16-17 are implemented offline; latest migration3089.** Read [TASK16_17_EVIDENCE.md](TASK16_17_EVIDENCE.md) for evidence model, secure export, exact files, test results and limitations. The existing dirty Task15 working tree was preserved, not recommitted or reset. HEAD and both annotated checkpoint targets remain unchanged. Both government transmissions remain disabled; VIZA V01-V08 and partial Task5 remain preserved. Earlier next-batch recommendations below are historical. Next is specification-gated18, then19;20 was not started.
+
+## Current resume update — 2026-11-20
+
+NTAK was explicitly resumed from VIZA checkpoint `09ae8459ae95299fccfc9af5c1e8ac2d7901701f`, on clean `main`, without checking out the historical NTAK tree. Both annotated checkpoint tags are preserved. VIZA V01-V08 and migrations3085-3087 remain intact; V09-V10 remain unstarted. **Task15 is now implemented offline; latest migration3088**. Read [TASK15_DIAGNOSTICS.md](TASK15_DIAGNOSTICS.md) and the latest readiness update first. Task5 remains partial; both transports remain disabled. Earlier pause, migration3084 and verification sections below describe the protected historical checkpoint.
+
+Next bounded batch: Tasks16-17, retaining encrypted request/receipt/poll and source correlation before access-controlled evidence export. Tasks18-19 remain specification-gated. Task20 is not an official readiness claim. Preserve the VIZA worker's separate IDs/retry/source-freshness rules, the encrypted identity vault, actual events and immutable daily revisions. Do not commit or change either checkpoint tag without explicit authorization.
+
 ## Authorized local Git checkpoint
 
 NTAK development is paused until VIZA integration and validation are completed. The local annotated tag `ntak-pre-viza-checkpoint` identifies the commit preserving this complete tree through Task14/migration3084, including Task5's unresolved first-identity normalization gate. Resolve the exact commit with `git rev-parse ntak-pre-viza-checkpoint^{commit}`. This checkpoint is local only; it grants no permission to push, deploy, transmit, begin Tasks15-20 or start VIZA in this session.
@@ -31,7 +47,10 @@ The implementation reports below are historical records of their named batches; 
 | 12 | Property operating calendar, local business dates, chronological/manual/opt-in automatic closing with durable restart recovery;3082 |
 | 13 | Automatically source-derived, encrypted immutable daily factual snapshots and transactional NTAK queue capture;3082 |
 | 14 | Source corrections, effective IFA-rate history, full daily revisions, frozen-ID retention and outcome-aware UJ/MODOSITO;3083 |
-| 15-20 | Not started as new tasks. Earlier queue/security helpers are groundwork, not completion or permission to transmit. |
+| 15 | Implemented offline on the current VIZA-based tree; field diagnostics and HU/EN normal source links,3088. See current update/report above. |
+| 16-17 | Implemented offline on the current VIZA-based tree: encrypted immutable evidence and secure redacted export,3089; see latest report. |
+| 18 | Partially implemented offline primitives/readiness only; complete signing/transport profile remains blocked. See Task18 report. |
+| 19-20 | Not started; protocol/security prerequisites remain explicit. |
 
 Migrations3081-3084 are additive/repeatable: `financial_folios` and `financial_entries`; `business_day_settings`, `business_days`, `business_day_history`, `daily_snapshots`, `property_ifa_rates`; `property_ifa_rate_corrections`; nullable original-payment `refund_of` link. Original quotes, financial entries, profiles, rates, snapshots, actual events and allocation history are retained. Reporting job pointers/blockers/recovery metadata can advance; encrypted snapshot facts are not overwritten.
 
@@ -83,12 +102,12 @@ Authority: `docs/ntak/validation/PMS_v9_Interfész_Validációs_Tesztfeladatok_v
 | NZ_04A | Two nights/one unit, DOB1986-01-01, taxable guest/effective400 rate and IFA charge covered |
 | NZ_04B | DOB1987-02-11/im5 source correction, IFA reversal, frozen ID and full MODOSITO/VENDEG_VAGY_IFA_JAVITAS covered with mocked processed original |
 | NZ_05 | Zero-night103/104 day-use,28000 cash/34500 card and10000 post-stay charge/card linked to original booking covered; correct departure/invoice dates |
-| EU_01A | Rejected-outcome parsing/mock queue exists. Full official extreme-value/error-display/evidence rehearsal remains Tasks15-17/20; no production guest-name special cases |
+| EU_01A | Rejected-outcome parsing/mock queue exists. Safe field-error history and HU/EN source-linked guidance implemented in15; full official extreme-value/evidence rehearsal remains16-17/20; no production guest-name special cases |
 | EU_01B | Rejected-initial -> corrected full UJ semantics covered; full official error/evidence chain remains |
-| EU_02A | Processed-review outcome exists; full multi-field warning display/evidence and official malformed-input rehearsal remain15-17/20 |
+| EU_02A | Processed-review outcome exists; multiple field warnings persist and display with localized source guidance in15; evidence and full official malformed-input rehearsal remain16-17/20 |
 | EU_02B | Review-processed -> MODOSITO/TECH_HIBA_ADATJAVITAS source regeneration covered; full multi-field official rehearsal remains |
-| EU_03A | Existing mocked UJRA_KULDENDO state-machine groundwork only; immutable full daily resend/evidence rehearsal remains16/20 |
-| EU_03B | Existing unchanged resend groundwork only; both receipts/polls/evidence must be proven in16/20 |
+| EU_03A | Task16 synthetic unchanged-resend journey retains exact content, both receipts and polls; complete27-case/official evidence remains20 |
+| EU_03B | Task16 synthetic unchanged resend and both processing references/polls retained; official validation and full case rehearsal remain20 |
 | AD_01 | Explicitly blocked: supplied information/verification response schema does not carry the final expected-start-date field; automatic onboarding is Task19 |
 
 Source anchors: ELO tables4/5/17/25; ES33/34/50/58/66/67/79/87/88; NZ108/116/124/132/144; EU152/164/176/177; AD189. DOCX table numbers count all document tables, not extra official case IDs. ES_06A/B each require arrival and departure messages. The fixture property is101 STANDARD(3 regular),102 SUPERIOR(2),103 ECONOMY(3),104 APARTMAN(2 regular+1 extra):4 units,10 regular places,1 extra.
@@ -116,14 +135,14 @@ Future credential layout/check helpers exist in `government_security.py`; instal
 
 | Task | Dependency | Next independently testable acceptance boundary |
 |---|---|---|
-| 15 | Current queue/snapshots and source IDs | Persist field-level errors/multiple warnings, localize known catalog and link each problem to normal source operations; no raw identity values in general logs |
-| 16 | 13-15 | Mock EU_03: retain identical full business content, both receipts and every poll/attempt; crash/timeout -> uncertain, no blind retry; rebuild only when outcome permits |
-| 17 | 15-16 | Owner-authorized evidence export with correlated request/reply/poll/source revision; retained evidence, tenant isolation, redaction/access controls; no keys/salts |
-| 18 | Official signature clarification and issued server-held certificate | Offline signature vectors, trust/expiry/key mismatch/environment/host tests and explicit gated transport; only separately authorized live work may contact test endpoint |
+| 15 | **Completed offline**, current queue/snapshots and source IDs | Safe per-attempt errors/multiple warnings, localized catalog recovery guidance and contextual normal source workflows;3088. See Task15 report. |
+| 16 | **Completed offline**,13-15 | Mock EU_03: retain identical full business content, both receipts and every poll/attempt; crash/timeout -> uncertain, no blind retry; rebuild only when outcome permits |
+| 17 | **Completed offline**,15-16 | Owner-authorized evidence export with correlated request/reply/poll/source revision; retained evidence, tenant isolation, redaction/access controls; no keys/salts |
+| 18 | **Partial offline**, normative signing/profile clarification and issued server-held certificate | Primitive RSA/C14N, literal binding, validity and verified TLS tests implemented; approved whole-envelope/response profile and real trust/provisioning remain blocked. See Task18 report. |
 | 19 | 18 plus official final-start-date result schema | Automatic onboarding information query, correlated verification, persisted displayed start date; absent/invalid result blocks reporting schedule |
 | 20 | 1-19 plus all applicable contract resolutions | Full27-case rehearsal via normal API/Flutter operations, exact official fixture/evidence completeness, explicit fixture-only error simulation, Android/Windows builds/device checks and readiness re-audit |
 
-No new work for these tasks was started in this batch. Existing helpers/tests are reusable groundwork.
+Tasks15-17 were completed in the current resume;18-20 remain unstarted as new tasks. Existing helpers/tests are reusable groundwork.
 
 ## Shared behavior VIZA development must preserve
 
@@ -148,7 +167,7 @@ Other explicit limits: legacy quotes need deliberate itemization; whole-HUF rese
 1. Obtain a new explicit instruction to resume NTAK. Start with `git status --short`, `git branch --show-current`, `git log -1`; preserve VIZA and other local work. Do not reset/rebase/commit automatically.
 2. Read this file, Tasks10-14 report and the dated updates in readiness/documentation review. Inspect only source affected by the next task; do not repeat the full certification audit. Verify migrations3081-3084 and any later VIZA migrations for number/ownership conflicts.
 3. Run guarded baselines below. Compare with the explicit known v293 failure; investigate every new failure without weakening assertions. Check changes to shared guest/scanner/stay behavior first.
-4. Begin **Task15 only** unless the user's next scope differs. Keep real transmission disabled. Complete15, then16/17 in small reviewable batches; no official fixture shortcuts in production logic.
+4. Historical resume instruction (Task15 is now completed): begin **Task15 only** unless the user's next scope differs. Keep real transmission disabled. Complete15, then16/17 in small reviewable batches; no official fixture shortcuts in production logic.
 5. Resolve contract questions separately before18/19. Reuse the already issued server-held certificate/CSR. Do not generate replacement credentials or probe endpoints to infer missing contracts.
 6. Only after the later tasks, authorized server verification and full offline rehearsal should a new readiness decision propose official testing. This checkpoint gives no permission to deploy or transmit.
 
@@ -166,3 +185,5 @@ flutter test
 ```
 
 These are test commands, not instructions to launch/reset the persistent acceptance workspace. No build installation/device result is implied.
+
+Final Tasks16-17 verification: **144 shared backend tests passed**, followed by **17 final evidence tests passed** (overlapping counts), **302 Flutter tests passed**, clean analysis and all5 scanner suites passed. Earlier broad249-pass/3-new-test-setup-failure results and their corrections are recorded in the report. The separate pre-existing v293 failure remains. Latest migration3089; no build/device or official transmission claim.
