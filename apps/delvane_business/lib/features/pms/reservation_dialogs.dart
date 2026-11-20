@@ -1250,6 +1250,21 @@ class _IdentityReviewState extends State<IdentityReview>
                 children: [
                   Text(text(guest, 'full_name')),
                   PmsButton(
+                    ui('VIZA identity review'),
+                    onPressed: busy
+                        ? null
+                        : () async {
+                            await perform(
+                              () => editVizaIdentity(
+                                context,
+                                widget.api,
+                                text(guest, 'id'),
+                              ),
+                            );
+                            if (mounted) await load();
+                          },
+                  ),
+                  PmsButton(
                     ui('Residence and tourism tax'),
                     onPressed: busy
                         ? null

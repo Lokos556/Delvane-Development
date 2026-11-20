@@ -10,6 +10,7 @@ import 'pms_dialogs.dart';
 import 'pms_style.dart';
 import 'pms_workflows.dart';
 import 'ntak_reporting_dialog.dart';
+import 'viza_reporting_dialog.dart';
 
 class IntegrationsPage extends StatelessWidget {
   const IntegrationsPage({super.key, required this.c});
@@ -132,9 +133,29 @@ class IntegrationsPage extends StatelessWidget {
             children: [
               PmsEyebrow(ui('HUNGARIAN GOVERNMENT REPORTING')),
               for (final property in c.rows('properties'))
-                PmsButton('${ui('NTAK reporting')} · ${text(property, 'name')}',
-                  onPressed: () => dialog(context, NtakReportingDialog(c: c,
-                    propertyId: text(property, 'id'), propertyName: text(property, 'name')))),
+                PmsButton(
+                  '${ui('NTAK reporting')} · ${text(property, 'name')}',
+                  onPressed: () => dialog(
+                    context,
+                    NtakReportingDialog(
+                      c: c,
+                      propertyId: text(property, 'id'),
+                      propertyName: text(property, 'name'),
+                    ),
+                  ),
+                ),
+              for (final property in c.rows('properties'))
+                PmsButton(
+                  '${ui('VIZA reporting')} · ${text(property, 'name')}',
+                  onPressed: () => dialog(
+                    context,
+                    VizaReportingDialog(
+                      c: c,
+                      propertyId: text(property, 'id'),
+                      propertyName: text(property, 'name'),
+                    ),
+                  ),
+                ),
               Text(
                 government['rosa_mtu_certified'] == true
                     ? ui(

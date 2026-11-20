@@ -52,7 +52,7 @@ const collapsedTD1 = parseMRZ(td1().join(''));
 assert.ok(collapsedTD1, 'TD1 should parse even when OCR removes all three row breaks');
 assert.equal(collapsedTD1.mrz_format, 'TD1');
 assert.equal(collapsedTD1.full_name, 'ANNA MARIA ERIKSSON');
-assert.ok(source.includes("if(!String(merged.birth_name||'').trim() && String(merged.full_name||'').trim()) merged.birth_name=merged.full_name;"), 'Birth name must fall back to full name when absent');
+assert.ok(!source.includes('merged.birth_name=merged.full_name'), 'Unknown birth names must never be invented');
 assert.equal(/Tesseract\.recognize\(\s*input/.test(source), false, 'Scanner must not use the one-shot worker API');
 assert.ok(source.includes('Tesseract.createWorker('), 'Scanner should initialize a reusable worker');
 console.log('PASS: synthetic TD1, TD2 and TD3 parser tests; persistent-worker source assertions.');

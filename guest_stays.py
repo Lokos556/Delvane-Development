@@ -90,6 +90,8 @@ def collect_guests(backend,con,r,gids,day):
 
 
 def capture(backend,con,event):
+    import viza_reporting
+    viza_reporting.capture(backend,con,event)
     con.execute('UPDATE stay_events SET recovery_checked_at=? WHERE id=?',(ntak_reporting.stamp(),event['id']))
     if event.get('reporting_blocker') in ('superseded_before_submission','original_not_submitted_no_counter_needed'):return None
     if event['kind'] in ('undo_arrival','undo_departure','timestamp_counter') and event['correction_of']:
@@ -374,7 +376,11 @@ def install(backend):
     @router.get('')
     def get(reservation_id:str,rosa_session:str|None=Cookie(default=None)):
         user=backend.require_user(rosa_session);backend.require_roles(user,'owner','manager')
-        with backend.db() as con:return overview(con,user['organization_id'],reservation_id)
+        with backend.db() as con:
+            import viza_reporting
+            result=overview(con,user['organization_id'],reservation_id)
+            result['viza_reporting']=viza_reporting.overview(con,user['organization_id'],reservation_id)
+            return result
     @router.post('')
     def post(reservation_id:str,body:StayAction,request:Request,rosa_session:str|None=Cookie(default=None)):
         user=backend.require_user(rosa_session);backend.require_roles(user,'owner','manager')
@@ -386,5 +392,8 @@ def install(backend):
             r,tz=context(backend,con,user['organization_id'],reservation_id)
             event=con.execute('SELECT * FROM stay_events WHERE id=? AND reservation_id=?',(event_id,reservation_id)).fetchone()
             if not event:raise HTTPException(404,'Stay event not found')
-            return {'job_id':capture(backend,con,dict(event))}
+            result=capture(backend,con,dict(event))
+            import viza_reporting
+            jobs=viza_reporting.recover(backend,con,dict(event))
+            return {'job_id':result,'viza_job_ids':jobs}
     backend.app.include_router(router)

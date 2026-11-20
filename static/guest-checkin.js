@@ -99,7 +99,7 @@ function parseTD3(lines){
     if(!/^P[A-Z<]/.test(a)||a.length<40||b.length<40)continue;
     const name=parseNames(a.slice(5)),doc=b.slice(0,9),dob=b.slice(13,19),sex=b[20]||'';
     const checks=[mrzCheck(doc,b[9]),mrzCheck(dob,b[19]),mrzCheck(b.slice(21,27),b[27]),mrzCheck(b.slice(0,10)+b.slice(13,20)+b.slice(21,43),b[43])];
-    return {document_type:'passport',full_name:name.full,nationality:nationalityFromMRZ(b.slice(10,13)),date_of_birth:dateFromYYMMDD(dob),sex:/^[MF]$/.test(sex)?sex:'',document_number:doc.replace(/</g,''),confidence:checks.every(Boolean)?'verified':'manual_review',mrz_format:'TD3',mrz_checks:checks};
+    return {document_type:'passport',full_name:name.full,family_name:name.surname,given_names:name.given,mrz_birth_raw:dob,nationality_code:b.slice(10,13),nationality:nationalityFromMRZ(b.slice(10,13)),date_of_birth:dateFromYYMMDD(dob),sex:/^[MF]$/.test(sex)?sex:'',document_number:doc.replace(/</g,''),confidence:checks.every(Boolean)?'verified':'manual_review',mrz_format:'TD3',mrz_checks:checks};
   }
   return null;
 }
@@ -109,7 +109,7 @@ function parseTD2(lines){
     if(!/^[A-Z0-9<]{2}[A-Z<]{3}/.test(a)||a.length<32||b.length<32)continue;
     const name=parseNames(a.slice(5)),doc=b.slice(0,9),dob=b.slice(13,19),sex=b[20]||'';
     const checks=[mrzCheck(doc,b[9]),mrzCheck(dob,b[19]),mrzCheck(b.slice(21,27),b[27]),mrzCheck(b.slice(0,10)+b.slice(13,20)+b.slice(21,35),b[35])];
-    return {document_type:a[0]==='P'?'passport':'id_card',full_name:name.full,nationality:nationalityFromMRZ(b.slice(10,13)),date_of_birth:dateFromYYMMDD(dob),sex:/^[MF]$/.test(sex)?sex:'',document_number:doc.replace(/</g,''),confidence:checks.every(Boolean)?'verified':'manual_review',mrz_format:'TD2',mrz_checks:checks};
+    return {document_type:a[0]==='P'?'passport':'id_card',full_name:name.full,family_name:name.surname,given_names:name.given,mrz_birth_raw:dob,nationality_code:b.slice(10,13),nationality:nationalityFromMRZ(b.slice(10,13)),date_of_birth:dateFromYYMMDD(dob),sex:/^[MF]$/.test(sex)?sex:'',document_number:doc.replace(/</g,''),confidence:checks.every(Boolean)?'verified':'manual_review',mrz_format:'TD2',mrz_checks:checks};
   }
   return null;
 }
@@ -122,7 +122,7 @@ function parseTD1(lines){
     const name=parseNames(c);
     const normalizedName=String(name.full||'').replace(/[^A-Z ]/g,' ').replace(/\s+/g,' ').trim();
     if(!dateFromYYMMDD(dob) || normalizedName.replace(/ /g,'').length<3 || !/[A-Z]{2}/.test(normalizedName))continue;
-    return {document_type:'id_card',full_name:normalizedName,nationality:nationalityFromMRZ(b.slice(15,18)),date_of_birth:dateFromYYMMDD(dob),sex:/^[MF]$/.test(sex)?sex:'',document_number:doc.replace(/</g,''),confidence:checks.every(Boolean)?'verified':'manual_review',mrz_format:'TD1',mrz_checks:checks};
+    return {document_type:'id_card',full_name:normalizedName,family_name:name.surname,given_names:name.given,mrz_birth_raw:dob,nationality_code:b.slice(15,18),nationality:nationalityFromMRZ(b.slice(15,18)),date_of_birth:dateFromYYMMDD(dob),sex:/^[MF]$/.test(sex)?sex:'',document_number:doc.replace(/</g,''),confidence:checks.every(Boolean)?'verified':'manual_review',mrz_format:'TD1',mrz_checks:checks};
   }
   return null;
 }
@@ -734,10 +734,11 @@ async function captureAndRead(){
     // Do not launch a second full-frame OCR job automatically: it doubles latency.
     // The guide is intended to contain the whole document; use Retry after repositioning if needed.
     if(parsed){
+      retainReaderFields(parsed);
       // Explicitly merge the two captures before updating the form. Front is the
       // preferred source for identity/name, sex, nationality, DOB and document no.
       // Back is the preferred source for birth place, birth name and mother's birth name.
-      const frontKeys=['full_name','sex','nationality','date_of_birth','date_of_expiry','document_number'];
+      const frontKeys=['family_name','given_names','nationality_code','full_name','sex','nationality','date_of_birth','date_of_expiry','document_number'];
       const backKeys=['birth_place','birth_name','mother_birth_name'];
       const prior=state||{};
       const merged={...prior,...parsed};
@@ -754,8 +755,7 @@ async function captureAndRead(){
         // fill a missing value but must never replace an existing front value.
         for(const key of frontKeys) if(String(prior[key]||'').trim()) merged[key]=prior[key];
       }
-      // If no separate birth name is printed/read, use the holder's full name.
-      if(!String(merged.birth_name||'').trim() && String(merged.full_name||'').trim()) merged.birth_name=merged.full_name;
+
       state=merged;
       applyParsed(merged);
     }
@@ -810,13 +810,49 @@ async function captureAndRead(){
     }
   }
 }
+const readerOriginal={};
+const readerContext={};
+const readerConflicts=new Set();
+function readerFields(p){
+  const out={};
+  const map={family_name:'csaladnev',given_names:'utonev',birth_family_name:'szuletesiCsaladnev',birth_given_names:'szuletesiUtonev',mother_family_name:'anyjaCsaladnev',mother_given_names:'anyjaUtonev',date_of_birth:'szuletesiDatum',birth_place:'szuletesiHely',nationality_code:'allampolgarsagKod',document_number:'okmanyAzonositoSzam'};
+  for(const [a,b] of Object.entries(map))if(p[a])out[b]=p[a];
+  if(p.sex)out.nem={M:'FERFI',F:'NO',X:'EGYEB_VAGY_NEM_ISMERT'}[p.sex];
+  if(p.document_type)out.okmanyTipus={passport:'UTLEVEL',id_card:'SZEM_IG',driver_license:'VEZ_ENG',other:'EGYEB'}[p.document_type];
+  return out;
+}
+function mrzBirthCandidates(raw){
+  if(!/^\d{6}$/.test(raw||''))return [];
+  const today=localToday(),minimum=rollingBirthMinimum(),suffix=raw.slice(2,4)+'-'+raw.slice(4,6);
+  return [1900,2000].map(c=>String(c+Number(raw.slice(0,2)))+'-'+suffix).filter(d=>d>=minimum&&d<=today&&!Number.isNaN(new Date(d).getTime())&&new Date(d).toISOString().slice(0,10)===d);
+}
+function retainReaderFields(p){
+  if(p.mrz_birth_raw&&!readerContext.mrz_birth_raw)readerContext.mrz_birth_raw=p.mrz_birth_raw;
+  if(p.mrz_format&&!readerContext.mrz_format)readerContext.mrz_format=p.mrz_format;
+  for(const [key,value] of Object.entries(readerFields(p))){
+    if(!value)continue;
+    if(readerOriginal[key]===undefined)readerOriginal[key]=value;
+    else if(readerOriginal[key]!==value)readerConflicts.add('conflicting_scan:'+key);
+  }
+  if(p.mrz_birth_raw&&mrzBirthCandidates(p.mrz_birth_raw).length!==1)readerConflicts.add('mrz_birth_century_confirmation');
+  if(['NLD','XKX'].includes(p.nationality_code))readerConflicts.add('country_mapping_requires_review');
+}
+function identitySubmission(form){
+  const manual=readerFields(form);
+  for(const key of Object.keys(manual))if(manual[key]===readerOriginal[key])delete manual[key];
+  for(const [a,b] of [['csaladnev','utonev'],['szuletesiCsaladnev','szuletesiUtonev'],['anyjaCsaladnev','anyjaUtonev']]){
+    if(a in manual||b in manual){manual[a]=manual[a]??readerOriginal[a]??null;manual[b]=manual[b]??readerOriginal[b]??null;}
+  }
+  return {reader_context:{...readerContext},scanned_fields:{...readerOriginal},manual_fields:manual,scan_ambiguities:[...readerConflicts]};
+}
 function applyParsed(p){
   // Preserve the live form and camera DOM: only write recognized values into their
   // matching controls. Re-rendering the whole page here detached the camera/status
   // elements and made it difficult to tell whether fields had actually been filled.
   const chosen=state?.document_type;
-  state={...(state||{}),...p,document_type:(!chosen||chosen==='auto')?(p.document_type||'other'):chosen,scan_method:p.scan_method||(p.mrz_format?'camera_mrz':'camera_ocr')};
-  const values={full_name:state.full_name,birth_name:state.birth_name,birth_place:state.birth_place,date_of_birth:state.date_of_birth,sex:state.sex,nationality:state.nationality,mother_birth_name:state.mother_birth_name,document_number:state.document_number};
+  const additions=Object.fromEntries(Object.entries(p).filter(([k,v])=>v!==null&&v!==undefined&&String(v).trim()!==''&&(!state?.[k]||state[k]===v)));
+  state={...(state||{}),...additions,document_type:(!chosen||chosen==='auto')?(p.document_type||'other'):chosen,scan_method:p.scan_method||(p.mrz_format?'camera_mrz':'camera_ocr')};
+  const values={family_name:state.family_name,given_names:state.given_names,nationality_code:state.nationality_code,full_name:state.full_name,birth_name:state.birth_name,birth_place:state.birth_place,date_of_birth:state.date_of_birth,sex:state.sex,nationality:state.nationality,mother_birth_name:state.mother_birth_name,document_number:state.document_number};
   for(const [id,value] of Object.entries(values)){
     if(value===undefined||value===null||String(value).trim()==='')continue;
     const el=document.getElementById(id);if(!el)continue;
@@ -825,22 +861,26 @@ function applyParsed(p){
     el.value=String(value);
     if(typeof el.dispatchEvent==='function'&&typeof Event==='function'){el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}
   }
+  if(readerConflicts.size){const warning=document.getElementById('error');if(warning)warning.textContent='Ambiguous scanner values require reception review. Confirm the full birth date and nationality code.';}
   const typeEl=document.getElementById('document_type');
   if(typeEl&&state.document_type){if(typeEl.options&&!Array.from(typeEl.options).some(o=>o.value===state.document_type)){const opt=document.createElement('option');opt.value=state.document_type;opt.textContent=state.document_type;typeEl.appendChild(opt)}typeEl.value=state.document_type;}
 }
 function localToday(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+function rollingBirthMinimum(){const d=new Date();const year=d.getFullYear()-110;const month=d.getMonth();const day=d.getDate();const last=new Date(year,month+1,0).getDate();return `${year}-${String(month+1).padStart(2,'0')}-${String(Math.min(day,last)).padStart(2,'0')}`}
+function registrationDocumentRequired(born){const arrival=state?.reservation?.arrival_date||localToday();const boundary=new Date(arrival+'T12:00:00');boundary.setFullYear(boundary.getFullYear()-14);return !born||born<=boundary.toISOString().slice(0,10)}
 function renderFields(){const f=state||{};return `<div class="fields" id="fields">
 <div class="field wide"><label for="full_name">Full name<span aria-hidden="true"> *</span></label><input id="full_name" aria-required="true" required value="${esc(f.full_name||'')}" autocomplete="name"></div>
 <div class="field"><label for="birth_name">Birth name</label><input id="birth_name" value="${esc(f.birth_name||'')}"></div>
 <div class="field"><label for="birth_place">Place of birth</label><input id="birth_place" value="${esc(f.birth_place||'')}"></div>
-<div class="field"><label for="date_of_birth">Date of birth<span aria-hidden="true"> *</span></label><input id="date_of_birth" aria-required="true" type="date" min="1920-01-01" max="${localToday()}" required value="${esc(f.date_of_birth||'')}"></div>
+<div class="field"><label for="date_of_birth">Date of birth<span aria-hidden="true"> *</span></label><input id="date_of_birth" aria-required="true" type="date" min="${rollingBirthMinimum()}" max="${localToday()}" required value="${esc(f.date_of_birth||'')}"></div>
 <div class="field"><label for="sex">Sex</label><select id="sex"><option value="">Select</option><option ${f.sex==='M'?'selected':''} value="M">Male</option><option ${f.sex==='F'?'selected':''} value="F">Female</option></select></div>
 <div class="field"><label for="nationality">Nationality<span aria-hidden="true"> *</span></label><input type="search" id="nationalitySearch" data-guest-label="Search nationalities" aria-label="Search nationalities" autocomplete="off"><select id="nationality" aria-required="true" required><option value="">Select nationality</option>${(f.nationality&&!NATIONALITY_OPTIONS.includes(f.nationality)?[f.nationality,...NATIONALITY_OPTIONS]:NATIONALITY_OPTIONS).map(n=>`<option value="${esc(n)}" ${f.nationality===n?'selected':''}>${esc(n)}</option>`).join('')}</select></div>
 <div class="field"><label for="mother_birth_name">Mother's birth name</label><input id="mother_birth_name" value="${esc(f.mother_birth_name||'')}"></div>
 <div class="field"><label for="document_number">Document number<span aria-hidden="true"> *</span></label><input id="document_number" aria-required="true" required value="${esc(f.document_number||'')}" autocomplete="off"></div>
+${[['family_name','Family name'],['given_names','Given names'],['birth_family_name','Birth family name'],['birth_given_names','Birth given names'],['mother_family_name',"Mother family name"],['mother_given_names',"Mother given names"],['nationality_code','Nationality code (review required)']].map(([id,label])=>`<div class="field"><label for="${id}">${label}</label><input id="${id}" value="${esc(f[id]||'')}"></div>`).join('')}
 <div class="field wide"><label for="address">Address (if required by the applicable document/data set)</label><input id="address" value="${esc(f.address||'')}" autocomplete="street-address"></div>
 </div>`}
-function formData(){const ids=['full_name','birth_name','birth_place','date_of_birth','sex','nationality','mother_birth_name','document_type','document_number','address'];const out={};ids.forEach(id=>out[id]=document.getElementById(id)?.value?.trim()||'');return out}
+function formData(){const ids=['full_name','birth_name','birth_place','date_of_birth','sex','nationality','mother_birth_name','document_type','document_number','address','family_name','given_names','birth_family_name','birth_given_names','mother_family_name','mother_given_names','nationality_code'];const out={};ids.forEach(id=>out[id]=document.getElementById(id)?.value?.trim()||'');return out}
 function renderForm(){
   scanSide='front';
   shell(`<section class="hero"><span class="eyebrow">GUEST CHECK-IN</span><h1>Verify your stay.</h1><p>${esc(state.reservation.property_name)} · ${fmt(state.reservation.arrival_date)} → ${fmt(state.reservation.departure_date)}</p></section>
@@ -868,6 +908,8 @@ function renderForm(){
     if(rawMeta)rawMeta.textContent=`OCR diagnostic · ${window.__rosaRawOCR.elapsed} ms · ${window.__rosaRawOCR.text.trim()?window.__rosaRawOCR.text.trim().split(/\r?\n/).filter(Boolean).length:0} line(s)`;
     if(rawDetails)rawDetails.hidden=false;
   }
+  const updateDocumentRequirement=()=>{const required=registrationDocumentRequired(document.getElementById('date_of_birth').value);for(const id of ['document_number','document_type']){const field=document.getElementById(id);field.required=required;field.setAttribute('aria-required',String(required));const marker=document.querySelector?.(`label[for="${id}"] span`);if(marker)marker.hidden=!required;}};
+  document.getElementById('date_of_birth').addEventListener('change',updateDocumentRequirement);updateDocumentRequirement();
   document.getElementById('nationalitySearch').oninput=(event)=>{
     const query=event.target.value.toLocaleLowerCase(document.documentElement.lang);
     for(const option of document.getElementById('nationality').options)option.hidden=!!query&&!option.textContent.toLocaleLowerCase(document.documentElement.lang).includes(query)&&!option.value.toLowerCase().includes(query);
@@ -924,7 +966,7 @@ function renderForm(){
       document.getElementById('scanStatus').textContent='The camera flash could not be controlled by this browser. Try the phone’s default browser or use steady room lighting.';
     }
   };
-  document.getElementById('confirm').onclick=async()=>{const body={...formData(),scan_method:state.scan_method||'camera_mrz',guest_confirmed:true};if(!body.full_name){document.getElementById('error').className='error';document.getElementById('error').textContent='Please enter your full name.';return}for(const id of ['full_name','date_of_birth','nationality','document_number','document_type']){const field=document.getElementById(id);field.removeAttribute('aria-invalid');if(!field.value.trim()){document.getElementById('error').textContent='Complete the required identity fields.';field.setAttribute('aria-invalid','true');field.focus();return}}const birth=document.getElementById('date_of_birth');if(!birth.value||birth.value<'1920-01-01'||birth.value>localToday()||!birth.checkValidity()){document.getElementById('error').textContent='Enter a birth date between 1 January 1920 and today.';birth.setAttribute('aria-invalid','true');birth.focus();return}try{const out=await api(`/api/public/checkin/${encodeURIComponent(token)}`,{method:'POST',body:JSON.stringify(body)});stopCamera();shell(`<section class="card success"><div class="mark">✓</div><span class="eyebrow">PRE-CHECK-IN COMPLETE</span><h1>You’re all set.</h1><p class="muted">Your guest information has been received by ${esc(state.reservation.property_name)}. The property will complete the required identity verification before sending the information to VIZA.</p><div class="notice">You do not need to upload or keep a photo of your document for Delvane.</div></section>`)}catch(e){document.getElementById('error').className='error';document.getElementById('error').textContent=e.message;if(e.field){const field=document.getElementById(e.field);field?.setAttribute('aria-invalid','true');field?.focus()}}};
+  document.getElementById('confirm').onclick=async()=>{const form=formData();const body={...form,...identitySubmission(form),scan_method:state.scan_method||'manual',guest_confirmed:true};if(!body.full_name){document.getElementById('error').className='error';document.getElementById('error').textContent='Please enter your full name.';return}for(const id of ['full_name','date_of_birth','nationality',...(registrationDocumentRequired(body.date_of_birth)?['document_number','document_type']:[])]){const field=document.getElementById(id);field.removeAttribute('aria-invalid');if(!field.value.trim()){document.getElementById('error').textContent='Complete the required identity fields.';field.setAttribute('aria-invalid','true');field.focus();return}}const birth=document.getElementById('date_of_birth');if(!birth.value||birth.value<rollingBirthMinimum()||birth.value>localToday()||!birth.checkValidity()){document.getElementById('error').textContent='Enter a birth date within the last 110 years.';birth.setAttribute('aria-invalid','true');birth.focus();return}try{const out=await api(`/api/public/checkin/${encodeURIComponent(token)}`,{method:'POST',body:JSON.stringify(body)});stopCamera();shell(`<section class="card success"><div class="mark">✓</div><span class="eyebrow">PRE-CHECK-IN COMPLETE</span><h1>You’re all set.</h1><p class="muted">Your guest information has been received by ${esc(state.reservation.property_name)}. The property will complete the required identity verification before sending the information to VIZA.</p><div class="notice">You do not need to upload or keep a photo of your document for Delvane.</div></section>`)}catch(e){document.getElementById('error').className='error';document.getElementById('error').textContent=e.message;if(e.field){const field=document.getElementById(e.field);field?.setAttribute('aria-invalid','true');field?.focus()}}};
 }
 async function boot(){try{state=await api(`/api/public/checkin/${encodeURIComponent(token)}`);renderForm()}catch(e){shell(`<section class="card"><span class="eyebrow">ROSA CHECK-IN</span><h1>This link isn't available.</h1><p class="muted">${esc(e.message)}</p></section>`)}}
 boot();

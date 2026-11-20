@@ -1,0 +1,12 @@
+{
+  "source": "../pms_thf_viza_if_v700_hu.pdf",
+  "source_sha256": "4946453bec2af4297316fd0f206c78d1271bdf9bd5ed40ea1f93840665c778b9",
+  "pages": "28-43 (section 5); countries 51-57; errors 44-50",
+  "method": "PDF text extraction, page headers removed; standalone embedded schema without changing declarations. No external imports. Documentation examples are not normative schema fixtures.",
+  "files": {
+    "countries.json": "62f62eb7c7ebf967d18de539e747cc41fc0a11f888d17045967e269021f0576a",
+    "errors.json": "982d184627f1bf4c322a1ef7d43d6b566db08f8841246b731daaca2601766c90",
+    "thf-v700.wsdl": "d8d36ba4fdfab07958300975700556ce6bb15eb9ea79fa3171c8f1e47f6158f2",
+    "thf-v700.xsd": "f19ffec6d1d4ce44e07cf799c853d34913d83dd6ebf93917ec1b15f9d6a975c7"
+  }
+}

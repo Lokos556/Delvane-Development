@@ -23,7 +23,7 @@ assert(!hu.context.error(500,{detail:'PRIVATE SERVER TRACE'}).includes('PRIVATE'
 const countryMap=JSON.parse(app.match(/const NATIONALITY_BY_CODE=(\{.*?\});/)[1]);
 for(const nationality of new Set(Object.values(countryMap)))assert(hu.context.regions[nationality],nationality+' lacks Hungarian region localization');
 assert(!app.includes('Other / unknown</option>'));
-assert(app.includes('min="1920-01-01"'));
+assert(app.includes('min="${rollingBirthMinimum()}"'));
 assert(app.includes("a==='Hungarian'?-1"));
 assert(app.includes('nationalitySearch'));
 // The scanner's finalizer can still identify in-progress copy after localization.

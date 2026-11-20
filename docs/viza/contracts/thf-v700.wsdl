@@ -1,0 +1,784 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><wsdl:definitions xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/" 
+xmlns:sch="http://vizainfo.hu/thf/v1" xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" xmlns:tns="http://vizainfo.hu/thf/v1" 
+targetNamespace="http://vizainfo.hu/thf/v1"> 
+  <wsdl:types> 
+    <xs:schema xmlns="http://vizainfo.hu/thf/v1" xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified" 
+targetNamespace="http://vizainfo.hu/thf/v1"> 
+ 
+ <!-- PMS THF ********************************************************************************************** --> 
+ <xs:element name="erkezesiAdatokBekuldeseRequest"> 
+  <xs:complexType> 
+   <xs:sequence> 
+    <xs:element name="keresAdat" type="ErkezesiAdatokType"/> 
+   </xs:sequence> 
+  </xs:complexType> 
+ </xs:element> 
+ 
+ <xs:complexType name="ErkezesiAdatokType"> 
+  <xs:complexContent> 
+   <xs:extension base="BekuldesFejlecType"> 
+    <xs:sequence> 
+     <xs:element maxOccurs="10" name="erkezoVendeg" type="ErkezoVendegType"> 
+      <xs:annotation> 
+       <xs:documentation> 
+        Legalább 1, maximum 10 érkező vendég adatait 
+        (lásd ErkezoVendegType). 
+        tartalmazza. 
+       </xs:documentation> 
+      </xs:annotation> 
+     </xs:element> 
+    </xs:sequence> 
+   </xs:extension> 
+  </xs:complexContent> 
+ </xs:complexType> 
+ 
+ <xs:element name="erkezesiAdatokBekuldeseResponse"> 
+  <xs:complexType> 
+   <xs:sequence> 
+    <xs:element name="valaszAdat" type="BekuldesValaszType"/> 
+   </xs:sequence> 
+  </xs:complexType> 
+ </xs:element> 
+ 
+ <!-- ********************************************************************************************** --> 
+ <xs:element name="tavozasiAdatokBekuldeseRequest"> 
+  <xs:complexType> 
+
+   <xs:sequence> 
+    <xs:element name="keresAdat" type="TavozasiAdatokType"/> 
+   </xs:sequence> 
+  </xs:complexType> 
+ </xs:element> 
+  
+ <xs:complexType name="TavozasiAdatokType"> 
+  <xs:complexContent> 
+   <xs:extension base="BekuldesFejlecType"> 
+    <xs:sequence> 
+     <xs:element maxOccurs="10" name="tavozoVendeg" type="TavozoVendegType"> 
+      <xs:annotation> 
+       <xs:documentation> 
+        Legalább 1, maximum 10 érkező vendég adatait 
+        (lásd TavozoVendegType). 
+        tartalmazza. 
+       </xs:documentation> 
+      </xs:annotation> 
+     </xs:element> 
+    </xs:sequence> 
+   </xs:extension> 
+  </xs:complexContent> 
+ </xs:complexType> 
+ 
+ <xs:element name="tavozasiAdatokBekuldeseResponse"> 
+  <xs:complexType> 
+   <xs:sequence> 
+    <xs:element name="valaszAdat" type="BekuldesValaszType"/> 
+   </xs:sequence> 
+  </xs:complexType> 
+ </xs:element> 
+ 
+ <!-- ********************************************************************************************** --> 
+ 
+ <xs:element name="allapotLekerdezesRequest"> 
+  <xs:complexType> 
+   <xs:sequence> 
+   </xs:sequence> 
+  </xs:complexType> 
+ </xs:element> 
+  
+ <xs:element name="allapotLekerdezesResponse"> 
+  <xs:complexType> 
+   <xs:sequence> 
+    <xs:element name="szoftverVerzio" nillable="true" type="xs:string"> 
+     <xs:annotation> 
+      <xs:documentation> 
+       A tárhelyfeladó szoftver verziószáma 
+      </xs:documentation> 
+     </xs:annotation> 
+
+    </xs:element> 
+    <xs:element name="allapotKod" type="xs:string"> 
+     <xs:annotation> 
+      <xs:documentation> 
+       A THF állapotát kódoltan leíró információs érték. 
+      </xs:documentation> 
+     </xs:annotation> 
+             </xs:element> 
+    <xs:element name="bekuldetlenUzenetekSzama" type="xs:integer"> 
+     <xs:annotation> 
+      <xs:documentation> 
+       A THF által befogadott, de még a Tárhely részére sikeresen nem beküldött 
+       érkezési és távozási adatok száma. A már visszautasított hibás érkezési 
+       és távozási adatok számát nem tartalmazza. 
+      </xs:documentation> 
+     </xs:annotation> 
+             </xs:element> 
+    <xs:element name="hibasUzenetekSzama" type="xs:integer"> 
+     <xs:annotation> 
+      <xs:documentation> 
+       A THF által befogadott, de a Tárhely által a beküldéskor visszautasított 
+       érkezési és távozási adatok száma. 
+      </xs:documentation> 
+     </xs:annotation> 
+             </xs:element> 
+             <xs:element name="idoPecset" type="xs:dateTime"> 
+                 <xs:annotation> 
+                     <xs:documentation> 
+                         A lekérdezés időpecsétje. 
+                     </xs:documentation> 
+                 </xs:annotation> 
+             </xs:element> 
+   </xs:sequence> 
+  </xs:complexType> 
+ </xs:element> 
+ 
+ <!-- ********************************************************************************************** --> 
+ 
+ <xs:element name="bekuldetlenAdatListaRequest"> 
+  <xs:complexType> 
+   <xs:sequence> 
+    <xs:element name="bekuldetlenAdatTipus" type="BekuldetlenAdatListaType"> 
+     <xs:annotation> 
+      <xs:documentation> 
+       Mutatja, hogy a még nem beküldött adatokat (NEMBEKULDOTT) vagy a beküldéskor 
+       visszautasított adatokat (HIBAS) kéri-e a hívó. 
+      </xs:documentation> 
+     </xs:annotation> 
+    </xs:element> 
+   </xs:sequence> 
+
+  </xs:complexType> 
+ </xs:element> 
+  
+ <xs:element name="bekuldetlenAdatListaResponse"> 
+  <xs:complexType> 
+   <xs:sequence> 
+    <xs:element name="eredmenyKod" type="xs:string"> 
+     <xs:annotation> 
+      <xs:documentation> 
+       Értéke OK, ha sikerült a bekuldetlen adatok listájának lekérése. 
+       Egyéb esetben hibakódot tartalmaz. (Exxxx) 
+      </xs:documentation> 
+     </xs:annotation> 
+    </xs:element> 
+    <xs:element maxOccurs="10000" minOccurs="0" name="bekuldetlenAdat" type="BekuldetlenAdatType"> 
+     <xs:annotation> 
+      <xs:documentation> 
+       A még nem beküldött vagy a beküldéskor visszautasított adatok listája. 
+      </xs:documentation> 
+     </xs:annotation> 
+    </xs:element> 
+   </xs:sequence> 
+  </xs:complexType> 
+ </xs:element> 
+ 
+ 
+ <!-- ********************************************************************************************** --> 
+ 
+ <!-- ********************************************************************************************** --> 
+ 
+ <xs:complexType abstract="true" name="BekuldesFejlecType"> 
+  <xs:sequence> 
+   <xs:element name="uzenetAzonosito" type="UUIDType"> 
+    <xs:annotation> 
+     <xs:documentation> 
+      Küldő szoftver által generált egyedi, UUID 
+      típusú üzenet azonosító (lásd UUIDType). 
+     </xs:documentation> 
+    </xs:annotation> 
+   </xs:element> 
+   <xs:element name="szallashely" type="SzallasHelyType"> 
+    <xs:annotation> 
+     <xs:documentation> 
+      Küldő szálláshely adatait tartalmazza. 
+     </xs:documentation> 
+    </xs:annotation> 
+   </xs:element> 
+   <xs:element name="bejelentesIdopontja" type="xs:dateTime"> 
+    <xs:annotation> 
+     <xs:documentation> 
+
+      Adatszolgáltatás időpontja. ISO 8601 szabvány 
+      szerinti dátum és idő formátumban 
+      megadott, időzónával ellátott 
+      karaktersorozat. 
+     </xs:documentation> 
+    </xs:annotation> 
+   </xs:element> 
+            <xs:element name="pmsValidaciosUzenet" type="ValidaciosUzenetType"> 
+                <xs:annotation> 
+                    <xs:documentation> 
+                        A szálláshelyen használt PMS szoftver által előállított validációs célra használt aláírt 
+                        üzenetrészt, és annak ellenőrzésére szolgáló publikus aláíró kulcsot tartalmazó mező. 
+                         
+                        Az aláírandó stringet a következő elemekből képezzük: 
+                        - NTAK adatszolgáltatási azonosító (adatszolgaltatasiAzonosito mező) 
+                        - vendég érkezések azonosítói (a VendegType elemek erkezesAzonosito mezői) 
+                        - bejelentés időpontja (bejelentesIdopontja) 
+                        Ezeket az elemeket  '|' (pipe) tabulátor karakterek segítségével fűzzük össze. 
+                        Példa: 
+                        Legyen az NTAK adatszolgáltatási azonosító teszt123, és a szállás PMS szoftvere által 
+                        meghatározott vendég érkezés azonosítók legyenek: 
+                        - d3d8d17b-e0e4-417a-94b6-13e79d2a06d0 
+                        - cd9604b9-45d2-40db-97c9-87ff889c9d9d 
+                        Legyen a bejelentés időpontja 2021.01.19-én 10 óra 52 perc 23 másodperckor magyar idő szerint. 
+                        Ennek megfelelő ISO 8601 szabvány szerinti dátum és idő formátum: 
+                        2021-01-19T10:52:23+01:00 
+                        Ezek alapján az elvárt ellenörző string: 
+                        teszt123|d3d8d17b-e0e4-417a-94b6-13e79d2a06d0|cd9604b9-45d2-40db-97c9-87ff889c9d9d|2021-01-19T10:52:23+01:00 
+                    </xs:documentation> 
+                </xs:annotation> 
+            </xs:element> 
+  </xs:sequence> 
+ </xs:complexType> 
+ 
+ <xs:complexType name="BekuldesValaszType"> 
+  <xs:sequence> 
+   <xs:element name="sikeresBefogadas" type="xs:boolean"> 
+    <xs:annotation> 
+     <xs:documentation> 
+      Az adatbeküldés sikerességét, a beküldött adatok 
+      ellenőrzésének sikerességét jelzi, ha értéke TRUE. 
+      Sikertelen beküldés esetén tételes hibalista kerül visszaadásra. 
+     </xs:documentation> 
+    </xs:annotation> 
+   </xs:element> 
+   <xs:element name="fogadasAzonosito" type="UUIDType"> 
+    <xs:annotation> 
+     <xs:documentation> 
+      Tárhely fogadó által generált egyedi, UUID 
+      típusú üzenet azonosító (lásd UUIDType) sikeres 
+
+      befogadás esetén. A PMS-nek meg kell őrizni az érkezési 
+      adatokhoz rendelve.  
+     </xs:documentation> 
+    </xs:annotation> 
+   </xs:element>    
+   <xs:element name="fogadasIdeje" type="xs:dateTime"> 
+    <xs:annotation> 
+     <xs:documentation> 
+      Tárhely fogadó által generált időpecsét a fogadásról. 
+      ISO 8601 szabvány szerinti dátum és idő formátumban 
+      megadott, időzónával ellátott karaktersorozat. 
+     </xs:documentation> 
+    </xs:annotation> 
+   </xs:element>    
+   <xs:element maxOccurs="10" name="hibaLista" type="EredmenyType"> 
+    <xs:annotation> 
+     <xs:documentation> 
+      A beküldött vendég érkezés azonosítókhoz tartozó hibakódokat és 
+      hibaszövegeket listázza. Ha a vendégadat minden 
+      követelménynek megfelel, akkor a kód értéke OK, a hiba szöveg üres. 
+      Ha valamelyik adatmező nem megfelelő, akkor a kód hibakódot 
+      (Exxxx) tartalmaz, a szöveg pedig a kódhoz tartozó magyarázatot. 
+      Több hiba esetén a hibakódok és hibaszövegek vesszővel elválasztva 
+      kerülnek visszaadásra. A hibakód jelzi, milyen probléma vagy adathiba 
+      miatt nem fogadta el a vendégadatokat. 
+     </xs:documentation> 
+    </xs:annotation> 
+   </xs:element> 
+  </xs:sequence> 
+ </xs:complexType> 
+ 
+ <xs:complexType name="EredmenyType"> 
+  <xs:sequence> 
+   <xs:element name="erkezesAzonosito" type="UUIDType"> 
+    <xs:annotation> 
+     <xs:documentation> 
+      Adott vendég érkezésének egyedi azonosítója, amelyre a hibakód 
+      és a hibaszöveg vonatkozik. 
+     </xs:documentation> 
+    </xs:annotation> 
+   </xs:element> 
+   <xs:element name="hibaKod" type="xs:string"> 
+    <xs:annotation> 
+     <xs:documentation> 
+      Ha a vendégadat minden követelménynek megfelel, 
+      akkor a kód értéke OK, egyébként hibakódot (Exxxx) 
+      tartalmaz. Több hibakód esetén pontosvessző az 
+      elválasztó karakter. 
+     </xs:documentation> 
+    </xs:annotation> 
+
+   </xs:element> 
+   <xs:element name="hibaSzoveg" type="xs:string"> 
+    <xs:annotation> 
+     <xs:documentation> 
+      Ha a vendégadat minden követelménynek megfelel, 
+      akkor a hibaszöveg értéke üres, egyébként a hibakódhoz 
+      tartozó magyarázatot tartalmazza. Több hiba esetén 
+      pontosvessző az elválasztó karakter. 
+     </xs:documentation> 
+    </xs:annotation> 
+   </xs:element>    
+  </xs:sequence> 
+ </xs:complexType> 
+ 
+ <xs:complexType name="ErkezoVendegType"> 
+  <xs:sequence> 
+   <xs:element name="erkezesAzonosito" type="UUIDType"> 
+    <xs:annotation> 
+     <xs:documentation> 
+      Adott vendég érkezését jelző egyedi azonosító. Adott vendég 
+      érkezésekor és távozásakor ugyanazt az 
+      értéket szükséges beküldeni annak érdekében, hogy az érkezés és a 
+      távozás összekapcsolható legyen (lásd UUIDType). 
+     </xs:documentation> 
+    </xs:annotation> 
+   </xs:element> 
+   <xs:element name="erkezesIdeje" type="xs:dateTime"> 
+    <xs:annotation> 
+     <xs:documentation> 
+      Bejelentkezés pontos időpontja. ISO 8601 
+      szabvány szerinti dátum és idő 
+      formátumban megadott, időzónával 
+      ellátott karaktersorozat. 
+     </xs:documentation> 
+    </xs:annotation> 
+   </xs:element> 
+   <xs:element name="tavozasVarhatoDatuma" type="xs:date"> 
+    <xs:annotation> 
+     <xs:documentation> 
+      A távozás várható napja a foglalás alapján 
+      ÉÉÉÉ-HH-NN formátumú karaktersorozatként, pl. 2020-07-01 
+     </xs:documentation> 
+    </xs:annotation> 
+   </xs:element> 
+ 
+   <xs:element minOccurs="0" name="manualisanRogzitettAdat" type="SzemelyAdatType"> 
+    <xs:annotation> 
+     <xs:documentation> 
+      Manuálisan rögzített személyi adatok. 
+     </xs:documentation> 
+
+    </xs:annotation> 
+   </xs:element> 
+    
+   <xs:element minOccurs="0" name="okmanybolBeolvasottAdat" type="SzemelyAdatType"> 
+    <xs:annotation> 
+     <xs:documentation> 
+      Okmányból beolvasott személyi adatok. 
+     </xs:documentation> 
+    </xs:annotation> 
+   </xs:element> 
+    
+   <xs:element name="vizumEngedelySzam" nillable="true" type="xs:string"> 
+    <xs:annotation> 
+     <xs:documentation> 
+      Harmadik országból érkező igénybevevő vízumának 
+      vagy tartozókodási 
+      engedélyének száma. 
+     </xs:documentation> 
+    </xs:annotation> 
+   </xs:element> 
+   <xs:element name="beutazasDatuma" nillable="true" type="xs:date"> 
+    <xs:annotation> 
+     <xs:documentation> 
+      Harmadik országból érkező igénybevevő 
+      Magyarország területére való 
+      belépésének dátuma. 
+     </xs:documentation> 
+    </xs:annotation> 
+   </xs:element> 
+   <xs:element name="beutazasHelye" nillable="true" type="xs:string"> 
+    <xs:annotation> 
+     <xs:documentation> 
+      Harmadik országból érkező igénybevevő 
+      Magyarország területére való 
+      belépésének helye. 
+     </xs:documentation> 
+    </xs:annotation> 
+   </xs:element> 
+ 
+  </xs:sequence> 
+ </xs:complexType> 
+ 
+ <xs:complexType name="SzemelyAdatType"> 
+  <xs:sequence> 
+  
+   <xs:element name="csaladnev" nillable="true" type="xs:string"> 
+    <xs:annotation> 
+     <xs:documentation> 
+      Igénybevevő családneve. 
+     </xs:documentation> 
+
+    </xs:annotation> 
+   </xs:element> 
+   <xs:element name="utonev" nillable="true" type="xs:string"> 
+    <xs:annotation> 
+     <xs:documentation> 
+      Igénybevevő utóneve. 
+     </xs:documentation> 
+    </xs:annotation> 
+   </xs:element> 
+   <xs:element name="szuletesiCsaladnev" nillable="true" type="xs:string"> 
+    <xs:annotation> 
+     <xs:documentation> 
+      Igénybevevő születési családneve. 
+     </xs:documentation> 
+    </xs:annotation> 
+   </xs:element> 
+   <xs:element name="szuletesiUtonev" nillable="true" type="xs:string"> 
+    <xs:annotation> 
+     <xs:documentation> 
+      Igénybevevő születési utóneve. 
+     </xs:documentation> 
+    </xs:annotation> 
+   </xs:element> 
+   <xs:element name="szuletesiDatum" nillable="true" type="xs:date"> 
+    <xs:annotation> 
+     <xs:documentation> 
+      Igénybevevő születési dátuma. 
+     </xs:documentation> 
+    </xs:annotation> 
+   </xs:element> 
+   <xs:element name="szuletesiHely" nillable="true" type="xs:string"> 
+    <xs:annotation> 
+     <xs:documentation> 
+      Igénybevevő születési helye. 
+     </xs:documentation> 
+    </xs:annotation> 
+   </xs:element> 
+   <xs:element name="anyjaCsaladnev" nillable="true" type="xs:string"> 
+    <xs:annotation> 
+     <xs:documentation> 
+      Igénybevevő édesanyjának születési családneve. 
+     </xs:documentation> 
+    </xs:annotation> 
+   </xs:element> 
+   <xs:element name="anyjaUtonev" nillable="true" type="xs:string"> 
+    <xs:annotation> 
+     <xs:documentation> 
+      Igénybevevő édesanyjának születési utóneve. 
+     </xs:documentation> 
+    </xs:annotation> 
+
+   </xs:element> 
+   <xs:element name="allampolgarsagKod" nillable="true" type="AllampolgarsagKodType"> 
+    <xs:annotation> 
+     <xs:documentation> 
+      Igénybevevő állampolgárságának kódja (2 
+      karakteres országkód ISO 3166-1 
+      alpha-2 szerint, lásd 
+      AllampolgarsagKodType). 
+     </xs:documentation> 
+    </xs:annotation> 
+   </xs:element> 
+   <xs:element name="nem" nillable="true" type="NemType"> 
+    <xs:annotation> 
+     <xs:documentation> 
+      Igénybevevő neme (lásd NemType). 
+     </xs:documentation> 
+    </xs:annotation> 
+   </xs:element> 
+   <xs:element name="okmanyTipus" nillable="true" type="OkmanyTipusType"> 
+    <xs:annotation> 
+     <xs:documentation> 
+      Igénybevevő által bejelentkezéskor felmutatott 
+      személyazonosításra alkalmas 
+      okmány típusa (lásd 
+      OkmanyTipusType). 
+     </xs:documentation> 
+    </xs:annotation> 
+   </xs:element> 
+   <xs:element name="okmanyAzonositoSzam" nillable="true" type="xs:string"> 
+    <xs:annotation> 
+     <xs:documentation> 
+      Igénybevevő által bejelentkezéskor felmutatott 
+      személyazonosításra alkalmas 
+      okmány azonosító száma. 
+     </xs:documentation> 
+    </xs:annotation> 
+   </xs:element> 
+ 
+  </xs:sequence> 
+ 
+ </xs:complexType> 
+ 
+ <xs:complexType name="TavozoVendegType"> 
+  <xs:sequence> 
+   <xs:element name="erkezesAzonosito" type="UUIDType"> 
+    <xs:annotation> 
+     <xs:documentation> 
+      Vendég érkeztetésére vonatkozó szállásonként egyedinek tekintett (nem GUID) 
+      azonosítója. Adott vendég érkezésekor és távozásakor ugyanazt az 
+      értéket szükséges beküldeni annak érdekében, hogy az érkezés és a 
+
+      távozás összekapcsolható legyen. 
+     </xs:documentation> 
+    </xs:annotation> 
+   </xs:element> 
+   <xs:element name="tavozasIdeje" type="xs:dateTime"> 
+    <xs:annotation> 
+     <xs:documentation> 
+      Kijelentkezés pontos időpontja. ISO 8601 
+      szabvány szerinti dátum és idő 
+      formátumban megadott, időzónával 
+      ellátott karaktersorozat. 
+     </xs:documentation> 
+    </xs:annotation> 
+   </xs:element> 
+  </xs:sequence> 
+ </xs:complexType> 
+ 
+    <xs:complexType name="ValidaciosUzenetType"> 
+        <xs:sequence> 
+            <xs:element name="ellenorzoString" type="xs:string"> 
+                <xs:annotation> 
+                    <xs:documentation> 
+                        A PMS-től származó ellenőrző string. Ennek a mezőnek értékét kell RSA-SHA256 algoritmus szerint. 
+                     Több elemből állhat, az elemeket '|' (pipe) tabulátor karakterek segítségével fűzzük össze. 
+                    </xs:documentation> 
+                </xs:annotation> 
+            </xs:element> 
+            <xs:element name="alairoTanusitvany" type="xs:string"> 
+                <xs:annotation> 
+                    <xs:documentation> 
+                        Az aláíráshoz szükséges kulcspár publikus tagját tartalmazó DER formátumú Base64 
+                        kódolású bináris tanúsívány. 
+                    </xs:documentation> 
+                </xs:annotation> 
+            </xs:element> 
+            <xs:element name="alairas" type="xs:string"> 
+                <xs:annotation> 
+                    <xs:documentation> 
+                        Az aláíró tanúsítványával aláírt ellenőrző string értéke. 
+                        Az aláírást az RSA-SHA256 algoritmus szerint végezzük a szálláshely aláíró tanúsítványának 
+                        privát kulcsának segítségével. 
+                        Az aláírást következő módon képezzük: 
+                        1. vegyük az ellenőrző string SHA-256 hash értékét 
+                        2. a kapott hash értéket RSA algoritmus szerint titkosítsuk a szálláshely aláíró tanúsítványának 
+                        privát kulcsának segítségével. 
+                    </xs:documentation> 
+                </xs:annotation> 
+            </xs:element> 
+        </xs:sequence> 
+    </xs:complexType> 
+
+ <xs:simpleType name="AllampolgarsagKodType"> 
+  <xs:restriction base="xs:string"> 
+   <xs:pattern value="[A-Z]{2}"> 
+   </xs:pattern> 
+  </xs:restriction> 
+ </xs:simpleType> 
+ 
+ <xs:simpleType name="NemType"> 
+  <xs:restriction base="xs:string"> 
+   <xs:pattern value="NO|FERFI|EGYEB_VAGY_NEM_ISMERT"> 
+   </xs:pattern> 
+  </xs:restriction> 
+ </xs:simpleType> 
+ 
+ <xs:simpleType name="OkmanyTipusType"> 
+  <xs:restriction base="xs:string"> 
+   <xs:pattern value="SZEM_IG|UTLEVEL|VEZ_ENG|EGYEB"> 
+   </xs:pattern> 
+  </xs:restriction> 
+ </xs:simpleType> 
+ 
+ <xs:simpleType name="UUIDType"> 
+  <xs:restriction base="xs:string"> 
+   <xs:pattern value="[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}"> 
+   </xs:pattern> 
+  </xs:restriction> 
+ </xs:simpleType> 
+ 
+ <xs:complexType name="SzallasHelyType"> 
+  <xs:sequence> 
+   <xs:element name="adatszolgaltatasiAzonosito" type="xs:string"> 
+    <xs:annotation> 
+     <xs:documentation> 
+      Annak a szálláshelynek az NTAK adatszolgáltatási azonosítója, amelyiknek 
+      adatai a kérésben feltöltésre kerülnek. A szálláshelyek és PMS 
+      szoftverek azonosításáról a későbbiek folyamán további információk 
+      várhatók. 
+     </xs:documentation> 
+    </xs:annotation> 
+   </xs:element> 
+   <xs:element name="szallasNev" type="xs:string"> 
+    <xs:annotation> 
+     <xs:documentation> 
+      A szálláshely neve. 
+     </xs:documentation> 
+    </xs:annotation> 
+   </xs:element> 
+   <xs:element name="szallashelySzolgaltatoAdoszam" type="AdoszamType"> 
+    <xs:annotation> 
+
+     <xs:documentation> 
+      A szálláshelyet működtető szálláshely-szolgáltató 
+      adószáma (lásd AdoszamType). 
+     </xs:documentation> 
+    </xs:annotation> 
+   </xs:element> 
+   <xs:element name="szallashelySzolgaltatoNev" type="xs:string"> 
+    <xs:annotation> 
+     <xs:documentation> 
+      A szálláshelyet működtető szálláshely-szolgáltató 
+      neve. 
+     </xs:documentation> 
+    </xs:annotation> 
+   </xs:element> 
+  </xs:sequence> 
+ </xs:complexType> 
+ 
+ <xs:simpleType name="AdoszamType"> 
+  <xs:restriction base="xs:string"> 
+   <xs:pattern value="[0-9]{8}-[0-9]-[0-9]{2}"> 
+   </xs:pattern> 
+  </xs:restriction> 
+ </xs:simpleType> 
+ 
+ <xs:simpleType name="BooleanStringType"> 
+  <xs:restriction base="xs:string"> 
+   <xs:pattern value="TRUE|FALSE|Y|N|YES|NO|1|0|IGEN|NEM|I|N"> 
+   </xs:pattern> 
+  </xs:restriction> 
+ </xs:simpleType> 
+  
+ <xs:complexType name="BekuldetlenAdatType"> 
+  <xs:sequence> 
+   <xs:element name="uzenetAzonosito" type="UUIDType"> 
+    <xs:annotation> 
+     <xs:documentation> 
+      Küldő szoftver által generált egyedi, UUID 
+      típusú üzenet azonosító (lásd UUIDType). 
+     </xs:documentation> 
+    </xs:annotation> 
+   </xs:element> 
+   <xs:element name="adatszolgaltatasiAzonosito" type="xs:string"> 
+    <xs:annotation> 
+     <xs:documentation> 
+      Annak a szálláshelynek az NTAK adatszolgáltatási azonosítója, amelyiknek 
+      adatai a kérésben feltöltésre kerültek.  
+     </xs:documentation> 
+    </xs:annotation> 
+   </xs:element> 
+   <xs:element minOccurs="0" name="hibaUzenet" type="xs:string"> 
+
+    <xs:annotation> 
+     <xs:documentation> 
+      A sikertelen beküldéskor kapott hibaüzenet vagy a Tárhely által adott hibaüzenet 
+      hibás beküldés esetén. 
+     </xs:documentation> 
+    </xs:annotation> 
+   </xs:element> 
+  </xs:sequence> 
+ </xs:complexType> 
+  
+ <xs:simpleType name="BekuldetlenAdatListaType"> 
+     <xs:restriction base="xs:string"> 
+         <xs:enumeration value="NEMBEKULDOTT"/> 
+         <xs:enumeration value="HIBAS"/> 
+     </xs:restriction> 
+    </xs:simpleType> 
+ 
+ 
+ <!-- ********************************************************************************************** --> 
+ 
+</xs:schema> 
+  </wsdl:types> 
+  <wsdl:message name="allapotLekerdezesRequest"> 
+    <wsdl:part element="tns:allapotLekerdezesRequest" name="allapotLekerdezesRequest"> 
+    </wsdl:part> 
+  </wsdl:message> 
+  <wsdl:message name="erkezesiAdatokBekuldeseRequest"> 
+    <wsdl:part element="tns:erkezesiAdatokBekuldeseRequest" name="erkezesiAdatokBekuldeseRequest"> 
+    </wsdl:part> 
+  </wsdl:message> 
+  <wsdl:message name="tavozasiAdatokBekuldeseRequest"> 
+    <wsdl:part element="tns:tavozasiAdatokBekuldeseRequest" name="tavozasiAdatokBekuldeseRequest"> 
+    </wsdl:part> 
+  </wsdl:message> 
+  <wsdl:message name="allapotLekerdezesResponse"> 
+    <wsdl:part element="tns:allapotLekerdezesResponse" name="allapotLekerdezesResponse"> 
+    </wsdl:part> 
+  </wsdl:message> 
+  <wsdl:message name="bekuldetlenAdatListaResponse"> 
+    <wsdl:part element="tns:bekuldetlenAdatListaResponse" name="bekuldetlenAdatListaResponse"> 
+    </wsdl:part> 
+  </wsdl:message> 
+  <wsdl:message name="tavozasiAdatokBekuldeseResponse"> 
+    <wsdl:part element="tns:tavozasiAdatokBekuldeseResponse" name="tavozasiAdatokBekuldeseResponse"> 
+    </wsdl:part> 
+  </wsdl:message> 
+  <wsdl:message name="bekuldetlenAdatListaRequest"> 
+    <wsdl:part element="tns:bekuldetlenAdatListaRequest" name="bekuldetlenAdatListaRequest"> 
+    </wsdl:part> 
+  </wsdl:message> 
+
+  <wsdl:message name="erkezesiAdatokBekuldeseResponse"> 
+    <wsdl:part element="tns:erkezesiAdatokBekuldeseResponse" name="erkezesiAdatokBekuldeseResponse"> 
+    </wsdl:part> 
+  </wsdl:message> 
+  <wsdl:portType name="PmsThfPort"> 
+    <wsdl:operation name="allapotLekerdezes"> 
+      <wsdl:input message="tns:allapotLekerdezesRequest" name="allapotLekerdezesRequest"> 
+    </wsdl:input> 
+      <wsdl:output message="tns:allapotLekerdezesResponse" name="allapotLekerdezesResponse"> 
+    </wsdl:output> 
+    </wsdl:operation> 
+    <wsdl:operation name="erkezesiAdatokBekuldese"> 
+      <wsdl:input message="tns:erkezesiAdatokBekuldeseRequest" name="erkezesiAdatokBekuldeseRequest"> 
+    </wsdl:input> 
+      <wsdl:output message="tns:erkezesiAdatokBekuldeseResponse" name="erkezesiAdatokBekuldeseResponse"> 
+    </wsdl:output> 
+    </wsdl:operation> 
+    <wsdl:operation name="tavozasiAdatokBekuldese"> 
+      <wsdl:input message="tns:tavozasiAdatokBekuldeseRequest" name="tavozasiAdatokBekuldeseRequest"> 
+    </wsdl:input> 
+      <wsdl:output message="tns:tavozasiAdatokBekuldeseResponse" name="tavozasiAdatokBekuldeseResponse"> 
+    </wsdl:output> 
+    </wsdl:operation> 
+    <wsdl:operation name="bekuldetlenAdatLista"> 
+      <wsdl:input message="tns:bekuldetlenAdatListaRequest" name="bekuldetlenAdatListaRequest"> 
+    </wsdl:input> 
+      <wsdl:output message="tns:bekuldetlenAdatListaResponse" name="bekuldetlenAdatListaResponse"> 
+    </wsdl:output> 
+    </wsdl:operation> 
+  </wsdl:portType> 
+  <wsdl:binding name="PmsThfPortSoap11" type="tns:PmsThfPort"> 
+    <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/> 
+    <wsdl:operation name="allapotLekerdezes"> 
+      <soap:operation soapAction=""/> 
+      <wsdl:input name="allapotLekerdezesRequest"> 
+        <soap:body use="literal"/> 
+      </wsdl:input> 
+      <wsdl:output name="allapotLekerdezesResponse"> 
+        <soap:body use="literal"/> 
+      </wsdl:output> 
+    </wsdl:operation> 
+    <wsdl:operation name="erkezesiAdatokBekuldese"> 
+      <soap:operation soapAction=""/> 
+      <wsdl:input name="erkezesiAdatokBekuldeseRequest"> 
+        <soap:body use="literal"/> 
+      </wsdl:input> 
+      <wsdl:output name="erkezesiAdatokBekuldeseResponse"> 
+        <soap:body use="literal"/> 
+      </wsdl:output> 
+    </wsdl:operation> 
+
+    <wsdl:operation name="tavozasiAdatokBekuldese"> 
+      <soap:operation soapAction=""/> 
+      <wsdl:input name="tavozasiAdatokBekuldeseRequest"> 
+        <soap:body use="literal"/> 
+      </wsdl:input> 
+      <wsdl:output name="tavozasiAdatokBekuldeseResponse"> 
+        <soap:body use="literal"/> 
+      </wsdl:output> 
+    </wsdl:operation> 
+    <wsdl:operation name="bekuldetlenAdatLista"> 
+      <soap:operation soapAction=""/> 
+      <wsdl:input name="bekuldetlenAdatListaRequest"> 
+        <soap:body use="literal"/> 
+      </wsdl:input> 
+      <wsdl:output name="bekuldetlenAdatListaResponse"> 
+        <soap:body use="literal"/> 
+      </wsdl:output> 
+    </wsdl:operation> 
+  </wsdl:binding> 
+  <wsdl:service name="PmsThfPortService"> 
+    <wsdl:port binding="tns:PmsThfPortSoap11" name="PmsThfPortSoap11"> 
+      <soap:address location="http://10.162.172.30:8443/ws"/> 
+    </wsdl:port> 
+  </wsdl:service> 
+</wsdl:definitions>

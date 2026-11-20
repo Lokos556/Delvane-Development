@@ -1,0 +1,294 @@
+{
+  "EF0001": {
+    "page": 44,
+    "source_text": "Hi\u00e1nyz\u00f3 \u00fczenetazonos\u00edt\u00f3  \n  Form\u00e1tum ellen\u0151rz\u00e9s [a-f0-\n9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-\n[a-f0-9]{4}-[a-f0-9]{12}"
+  },
+  "EF0003": {
+    "page": 44,
+    "source_text": "\u00c9rv\u00e9nytelen \u00fczenetazonos\u00edt\u00f3. Helyes \n\u00e9rt\u00e9k p\u00e9ld\u00e1ul: 01234567-89ab-cdef-\n0123-ef0123456789  \nadatszolgaltatasiAzon\nosito \nVan-e adatszolg\u00e1ltat\u00e1si \nazonos\u00edt\u00f3 (k\u00f6telez\u0151 mez\u0151)"
+  },
+  "EF0005": {
+    "page": 44,
+    "source_text": "Adatszolg\u00e1ltat\u00e1si azonos\u00edt\u00f3 hi\u00e1nyzik \nvagy \u00e9rv\u00e9nytelen \n  Hossza maximum 8 karakter"
+  },
+  "EF0006": {
+    "page": 44,
+    "source_text": "Sz\u00e1ll\u00e1shely-azonos\u00edt\u00f3 nem megfelel\u0151. (8 \nkarakter, [a-zA-Z0-9]) \nszallasNev Sz\u00e1ll\u00e1sn\u00e9v hi\u00e1nyzik, null, \u00fcres \n(k\u00f6telez\u0151 mez\u0151)"
+  },
+  "EF0008": {
+    "page": 44,
+    "source_text": "Sz\u00e1ll\u00e1s neve hi\u00e1nyzik vagy \u00fcres \n  Sz\u00e1ll\u00e1sn\u00e9v hossza maximum \n200 karakter"
+  },
+  "EF0009": {
+    "page": 44,
+    "source_text": "Sz\u00e1ll\u00e1shely nev\u00e9nek hossza nem \nmegfelel\u0151 (maximum 200 karakter) \nszallashelySzolgaltato\nAdoszam \nSz\u00e1ll\u00e1shely-szolg\u00e1ltat\u00f3 \nad\u00f3sz\u00e1mellen\u0151rz\u00e9se \n(k\u00f6telez\u0151 mez\u0151)"
+  },
+  "EF0010": {
+    "page": 44,
+    "source_text": "Hi\u00e1nyz\u00f3 sz\u00e1ll\u00e1shely-szolg\u00e1ltat\u00f3 \nad\u00f3sz\u00e1m \n  Ad\u00f3sz\u00e1m rossz form\u00e1tum\u00fa, \nnem 11 sz\u00e1mjegy"
+  },
+  "EF0011": {
+    "page": 44,
+    "source_text": "\u00c9rv\u00e9nytelen ad\u00f3sz\u00e1m. Helyes \u00e9rt\u00e9k \np\u00e9ld\u00e1ul: 78665544-3-22 \nszallashelySzolgaltato\nNev \nSz\u00e1ll\u00e1shely-szolg\u00e1ltat\u00f3 neve \nhi\u00e1nyzik, null, \u00fcres (k\u00f6telez\u0151 \nmez\u0151)"
+  },
+  "EF0012": {
+    "page": 44,
+    "source_text": "Sz\u00e1ll\u00e1shely-szolg\u00e1ltat\u00f3 neve hi\u00e1nyzik \nvagy \u00fcres \n  Hossza maximum 200 \nkarakter"
+  },
+  "EF0013": {
+    "page": 44,
+    "source_text": "Sz\u00e1ll\u00e1shely-szolg\u00e1ltat\u00f3 nev\u00e9nek hossza \nnem megfelel\u0151 (maximum 200 \nkarakter). \nbejelentesIdopontja Bejelent\u00e9s id\u0151pontja \nhi\u00e1nyzik, null, \u00fcres, vagy nem \nmegfelel\u0151 form\u00e1tum\u00fa"
+  },
+  "EF0015": {
+    "page": 44,
+    "source_text": "Bejelent\u00e9s id\u0151pontja \nhi\u00e1nyzik/\u00e9rv\u00e9nytelen. Helyes \nform\u00e1tum: 2000-01-\n01T12:00:00.000+02:00"
+  },
+  "EF0016": {
+    "page": 45,
+    "source_text": "Bejelent\u00e9s id\u0151pontja j\u00f6v\u0151beli, vagy \nt\u00f6bb, mint{param\u00e9ter} nappal kor\u00e1bbi \nerkezoVendeg Nincs \u00e9rkez\u0151 vend\u00e9g adat, \nvagy t\u00f6bb, mint a be\u00e1ll\u00edtott \nparam\u00e9ter (10)"
+  },
+  "EF0017": {
+    "page": 45,
+    "source_text": "Nincs \u00e9rkez\u0151 vend\u00e9g adat, vagy t\u00f6bb, \nmint a be\u00e1ll\u00edtott param\u00e9ter. (Be\u00e1ll\u00edtott \n\u00e9rt\u00e9k: 10) \nerkezesAzonosito Vend\u00e9g \u00e9rkez\u00e9s azonos\u00edt\u00f3 \nnincs, \u00fcres, vagy null \n(k\u00f6telez\u0151 mez\u0151)"
+  },
+  "EF0018": {
+    "page": 45,
+    "source_text": "Hi\u00e1nyz\u00f3 vend\u00e9g \u00e9rkez\u00e9s azonos\u00edt\u00f3 \n  Hossz ellen\u0151rz\u00e9s"
+  },
+  "EF0019": {
+    "page": 45,
+    "source_text": "Vend\u00e9g \u00e9rkez\u00e9s azonos\u00edt\u00f3 hossza nem \nmegfelel\u0151. Helyes \u00e9rt\u00e9k p\u00e9ld\u00e1ul: \n01234567-89ab-cdef-0123-\nef0123456789 \n  Form\u00e1tum ellen\u0151rz\u00e9s"
+  },
+  "EF0020": {
+    "page": 45,
+    "source_text": "\u00c9rv\u00e9nytelen vend\u00e9g \u00e9rkez\u00e9s azonos\u00edt\u00f3. \nHelyes \u00e9rt\u00e9k p\u00e9ld\u00e1ul: 01234567-89ab-\ncdef-0123-ef0123456789 \n \nParam\u00e9terben be\u00e1ll\u00edtott id\u0151n \nbel\u00fcl (1 \u00f3ra) \u00e9rkezett-e \nazonos vend\u00e9g \u00e9rkez\u00e9s \nazonos\u00edt\u00f3val \u00fczenet"
+  },
+  "EF0021": {
+    "page": 45,
+    "source_text": "Duplik\u00e1lt vend\u00e9g \u00e9rkez\u00e9s azonos\u00edt\u00f3 \nerkezesIdeje \u00c9rkez\u00e9s ideje hi\u00e1nyzik, hib\u00e1s \n\u00e9rt\u00e9k\u0171, rossz form\u00e1tum\u00fa \n(k\u00f6telez\u0151 mez\u0151)"
+  },
+  "EF0029": {
+    "page": 45,
+    "source_text": "\u00c9rkez\u00e9s ideje hi\u00e1nyzik/\u00e9rv\u00e9nytelen. \nHelyes form\u00e1tum: 2000-01-\n01T12:00:00.000+02:00\") \n  \u00c9rkez\u00e9s ideje nem lehet az \naktu\u00e1lis d\u00e1tum/id\u0151n\u00e9l \nparam\u00e9ter_1 \u00e9rt\u00e9kkel \nkevesebbn\u00e9l kor\u00e1bbi, vagy \nparam\u00e9ter_2 \u00e9rt\u00e9kkel \nt\u00f6bbn\u00e9l k\u00e9s\u0151bbi (maximum \n730 nappal lehet kor\u00e1bban, \n\u00e9s 1 nappal k\u00e9s\u0151bb)"
+  },
+  "EF0030": {
+    "page": 45,
+    "source_text": "\u00c9rkez\u00e9s ideje nem esik elfogadhat\u00f3 \ntartom\u00e1nyba, vagy t\u00e1voz\u00e1s v\u00e1rhat\u00f3 \nidej\u00e9n\u00e9l k\u00e9s\u0151bbi. (\u00c9rkez\u00e9s ideje nem \nlehet az aktu\u00e1lis d\u00e1tum/id\u0151n\u00e9l \n{param\u00e9ter1}  \u00e9rt\u00e9kkel kevesebbn\u00e9l \nkor\u00e1bbi, vagy {param\u00e9ter2}  \u00e9rt\u00e9kkel \nt\u00f6bbn\u00e9l k\u00e9s\u0151bbi\") \ntavozasVarhatoDatum\na \nV\u00e1rhat\u00f3 t\u00e1voz\u00e1s d\u00e1tuma \nhi\u00e1nyzik, hib\u00e1s \u00e9rt\u00e9k\u0171, rossz \nform\u00e1tum\u00fa (k\u00f6telez\u0151 mez\u0151)"
+  },
+  "EF0032": {
+    "page": 45,
+    "source_text": "V\u00e1rhat\u00f3 t\u00e1voz\u00e1s d\u00e1tuma \nhi\u00e1nyzik/\u00e9rv\u00e9nytelen. Helyes \nform\u00e1tum: 2000-01-01 \n  Helyes \u00e9rt\u00e9ke az aktu\u00e1lis \nd\u00e1tum param\u00e9ter_1 nappal \nn\u00f6velt \u00e9rt\u00e9k\u00e9n\u00e9l kisebb, \nvalamint param\u00e9ter_2 \nnappal cs\u00f6kkentett d\u00e1tumn\u00e1l \nnagyobb (maximum 365"
+  },
+  "EF0033": {
+    "page": 45,
+    "source_text": "T\u00e1voz\u00e1s v\u00e1rhat\u00f3 d\u00e1tuma nem esik \nelfogadhat\u00f3 tartom\u00e1nyba, vagy \u00e9rkez\u00e9s \nidej\u00e9n\u00e9l nem k\u00e9s\u0151bbi. (Helyes \u00e9rt\u00e9ke az \naktu\u00e1lis d\u00e1tum {param\u00e9ter1}  nappal \nn\u00f6velt \u00e9rt\u00e9k\u00e9n\u00e9l kisebb, valamint \n{param\u00e9ter2}  nappal cs\u00f6kkentett \nd\u00e1tumn\u00e1l nagyobb"
+  },
+  "EF0034": {
+    "page": 46,
+    "source_text": "Csal\u00e1dn\u00e9v hi\u00e1nyzik \n \nHossz ellen\u0151rz\u00e9s (Maximum \n200 karakter, maximum 254 \nb\u00e1jt (UTF8 k\u00f3dol\u00e1ssal)"
+  },
+  "EF0035": {
+    "page": 46,
+    "source_text": "Csal\u00e1dn\u00e9v hossza nem megfelel\u0151. \n(Maximum 200 karakter, maximum 254 \nb\u00e1jt (UTF8 k\u00f3dol\u00e1ssal) \nutonev  \n(manualisanRogzitettA\ndat) \nNem lehet \u00fcres, ha: \n    - van megadva manu\u00e1lis \ncsal\u00e1dn\u00e9v \n    - nincs megadva \nokm\u00e1nyb\u00f3l egyik n\u00e9vtag sem"
+  },
+  "EF0036": {
+    "page": 46,
+    "source_text": "Ut\u00f3n\u00e9v hi\u00e1nyzik \n \nHossz ellen\u0151rz\u00e9s (Maximum \n200 karakter, maximum 254 \nb\u00e1jt (UTF8 k\u00f3dol\u00e1ssal)"
+  },
+  "EF0037": {
+    "page": 46,
+    "source_text": "Ut\u00f3n\u00e9v hossza nem megfelel\u0151. \n(Maximum 200 karakter, maximum 254 \nb\u00e1jt (UTF8 k\u00f3dol\u00e1ssal) \nszuletesiCsaladnev \n \n(manualisanRogzitettA\ndat) \nHa van manu\u00e1lisan r\u00f6gz\u00edtett \nsz\u00fclet\u00e9si ut\u00f3n\u00e9v, nem lehet \n\u00fcres"
+  },
+  "EF0039": {
+    "page": 46,
+    "source_text": "Sz\u00fclet\u00e9si csal\u00e1dn\u00e9v hi\u00e1nyzik \n \nHossz ellen\u0151rz\u00e9s (Maximum \n200 karakter, maximum 254 \nb\u00e1jt (UTF8 k\u00f3dol\u00e1ssal)"
+  },
+  "EF0040": {
+    "page": 46,
+    "source_text": "Sz\u00fclet\u00e9si csal\u00e1dn\u00e9v hossza nem \nmegfelel\u0151. (Maximum 200 karakter, \nmaximum 254 b\u00e1jt (UTF8 k\u00f3dol\u00e1ssal) \nszuletesiUtonev \n(manualisanRogzitettA\ndat) \nHa van manu\u00e1lisan r\u00f6gz\u00edtett \nsz\u00fclet\u00e9si csal\u00e1dn\u00e9v, nem \nlehet \u00fcres"
+  },
+  "EF0041": {
+    "page": 46,
+    "source_text": "Sz\u00fclet\u00e9si ut\u00f3n\u00e9v hi\u00e1nyzik \n \nHossz ellen\u0151rz\u00e9s (Maximum \n200 karakter, maximum 254 \nb\u00e1jt (UTF8 k\u00f3dol\u00e1ssal)"
+  },
+  "EF0042": {
+    "page": 46,
+    "source_text": "Sz\u00fclet\u00e9si ut\u00f3n\u00e9v hossza nem megfelel\u0151. \n(Maximum 200 karakter, maximum 254 \nb\u00e1jt (UTF8 k\u00f3dol\u00e1ssal) \nszuletesiDatum \n(manualisanRogzitettA\ndat) \nSz\u00fclet\u00e9si d\u00e1tum hi\u00e1nyzik, \nhib\u00e1s \u00e9rt\u00e9k\u0171, rossz \nform\u00e1tum\u00fa (ha \nokm\u00e1nyolvas\u00f3t\u00f3l nincs adat, \nPMS fel\u0151l k\u00f6telez\u0151)"
+  },
+  "EF0047": {
+    "page": 46,
+    "source_text": "Sz\u00fclet\u00e9si d\u00e1tum hi\u00e1nyzik/\u00e9rv\u00e9nytelen. \nHelyes form\u00e1tum: 2000-01-01 \n  Sz\u00fclet\u00e9si d\u00e1tum nem lehet \nj\u00f6v\u0151beli, illetve param\u00e9terrel \nbe\u00e1ll\u00edtott \u00e9vvel kor\u00e1bbn\u00e1l \nr\u00e9gebbi (110 \u00e9v)"
+  },
+  "EF0048": {
+    "page": 46,
+    "source_text": "Sz\u00fclet\u00e9si d\u00e1tum nem esik elfogadhat\u00f3 \nintervallumba. A sz\u00fclet\u00e9si d\u00e1tum nem \nlehet j\u00f6v\u0151beni, illetve nem lehet \n{param\u00e9ter}  \u00e9vvel kor\u00e1bbi d\u00e1tumn\u00e1l \nr\u00e9gebbi"
+  },
+  "EF0051": {
+    "page": 47,
+    "source_text": "Sz\u00fclet\u00e9si hely t\u00fal hossz\u00fa. (Maximum \n200 karakter, maximum 254 b\u00e1jt (UTF8 \nk\u00f3dol\u00e1ssal) \nanyjaCsaladnev \n(manualisanRogzitettA\ndat) \nHa van manu\u00e1lisan r\u00f6gz\u00edtett \nanyja ut\u00f3n\u00e9v, nem lehet \u00fcres"
+  },
+  "EF0052": {
+    "page": 47,
+    "source_text": "Anyja csal\u00e1dneve hi\u00e1nyzik \n \nHossz ellen\u0151rz\u00e9s (Maximum \n200 karakter, maximum 254 \nb\u00e1jt (UTF8 k\u00f3dol\u00e1ssal)"
+  },
+  "EF0053": {
+    "page": 47,
+    "source_text": "Anyja csal\u00e1dneve t\u00fal hossz\u00fa. (Maximum \n200 karakter, maximum 254 b\u00e1jt (UTF8 \nk\u00f3dol\u00e1ssal) \nanyjaUtonev \n(manualisanRogzitettA\ndat) \nHa van manu\u00e1lisan r\u00f6gz\u00edtett \nanyja csal\u00e1dn\u00e9v, nem lehet \n\u00fcres"
+  },
+  "EF0054": {
+    "page": 47,
+    "source_text": "Anyja ut\u00f3neve hi\u00e1nyzik \n \nHossz ellen\u0151rz\u00e9s (Maximum \n200 karakter, maximum 254 \nb\u00e1jt (UTF8 k\u00f3dol\u00e1ssal)"
+  },
+  "EF0055": {
+    "page": 47,
+    "source_text": "Anyja ut\u00f3neve t\u00fal hossz\u00fa. (Maximum \n200 karakter, maximum 254 b\u00e1jt (UTF8 \nk\u00f3dol\u00e1ssal) \nallampolgarsagKod \n(manualisanRogzitettA\ndat) \n\u00c1llampolg\u00e1rs\u00e1g k\u00f3d hi\u00e1nyzik \n(legal\u00e1bb egy helyen meg kell \nadni)"
+  },
+  "EF0059": {
+    "page": 47,
+    "source_text": "\u00c1llampolg\u00e1rs\u00e1g k\u00f3d hi\u00e1nyzik \n  \u00c1llampolg\u00e1rs\u00e1g k\u00f3d hib\u00e1s \n\u00e9rt\u00e9k\u0171, rossz form\u00e1tum\u00fa"
+  },
+  "EF0060": {
+    "page": 47,
+    "source_text": "\u00c1llampolg\u00e1rs\u00e1g k\u00f3d hib\u00e1s \nnem \n(manualisanRogzitettA\ndat) \nHi\u00e1nyz\u00f3 nem"
+  },
+  "EF0061": {
+    "page": 47,
+    "source_text": "Vend\u00e9g neme hi\u00e1nyzik \n  Hib\u00e1s \u00e9rt\u00e9k"
+  },
+  "EF0062": {
+    "page": 47,
+    "source_text": "\u00c9rv\u00e9nytelen nem \u00e9rt\u00e9k. Helyes \u00e9rt\u00e9kek: \nNO, FERFI, EGYEB_VAGY_NEM_ISMERT \nokmanyTipus \n(manualisanRogzitettA\ndat) \nOkm\u00e1nyt\u00edpus hi\u00e1nyzik  \n(legal\u00e1bb egy helyen meg kell \nadni)"
+  },
+  "EF0063": {
+    "page": 47,
+    "source_text": "Okm\u00e1nyt\u00edpus hi\u00e1nyzik \n  Okm\u00e1nyt\u00edpus hib\u00e1s \u00e9rt\u00e9k\u0171"
+  },
+  "EF0064": {
+    "page": 47,
+    "source_text": "\u00c9rv\u00e9nytelen okm\u00e1nyt\u00edpus. Helyes \n\u00e9rt\u00e9kek: SZEM_IG, UTLEVEL, VEZ_ENG, \nEGYEB \nokmanyAzonositoSza\nm \n(manualisanRogzitettA\ndat) \nOkm\u00e1nyazonos\u00edt\u00f3 hi\u00e1nyzik \n(legal\u00e1bb egy helyen meg kell \nadni)"
+  },
+  "EF0065": {
+    "page": 47,
+    "source_text": "Okm\u00e1nyazonos\u00edt\u00f3 sz\u00e1m hi\u00e1nyzik \n  Hossz ellen\u0151rz\u00e9s (max 100)"
+  },
+  "EF0067": {
+    "page": 47,
+    "source_text": "Okm\u00e1nyazonos\u00edt\u00f3 t\u00fal hossz\u00fa. \n(maximum 100 karakter) \nvizumEngedelySzam \n \nHossz ellen\u0151rz\u00e9s (max 100)"
+  },
+  "EF0069": {
+    "page": 47,
+    "source_text": "V\u00edzum, enged\u00e9lysz\u00e1m t\u00fal hossz\u00fa. \n(maximum 100 karakter)"
+  },
+  "EF0072": {
+    "page": 48,
+    "source_text": "Beutaz\u00e1s d\u00e1tuma hi\u00e1nyzik, \u00e9rv\u00e9nytelen \nvagy j\u00f6v\u0151beni. Helyes form\u00e1tum: 2000-\n01-01 \n beutazasHelye Hossz ellen\u0151rz\u00e9s (Maximum \n200 karakter, maximum 254 \nb\u00e1jt (UTF8 k\u00f3dol\u00e1ssal)"
+  },
+  "EF0075": {
+    "page": 48,
+    "source_text": "Beutaz\u00e1s helye t\u00fal hossz\u00fa.  (Maximum \n200 karakter, maximum 254 b\u00e1jt (UTF8 \nk\u00f3dol\u00e1ssal) \ncsaladnev \n(okmanybolBeolvaso\nttAdat) \nHossz ellen\u0151rz\u00e9s (Maximum \n200 karakter, maximum 254 \nb\u00e1jt (UTF8 k\u00f3dol\u00e1ssal)"
+  },
+  "EF0101": {
+    "page": 48,
+    "source_text": "Okm\u00e1nyr\u00f3l beolvasott csal\u00e1dn\u00e9v hossza \nnem megfelel\u0151. (Maximum 200 \nkarakter, maximum 254 b\u00e1jt (UTF8 \nk\u00f3dol\u00e1ssal)) \nutonev \n(okmanybolBeolvasott\nAdat) \nHossz ellen\u0151rz\u00e9s (Maximum \n200 karakter, maximum 254 \nb\u00e1jt (UTF8 k\u00f3dol\u00e1ssal)"
+  },
+  "EF0102": {
+    "page": 48,
+    "source_text": "Okm\u00e1nyr\u00f3l beolvasott ut\u00f3n\u00e9v hossza \nnem megfelel\u0151. (Maximum 200 \nkarakter, maximum 254 b\u00e1jt (UTF8 \nk\u00f3dol\u00e1ssal)) \nszuletesiCsaladnev \n(okmanybolBeolvasott\nAdat) \nHossz ellen\u0151rz\u00e9s (Maximum \n200 karakter, maximum 254 \nb\u00e1jt (UTF8 k\u00f3dol\u00e1ssal)"
+  },
+  "EF0103": {
+    "page": 48,
+    "source_text": "Okm\u00e1nyr\u00f3l beolvasott sz\u00fclet\u00e9si \ncsal\u00e1dn\u00e9v hossza nem megfelel\u0151. \n(Maximum 200 karakter, maximum 254 \nb\u00e1jt (UTF8 k\u00f3dol\u00e1ssal)) \n \nszuletesiUtonev \n(okmanybolBeolvasott\nAdat) \nHossz ellen\u0151rz\u00e9s (Maximum \n200 karakter, maximum 254 \nb\u00e1jt (UTF8 k\u00f3dol\u00e1ssal)"
+  },
+  "EF0104": {
+    "page": 48,
+    "source_text": "Okm\u00e1nyr\u00f3l beolvasott sz\u00fclet\u00e9si ut\u00f3n\u00e9v \nhossza nem megfelel\u0151. (Maximum 200 \nkarakter, maximum 254 b\u00e1jt (UTF8 \nk\u00f3dol\u00e1ssal)) \n \nszuletesiDatum \n(okmanybolBeolvasott\nAdat) \nSz\u00fclet\u00e9si d\u00e1tum hi\u00e1nyzik, \nhib\u00e1s \u00e9rt\u00e9k\u0171, rossz \nform\u00e1tum\u00fa"
+  },
+  "EF0105": {
+    "page": 48,
+    "source_text": "Okm\u00e1nyr\u00f3l beolvasott sz\u00fclet\u00e9si d\u00e1tum \n\u00e9rv\u00e9nytelen. Helyes form\u00e1tum: 2000-\n01-01 \n Sz\u00fclet\u00e9si d\u00e1tum nem lehet \nj\u00f6v\u0151beli, illetve param\u00e9terrel \nbe\u00e1ll\u00edtott \u00e9vvel kor\u00e1bbn\u00e1l \nr\u00e9gebbi"
+  },
+  "EF0106": {
+    "page": 48,
+    "source_text": "Okm\u00e1nyr\u00f3l beolvasott sz\u00fclet\u00e9si d\u00e1tum \nnem esik elfogadhat\u00f3 intervallumba. A \nsz\u00fclet\u00e9si d\u00e1tum nem lehet j\u00f6v\u0151beni, \nilletve nem lehet (parameter) \u00e9vvel \nkor\u00e1bbi d\u00e1tumn\u00e1l r\u00e9gebbi \nszuletesiHely \n(okmanybolBeolvasott\nAdat) \nHossz ellen\u0151rz\u00e9s (Maximum \n200 karakter, maximum 254 \nb\u00e1jt (UTF8 k\u00f3dol\u00e1ssal)"
+  },
+  "EF0107": {
+    "page": 48,
+    "source_text": "Okm\u00e1nyr\u00f3l beolvasott sz\u00fclet\u00e9si hely t\u00fal \nhossz\u00fa. (Maximum 200 karakter, \nmaximum 254 b\u00e1jt (UTF8 k\u00f3dol\u00e1ssal)) \nanyjaCsaladnev \n(okmanybolBeolvasott\nAdat) \nHossz ellen\u0151rz\u00e9s (Maximum \n200 karakter, maximum 254 \nb\u00e1jt (UTF8 k\u00f3dol\u00e1ssal)"
+  },
+  "EF0108": {
+    "page": 48,
+    "source_text": "Okm\u00e1nyr\u00f3l beolvasott anyja csal\u00e1dn\u00e9v \nhossza nem megfelel\u0151. (Maximum 200 \nkarakter, maximum 254 b\u00e1jt (UTF8 \nk\u00f3dol\u00e1ssal)) \nanyjaUtonev \n(okmanybolBeolvasott\nAdat) \nHossz ellen\u0151rz\u00e9s (Maximum \n200 karakter, maximum 254 \nb\u00e1jt (UTF8 k\u00f3dol\u00e1ssal)"
+  },
+  "EF0109": {
+    "page": 48,
+    "source_text": "Okm\u00e1nyr\u00f3l beolvasott anyja ut\u00f3n\u00e9v \nhossza nem megfelel\u0151. (Maximum 200 \nkarakter, maximum 254 b\u00e1jt (UTF8 \nk\u00f3dol\u00e1ssal))"
+  },
+  "EF0110": {
+    "page": 49,
+    "source_text": "Okm\u00e1nyr\u00f3l beolvasott \u00e1llampolg\u00e1rs\u00e1g \nk\u00f3d hib\u00e1s. \nnem \n(okmanybolBeolvasott\nAdat) \nHib\u00e1s \u00e9rt\u00e9k"
+  },
+  "EF0111": {
+    "page": 49,
+    "source_text": "\u00c9rv\u00e9nytelen okm\u00e1nyr\u00f3l beolvasott nem \n\u00e9rt\u00e9k. \nokmanyTipus \n(okmanybolBeolvasott\nAdat) \nOkm\u00e1nyt\u00edpus hib\u00e1s \u00e9rt\u00e9k\u0171"
+  },
+  "EF0112": {
+    "page": 49,
+    "source_text": "\u00c9rv\u00e9nytelen okm\u00e1nyr\u00f3l beolvasott \nokm\u00e1nyt\u00edpus. Helyes \u00e9rt\u00e9kek: SZEM_IG, \nUTLEVEL, VEZ_ENG, EGYEB \nokmanyAzonositoSza\nm \n(okmanybolBeolvasott\nAdat) \nHossz ellen\u0151rz\u00e9s (max 100)"
+  },
+  "EF0113": {
+    "page": 49,
+    "source_text": "Okm\u00e1nyr\u00f3l beolvasott \nokm\u00e1nyazonos\u00edt\u00f3 t\u00fal hossz\u00fa. \n(maximum 100 karakter) \nT\u00e1voz\u00e1s \n  \n \ntavozasIdeje T\u00e1voz\u00e1s ideje hi\u00e1nyzik, hib\u00e1s \n\u00e9rt\u00e9k\u0171, rossz form\u00e1tum\u00fa \n(k\u00f6telez\u0151 mez\u0151)"
+  },
+  "EF0088": {
+    "page": 49,
+    "source_text": "T\u00e1voz\u00e1s ideje hi\u00e1nyzik/\u00e9rv\u00e9nytelen. \nHelyes form\u00e1tum: 2000-01-\n01T12:00:00.000+02:00 \n  T\u00e1voz\u00e1s ideje nem lehet t\u00fal \nj\u00f6v\u0151beli (egy megadott \nparam\u00e9terrel (\u00e9rt\u00e9ke 1 nap) \nn\u00f6velt aktu\u00e1lis dateTime-n\u00e1l \nkisebb); nem lehet t\u00fal \nm\u00faltbeli (egy m\u00e1sik \nmegadott param\u00e9terrel (365 \nnap) cs\u00f6kkentett aktu\u00e1lis \ndateTime-n\u00e1l nagyobb; \nvalamint k\u00e9s\u0151bbi, mint az \n\u00e9rkez\u00e9s ideje (ha m\u00e9g \nmegvan)"
+  },
+  "EF0089": {
+    "page": 49,
+    "source_text": "T\u00e1voz\u00e1s ideje nem esik elfogadhat\u00f3 \ntartom\u00e1nyba. (T\u00e1voz\u00e1s ideje nem lehet \naz aktu\u00e1lis d\u00e1tum/id\u0151n\u00e9l {param\u00e9ter1}  \n\u00e9rt\u00e9kkel kevesebbn\u00e9l kor\u00e1bbi, vagy \n{param\u00e9ter2}  \u00e9rt\u00e9kkel t\u00f6bbn\u00e9l k\u00e9s\u0151bbi \nTan\u00fas\u00edtv\u00e1ny \u00e9s al\u00e1\u00edr\u00e1s \nellen\u0151rz\u00e9s \n   \nalairoTanusitvany  Tan\u00fas\u00edtv\u00e1ny form\u00e1tum\u00e1nak \nellen\u0151rz\u00e9se"
+  },
+  "EF0200": {
+    "page": 49,
+    "source_text": "A csatolt tanus\u00edtv\u00e1ny nem Base64 DER \nform\u00e1tum\u00fa \n Trustore f\u00e1jl ellen\u0151rz\u00e9se"
+  },
+  "EF0201": {
+    "page": 49,
+    "source_text": "A truststore f\u00e1jl \u00e9rv\u00e9nytelen vagy nem \nkinyerhet\u0151 bel\u0151le a tanus\u00edtv\u00e1ny \n Tan\u00fas\u00edtv\u00e1ny \n\u00e9rv\u00e9nyess\u00e9g\u00e9nek \nellen\u0151rz\u00e9se"
+  },
+  "EF0202": {
+    "page": 49,
+    "source_text": "A csatolt tanus\u00edtv\u00e1ny a tanus\u00edtv\u00e1nyl\u00e1nc \nszerint \u00e9rv\u00e9nytelen \n Adatszolg\u00e1ltat\u00e1si azonos\u00edt\u00f3 \n\u00f6sszevet\u00e9se a tan\u00fas\u00edtv\u00e1nyban \nmegadottal"
+  },
+  "EF0203": {
+    "page": 49,
+    "source_text": "A csatolt tanus\u00edtv\u00e1nyban l\u00e9v\u0151 \nadatszolg\u00e1ltat\u00e1si azonos\u00edt\u00f3 nem egyezik a \nsz\u00e1ll\u00e1shely adatban megadottal \nalairas A sz\u00e1ll\u00e1shely valid\u00e1ci\u00f3s \u00fczenet \nal\u00e1\u00edr\u00e1s\u00e1nak ellen\u0151rz\u00e9se"
+  },
+  "EF0204": {
+    "page": 49,
+    "source_text": "A sz\u00e1ll\u00e1shely valid\u00e1ci\u00f3s \u00fczenet al\u00e1\u00edr\u00e1sa \nnem \u00e9rv\u00e9nyes"
+  },
+  "EF0205": {
+    "page": 50,
+    "source_text": "A sz\u00e1ll\u00e1shely valid\u00e1ci\u00f3s \u00fczenet ellen\u0151rz\u0151 \nstring \u00e9rt\u00e9ke nem egyeztethet\u0151 \u00f6ssze a \nbek\u00fcld\u00f6tt adatokkal \n Tan\u00fas\u00edtv\u00e1ny \u00e9rv\u00e9nyess\u00e9g\u00e9nek \nellen\u0151rz\u00e9se"
+  },
+  "EF0206": {
+    "page": 50,
+    "source_text": "A csatolt tan\u00fas\u00edtv\u00e1ny visszavon\u00e1sra ker\u00fclt \ncrl f\u00e1jl Al\u00e1\u00edr\u00e1s ellen\u0151rz\u00e9se"
+  },
+  "EF0207": {
+    "page": 50,
+    "source_text": "A crl f\u00e1jl al\u00e1\u00edr\u00e1sa rossz \n crl f\u00e1jl ellen\u0151rz\u00e9se"
+  },
+  "EF0208": {
+    "page": 50,
+    "source_text": "A crl f\u00e1jl hi\u00e1nyzik vagy hib\u00e1s \n crl kiad\u00f3j\u00e1nak ellen\u0151rz\u00e9se"
+  },
+  "EF0209": {
+    "page": 50,
+    "source_text": "Hi\u00e1nyzik vagy hib\u00e1s a crl kiad\u00f3j\u00e1nak \ntan\u00fas\u00edtv\u00e1nya \nTHF bek\u00fcldetlen \nadatok list\u00e1j\u00e1nak \nlek\u00e9r\u00e9se: \nbekuldetlenAdatListaR\nequest \nAz adatt\u00edpus \u00e9rt\u00e9ke \n\u201eNEMBEKULDOTT\u201d vagy \n\u201eHIBAS\u201d lehet."
+  },
+  "EF7050": {
+    "page": 50,
+    "source_text": "A megadott adatt\u00edpus nem l\u00e9tezik. \n \n6.2. Korrekci\u00f3, ut\u00f3lagos adatk\u00fcld\u00e9s \nA jogszab\u00e1lyok nem eml\u00edtik az adatkorrekci\u00f3 lehet\u0151s\u00e9g\u00e9t.  Elv\u00e1r\u00e1s, hogy az adatk\u00fcld\u00e9s megt\u00f6rt\u00e9njen a \nvend\u00e9g \u00e9rkeztet\u00e9sekor \u00e9s  ebben a pillanatban a  teljes bek\u00fcldend\u0151 adatk\u00f6r rendelkez\u00e9sre \u00e1lljon . A \nbek\u00fcld\u00f6tt adatokon korrekci\u00f3ra nincs lehet\u0151s\u00e9g. \nA k\u00e9sve - napon t\u00fal - adminisztr\u00e1lt vend\u00e9gek adatait \u00fagy kell bek\u00fcldeni, hogy az \u00e9rkez\u00e9si id\u0151nek a val\u00f3s \n\u00e9rkez\u00e9si id\u0151t kell megadni vagy amennyiben ut\u00f3lag nem meg\u00e1llap\u00edthat\u00f3, \u00fagy az \u00e9rkez\u00e9si nap 12:00-t. \nT\u00e9ves \u00e9rkeztet\u00e9s eset\u00e9n az adott \u00e9rkez\u00e9si azonos\u00edt\u00f3val egy t\u00e1voz\u00e1s \u00fczenetet kell k\u00fcldeni . Az \u00e9rkez\u00e9si \nazonos\u00edt\u00f3t ism\u00e9t nem lehet felhaszn\u00e1lni, ezt a THF ellen\u0151rzi \u00e9s kik\u00e9nyszer\u00edti az \u00faj \u00e9rkez\u00e9si azonos\u00edt\u00f3 \nhaszn\u00e1lat\u00e1t. \nAmennyiben m\u0171szaki okokb\u00f3l a PMS nem tudott a THF sz\u00e1m\u00e1ra elk\u00fcldeni egy vagy t\u00f6bb adatcsomagot, \n\u00fagy n\u00f6vekv\u0151 peri\u00f3dusid\u0151vel kell \u00fajra pr\u00f3b\u00e1lkoznia. \nAj\u00e1nl\u00e1s az \u00fajrak\u00fcld\u00e9si elj\u00e1r\u00e1sra: \n\u2022 Az els\u0151 3 k\u00eds\u00e9rlet azonnal k\u00f6veti egym\u00e1st. \n\u2022 Ut\u00e1na k\u00e9sleltetve pr\u00f3b\u00e1lkozik \u00fajra az al\u00e1bb l\u00e9pcs\u0151kben: 1-60 sec k\u00f6z\u00f6tt random; 10 perc; 1 \u00f3ra; \n6 \u00f3ra. \n\u2022 Ezt k\u00f6vet\u0151en 24 \u00f3r\u00e1nk\u00e9nt folyamatosan. \n \n6.3. Jogszab\u00e1lyban el\u0151\u00edrt valid\u00e1ci\u00f3s szab\u00e1lyok \n \nAz 584/2021. (X. 14.) Korm. rendele t \u00e9rtelm\u00e9ben 2021. okt\u00f3ber 29 -\u00e9t\u0151l a  14 \u00e9v alatti sz\u00e1ll\u00e1shely -\nszolg\u00e1ltat\u00e1st ig\u00e9nybe vev\u0151 eset\u00e9ben az okm\u00e1ny\u00e1t nem kell bemutatni, \u00e9s nem kell r\u00f6gz\u00edteni az okm\u00e1ny \nazonos\u00edt\u00f3 adatait. \nEnnek \u00e9rtelm\u00e9ben a THF ellen\u0151rzi a sz\u00fclet\u00e9si d\u00e1tum alapj\u00e1n a vend\u00e9g \u00e9letkor\u00e1t az \u00e9rkez\u00e9s (nem a \nbejelent\u00e9s) napj\u00e1n, \u00e9s amennyiben a vend\u00e9g  m\u00e9g nem t\u00f6lt\u00f6tte be a 14. \u00e9let\u00e9v\u00e9t, az okm\u00e1nyazonos\u00edt\u00f3  \n(okmanyAzonositoSzam) \u00e9s okm\u00e1nyt\u00edpus (okmanyTipus) mez\u0151k kit\u00f6lt\u00e9s\u00e9t opcion\u00e1lisnak tekinti. \n6.4. A THF \u00e1ltal elfogadott orsz\u00e1gk\u00f3dok"
+  }
+}

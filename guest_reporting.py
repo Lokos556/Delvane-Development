@@ -89,6 +89,8 @@ def install(backend):
     def get(guest_id:str,business_date:date,rosa_session:str|None=Cookie(default=None)):
         with backend.db() as con:
             user,row=access(con,guest_id,rosa_session)
+            import viza_identity
+            row=viza_identity.compatibility(backend,con,row)
             profile,revision=profile_on(backend,con,guest_id,business_date)
             history=[{k:r[k] for k in ('id','effective_from','source','reason','actor_id','created_at')} for r in con.execute('SELECT * FROM guest_reporting_profiles WHERE guest_record_id=? ORDER BY effective_from,created_at',(guest_id,))]
             frozen=con.execute('SELECT reporting_id FROM ntak_guest_ids WHERE guest_record_id=? AND organization_id=? AND property_id=?',(guest_id,user['organization_id'],row['property_id'])).fetchone()

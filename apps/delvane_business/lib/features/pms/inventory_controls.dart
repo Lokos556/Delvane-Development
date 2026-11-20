@@ -50,7 +50,9 @@ class InventoryForm extends StatefulWidget {
     required this.save,
     this.selects = const {},
     this.optional = const {},
+    this.intro,
   });
+  final Widget? intro;
   final String title;
   final Map<String, String> labels;
   final Json initial;
@@ -103,6 +105,7 @@ class _InventoryFormState extends State<InventoryForm>
       child: Column(
         children: [
           errors(),
+          if (widget.intro != null) widget.intro!,
           for (final e in widget.labels.entries)
             if (widget.selects.containsKey(e.key))
               PmsSelect(

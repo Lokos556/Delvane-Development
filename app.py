@@ -20,6 +20,10 @@ import physical_units
 import reservation_allocations
 import reservation_reporting
 import guest_reporting
+import viza_identity
+import viza_delivery
+import viza_api
+import viza_reporting
 import guest_stays
 import financial_ledger
 import business_days
@@ -50,7 +54,7 @@ from fastapi import Cookie, FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 ROOT = Path(__file__).resolve().parent
 
@@ -839,6 +843,10 @@ def init_db(reset: bool = False):
         reservation_reporting.migrate(_sys.modules[__name__],con)
         guest_reporting.migrate(con,now_iso())
         guest_stays.migrate(con,now_iso())
+        viza_identity.migrate(con,now_iso())
+        viza_reporting.migrate(con,now_iso())
+        viza_delivery.migrate(con,now_iso())
+        viza_identity.protect_legacy(_sys.modules[__name__],con)
         day_use.migrate(_sys.modules[__name__],con)
         financial_ledger.migrate(_sys.modules[__name__],con)
         business_days.migrate(_sys.modules[__name__],con)
@@ -3101,6 +3109,10 @@ class ChannexInventoryMappingBody(BaseModel):
     rate_mappings: list[dict[str, str]] = []
 
 class GovernmentScanBody(BaseModel):
+    reader_context: dict[str,str] = Field(default_factory=dict)
+    scanned_fields: dict[str,str|None] = Field(default_factory=dict)
+    manual_fields: dict[str,str|None] = Field(default_factory=dict)
+    scan_ambiguities: list[str] = Field(default_factory=list)
     reservation_id: str
     guest_record_id: str
     full_name: str | None = None
@@ -3111,6 +3123,10 @@ class GovernmentScanBody(BaseModel):
     address: str | None = None
 
 class GuestCheckinSubmitBody(BaseModel):
+    reader_context: dict[str,str] = Field(default_factory=dict)
+    scanned_fields: dict[str,str|None] = Field(default_factory=dict)
+    manual_fields: dict[str,str|None] = Field(default_factory=dict)
+    scan_ambiguities: list[str] = Field(default_factory=list)
     full_name: str
     birth_name: str = ""
     birth_place: str = ""
@@ -3122,7 +3138,7 @@ class GuestCheckinSubmitBody(BaseModel):
     document_type: str = ""
     document_number: str = ""
     address: str = ""
-    scan_method: str = "camera_mrz"
+    scan_method: str = Field(default="manual",pattern="^(camera_mrz|camera_ocr|camera_mrz_plus_ocr|manual|id_scanner)$")
     guest_confirmed: bool = False
 
 class GuestPreferenceBody(BaseModel):
@@ -7346,6 +7362,10 @@ def _queue_government_events(con: DBConnection, org_id: str, property_id: str, r
     prop=con.execute("SELECT id,name,address,checkin_time,checkout_time,max_guests FROM properties WHERE id=? AND organization_id=?",(property_id,org_id)).fetchone()
     guests=rows(con.execute("SELECT id,full_name,date_of_birth,nationality,document_type,document_number,completeness FROM guest_records WHERE reservation_id=? AND organization_id=? ORDER BY id",(reservation_id,org_id)))
     payload=json.dumps({"reservation":dict(reservation),"property":dict(prop) if prop else None,"guest_records":guests},sort_keys=True,ensure_ascii=False,separators=(",",":"))
+    digest=hashlib.sha256(payload.encode('utf8')).hexdigest()
+    previous=con.execute('SELECT payload_json FROM government_outbox WHERE organization_id=? AND reservation_id=? AND event_type=? ORDER BY created_at DESC LIMIT 1',(org_id,reservation_id,event_type)).fetchone()
+    old_payload=json.loads(previous['payload_json']) if previous else {}
+    payload=previous['payload_json'] if old_payload.get('content_hash')==digest else json.dumps({'content_hash':digest,'encrypted_legacy_payload':encrypt_json(json.loads(payload))})
     if event_type.startswith("reservation."):
         ntak_reporting.capture_reservation(con,org_id,reservation_id)
     certified=os.getenv("ROSA_MTU_CERTIFIED","0")=="1"
@@ -7868,15 +7888,19 @@ def guest_checkin_submit(token: str, body: GuestCheckinSubmitBody, request: Requ
     if not body.guest_confirmed: raise HTTPException(400,"Please confirm that the information is correct.")
     if body.sex not in {"","M","F","X"}: raise pms_error("invalid_fields","sex")
     if len(body.full_name.strip())<2: raise HTTPException(400,"Full name is required.")
-    if not all(x.strip() for x in (body.date_of_birth,body.nationality,body.document_type,body.document_number)):
+    if not all(x.strip() for x in (body.date_of_birth,body.nationality)):
         raise HTTPException(400,"Required identity fields are missing.")
     try:
         born=date.fromisoformat(body.date_of_birth)
-        if born<date(1920,1,1) or born>date.today(): raise ValueError()
+        if not viza_identity.contract.years_before(date.today(),110)<=born<=date.today(): raise ValueError()
     except ValueError: raise pms_error("invalid_birth_date","date_of_birth")
     with db() as con:
         row=_public_checkin_token(con,token)
         guest_id=row["guest_record_id"]
+        # Scheduled date is only a pre-registration preview. Actual capture revalidates age.
+        reference=date.fromisoformat(row["arrival_date"]) if "arrival_date" in row.keys() else date.today()
+        if born<=viza_identity.contract.years_before(reference,14) and (not body.document_type.strip() or not body.document_number.strip()):
+            raise HTTPException(400,"Document fields are required from age 14 at arrival.")
         updates={
             "full_name":body.full_name.strip(),
             "date_of_birth":body.date_of_birth.strip() or None,
@@ -7885,10 +7909,15 @@ def guest_checkin_submit(token: str, body: GuestCheckinSubmitBody, request: Requ
             "document_number":body.document_number.strip() or None,
             "completeness":"complete"
         }
-        con.execute("UPDATE guest_records SET full_name=?,date_of_birth=?,nationality=?,document_type=?,document_number=?,completeness=? WHERE id=?", (updates["full_name"],updates["date_of_birth"],updates["nationality"],updates["document_type"],updates["document_number"],updates["completeness"],guest_id))
+        con.execute("UPDATE guest_records SET full_name=?,date_of_birth=?,nationality=?,document_type=?,document_number=?,completeness=? WHERE id=?", (updates["full_name"],None,updates["nationality"],updates["document_type"],None,updates["completeness"],guest_id))
         # Additional VIZA fields belong in encrypted sensitive data; they are never put in the public token table.
-        sensitive={"birth_name":body.birth_name.strip(),"birth_place":body.birth_place.strip(),"date_of_expiry":body.date_of_expiry.strip(),"sex":body.sex.strip(),"mother_birth_name":body.mother_birth_name.strip(),"address":body.address.strip(),"scan_method":body.scan_method.strip() or "camera_mrz"}
-        con.execute("INSERT INTO sensitive_guest_data(guest_record_id,organization_id,encrypted_payload,updated_at) VALUES (?,?,?,?) ON CONFLICT(guest_record_id) DO UPDATE SET encrypted_payload=excluded.encrypted_payload,updated_at=excluded.updated_at", (guest_id,row["organization_id"],encrypt_json(sensitive),now_iso()))
+        sensitive={"date_of_birth":body.date_of_birth,"document_number":body.document_number,"birth_name":body.birth_name.strip(),"birth_place":body.birth_place.strip(),"date_of_expiry":body.date_of_expiry.strip(),"sex":body.sex.strip(),"mother_birth_name":body.mother_birth_name.strip(),"address":body.address.strip(),"scan_method":body.scan_method.strip() or "camera_mrz"}
+        viza_identity.vault_merge(_sys.modules[__name__],con,guest_id,row["organization_id"],sensitive)
+        identity_row=viza_identity.scope(con,row["organization_id"],guest_id)
+        manual=dict(body.manual_fields)
+        for key,value in {"szuletesiDatum":body.date_of_birth,"szuletesiHely":body.birth_place,"okmanyAzonositoSzam":body.document_number}.items():
+            if value and key not in body.scanned_fields and key not in manual:manual[key]=value
+        viza_identity.ingest(_sys.modules[__name__],con,identity_row,body.scanned_fields,manual,'guest_token',ambiguities=body.scan_ambiguities,reader_context=body.reader_context)
         con.execute("INSERT INTO government_scan_events(id,organization_id,property_id,reservation_id,guest_record_id,source,payload_json,created_at) VALUES (?,?,?,?,?,?,?,?)", (new_id("scan"),row["organization_id"],row["property_id"],row["reservation_id"],guest_id,"guest_self_checkin",json.dumps({"scan_method":body.scan_method,"fields":["full_name","date_of_birth","nationality","document_type","document_number"]},ensure_ascii=False,separators=(",",":")),now_iso()))
         con.execute("INSERT INTO guest_checkin_events(id,organization_id,property_id,reservation_id,guest_record_id,event_type,metadata_json,created_at) VALUES (?,?,?,?,?,?,?,?)", (new_id("gce"),row["organization_id"],row["property_id"],row["reservation_id"],guest_id,"guest_confirmed",json.dumps({"scan_method":body.scan_method},ensure_ascii=False),now_iso()))
         con.execute("UPDATE guest_checkin_tokens SET status='completed',completed_at=?,last_seen_at=? WHERE token_hash=?",(now_iso(),now_iso(),_guest_checkin_token_hash(token)))
@@ -7992,7 +8021,7 @@ def _government_payload(con: DBConnection, outbox: Any) -> dict[str,Any]:
         return {"event_type":outbox["event_type"],"system":outbox["system"],"property_id":outbox["property_id"]}
     base={"event_type":outbox["event_type"],"reservation_id":reservation["id"],"property_id":reservation["property_id"],"property_name":reservation["property_name"],"arrival_date":reservation["arrival_date"],"departure_date":reservation["departure_date"],"guest_count":reservation["guest_count"],"status":reservation["status"],"source":reservation["source"]}
     if outbox["system"]=="VIZA":
-        base["guests"]=guests
+        base["guests"]=[{"id":g["id"],"completeness":g["completeness"],"identity":"protected"} for g in guests]
     else:
         base["guest_statistics"]=[{"nationality":g["nationality"],"date_of_birth":g["date_of_birth"]} for g in guests]
     return base
@@ -8003,6 +8032,8 @@ def _government_outbox_worker_once(limit:int=10)->int:
         guest_stays.recover_pending(_sys.modules[__name__],con,limit=limit)
         business_days.automatic(_sys.modules[__name__],con,limit=limit)
         business_days.recover(_sys.modules[__name__],con,limit=limit)
+    viza_delivery.worker_once(_sys.modules[__name__],limit=limit)
+    viza_delivery.monitoring_worker_once(_sys.modules[__name__])
     ntak_processed=ntak_reporting.worker_once(db,limit=limit)
     # Do not pretend to transmit to MTU before the official test package exists.
     # Once configured, this worker is the single durable boundary used by both systems.
@@ -8343,7 +8374,7 @@ def government_preview(system:str,reservation_id:str,request:Request,rosa_sessio
         preview=xml or json.dumps(payload,ensure_ascii=False,indent=2)
         request_hash=hashlib.sha256(preview.encode()).hexdigest()
         run_id=new_id("govtest")
-        con.execute("INSERT INTO government_test_runs(id,organization_id,property_id,system,test_type,request_hash,request_preview,status,created_at) VALUES (?,?,?,?,?,?,?,'prepared',?)",(run_id,user["organization_id"],reservation["property_id"],system,"reservation_preview",request_hash,preview,now_iso()))
+        con.execute("INSERT INTO government_test_runs(id,organization_id,property_id,system,test_type,request_hash,request_preview,status,created_at) VALUES (?,?,?,?,?,?,?,'prepared',?)",(run_id,user["organization_id"],reservation["property_id"],system,"reservation_preview",request_hash,("encrypted:"+encrypt_json({"preview":preview}) if system=="VIZA" else preview),now_iso()))
         return {"system":system,"transport":"awaiting_official_test_package","readiness":readiness,"payload":payload,"ntak_xml":xml,"test_run_id":run_id}
 
 
@@ -8368,14 +8399,21 @@ def government_viza_id_scan(body:GovernmentScanBody,request:Request,rosa_session
         if reservation["status"]!="confirmed": raise HTTPException(409,"Identity collection requires a confirmed reservation")
         record=con.execute("SELECT * FROM guest_records WHERE id=? AND reservation_id=? AND organization_id=?",(body.guest_record_id,body.reservation_id,user["organization_id"])).fetchone()
         if not record: raise HTTPException(404,"Guest registration record not found")
+        record=viza_identity.compatibility(_sys.modules[__name__],con,record)
+        viza_identity.ingest(_sys.modules[__name__],con,viza_identity.scope(con,user["organization_id"],record["id"]),body.scanned_fields,body.manual_fields,user["id"],ambiguities=body.scan_ambiguities,reader_context=body.reader_context)
         updates={k:v for k,v in {"full_name":body.full_name,"date_of_birth":body.date_of_birth,"nationality":body.nationality,"document_type":body.document_type,"document_number":body.document_number}.items() if v is not None}
-        if updates and all(record[k]==v for k,v in updates.items()) and con.execute("SELECT 1 FROM government_scan_events WHERE guest_record_id=? AND source='id_scanner' LIMIT 1",(body.guest_record_id,)).fetchone():
+        if updates and not body.scanned_fields and not body.manual_fields and all(record[k]==v for k,v in updates.items()) and con.execute("SELECT 1 FROM government_scan_events WHERE guest_record_id=? AND source='id_scanner' LIMIT 1",(body.guest_record_id,)).fetchone():
             return {"ok":True,"duplicate":True,"registration_status":_sync_registration(con,body.reservation_id,user["organization_id"]),"remaining_guest_records":con.execute("SELECT COUNT(*) c FROM guest_records WHERE reservation_id=? AND completeness!='complete'",(body.reservation_id,)).fetchone()["c"]}
         merged={**dict(record),**updates}
-        complete=all(str(merged.get(k) or '').strip() for k in ("full_name","date_of_birth","nationality","document_type","document_number"))
+        complete=all(str(merged.get(k) or '').strip() for k in ("full_name","date_of_birth","nationality"))
         try:
-            complete=complete and date(1920,1,1)<=date.fromisoformat(str(merged.get("date_of_birth") or ""))<=date.today()
+            born=date.fromisoformat(str(merged.get("date_of_birth") or ""))
+            complete=complete and viza_identity.contract.years_before(date.today(),110)<=born<=date.today()
+            if born<=viza_identity.contract.years_before(date.fromisoformat(reservation["arrival_date"]),14):
+                complete=complete and all(merged.get(k) for k in ("document_type","document_number"))
         except ValueError: complete=False
+        viza_identity.vault_merge(_sys.modules[__name__],con,record["id"],user["organization_id"],{k:merged.get(k) for k in ("date_of_birth","document_number")})
+        updates={k:(None if k in ("date_of_birth","document_number") else v) for k,v in updates.items()}
         if updates:
             con.execute("UPDATE guest_records SET " + ",".join(f"{k}=?" for k in updates) + ",completeness=? WHERE id=?",tuple(updates.values())+("complete" if complete else "incomplete",body.guest_record_id))
         con.execute("""INSERT INTO guest_identity_verifications(guest_record_id,organization_id,reservation_id,status,verification_method,verified_by,verified_at,review_note,updated_at)
@@ -9089,7 +9127,7 @@ def sensitive_guest_get(reservation_id: str, rosa_session: str | None = Cookie(d
 @app.put("/api/registration/records/{guest_record_id}/sensitive")
 def sensitive_guest_save(guest_record_id: str, body: SensitiveGuestBody, request: Request, rosa_session: str | None = Cookie(default=None)):
     user=require_user(rosa_session); require_roles(user,"owner","manager")
-    payload=body.model_dump()
+    payload=body.model_dump(exclude_unset=True)
     with db() as con:
         rec=con.execute("SELECT id,reservation_id FROM guest_records WHERE id=? AND organization_id=?",(guest_record_id,user["organization_id"])).fetchone()
         if not rec: raise HTTPException(404,"Guest record not found")
@@ -9099,6 +9137,7 @@ def sensitive_guest_save(guest_record_id: str, body: SensitiveGuestBody, request
             return {"ok":True,"duplicate":True}
         con.execute("UPDATE guest_identity_verifications SET status='needs_review',verified_by=NULL,verified_at=NULL,updated_at=? WHERE guest_record_id=? AND organization_id=?",(now_iso(),guest_record_id,user["organization_id"]))
         _sync_registration(con,rec["reservation_id"],user["organization_id"])
+        payload={**(decrypt_json(previous["encrypted_payload"]) if previous else {}),**payload}
         encrypted=encrypt_json(payload)
         con.execute("INSERT INTO sensitive_guest_data(guest_record_id,organization_id,encrypted_payload,updated_at) VALUES (?,?,?,?) ON CONFLICT(guest_record_id) DO UPDATE SET encrypted_payload=excluded.encrypted_payload,updated_at=excluded.updated_at",(guest_record_id,user["organization_id"],encrypted,now_iso()))
         audit_event(con,user["organization_id"],"registration.sensitive_updated","Sensitive registration record updated.",actor_user_id=user["id"],entity_type="guest_record",entity_id=guest_record_id,metadata={"fields":[k for k,v in payload.items() if v]},request=request)
@@ -9312,5 +9351,7 @@ def reservation_reporting_details(reservation_id:str,rosa_session:str|None=Cooki
 guest_reporting.install(_sys.modules[__name__])
 
 guest_stays.install(_sys.modules[__name__])
+viza_identity.install(_sys.modules[__name__])
+viza_api.install(_sys.modules[__name__])
 financial_ledger.install(_sys.modules[__name__])
 business_days.install(_sys.modules[__name__])
