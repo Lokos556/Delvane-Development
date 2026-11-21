@@ -339,7 +339,9 @@ class DBConnection:
             out=out.rstrip().rstrip(';')
             if " ON CONFLICT " not in out.upper(): out += " ON CONFLICT DO NOTHING"
         out=out.replace("INTEGER PRIMARY KEY AUTOINCREMENT", "BIGSERIAL PRIMARY KEY")
-        out=out.replace("?", "%s")
+        # psycopg treats literal percent signs as placeholder syntax, even in
+        # quoted LIKE patterns, when a parameter sequence is supplied.
+        out=out.replace("%", "%%").replace("?", "%s")
         return out
     def execute(self, sql: str, params=()):
         return self.raw.execute(self._sql(sql), params)

@@ -4,9 +4,68 @@
 !requirements.txt
 !requirements-production.txt
 !start_production.sh
+
+# Backend entry point, business workflows, and in-code migrations.
 !app.py
+!business_days.py
+!client_environment.py
+!day_use.py
+!financial_ledger.py
+!guest_reporting.py
+!guest_stays.py
+!owner_assistant.py
+!physical_units.py
+!reservation_allocations.py
+!reservation_reporting.py
+
+# Government reporting, contracts, evidence and disabled transport adapters.
+!government_security.py
+!ntak_api.py
+!ntak_contracts.py
+!ntak_countries.py
+!ntak_diagnostics.py
+!ntak_evidence.py
+!ntak_protocol.py
+!ntak_reporting.py
+!ntak_security.py
+!ntak_transport.py
+!viza_api.py
+!viza_contracts.py
+!viza_delivery.py
+!viza_identity.py
+!viza_reporting.py
+!viza_security.py
+
+!docs/
+docs/**
+!docs/ntak/
+docs/ntak/**
+!docs/ntak/v9/
+docs/ntak/v9/**
+!docs/ntak/v9/* WSDL.txt
+!docs/viza/
+docs/viza/**
+!docs/viza/error-messages-en.json
+!docs/viza/contracts/
+docs/viza/contracts/**
+!docs/viza/contracts/countries.json
+!docs/viza/contracts/errors.json
+!docs/viza/contracts/thf-v700.xsd
+
+# Browser entry points, templates and assets served by FastAPI.
 !static/
-!static/**
+static/**
+!static/app.js
+!static/delvane-icon.png
+!static/guest-checkin-i18n.js
+!static/guest-checkin.css
+!static/guest-checkin.html
+!static/guest-checkin.js
+!static/index.html
+!static/manifest.webmanifest
+!static/styles.css
+!static/sw.js
+!static/v283.js
 
 # Deny sensitive/generated files even inside an allowed asset directory.
 **/.env
