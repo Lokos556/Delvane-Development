@@ -131,9 +131,13 @@ def test_reporting_failure_rolls_back_actual_transition(client,monkeypatch):
 
 def test_official_group_partial_party_and_102_to_103_sequence(client):
     # ES_01A/B/C, ES_02/03/04A/04B/05: fictional ordinary PMS records.
+    import json
+    from ntak_rehearsal_support import Rehearsal
     from test_flutter_reservation_reception import body
     from test_guest_reporting_profile import PROFILE
+    from test_ntak_reporting import get
     rt,units=setup(client);client.put(BASE,json=CONFIG)
+    rehearsal = Rehearsal(client)
     at=app.datetime.now(timezone.utc)-timedelta(days=4)
     def party(count,uid,label):
         data=body();data.update(guest_name=label,guest_count=count,arrival_date=str(at.date()),departure_date=str((at+timedelta(days=4)).date()))
@@ -148,17 +152,40 @@ def test_official_group_partial_party_and_102_to_103_sequence(client):
         return rid,gids
     first,g1=party(3,units[0][0],'Fictional leisure party')
     second,g2=party(2,units[1][0],'Fictional independent party')
-    incoming,_=act(client,first,g1,at,uid=units[0][0]);assert incoming.status_code==200
-    # Offline processed-response fixture, not an external NTAK result.
-    with app.db() as con:con.execute("UPDATE ntak_jobs SET state='succeeded' WHERE id=(SELECT reporting_job_id FROM stay_events WHERE id=?)",(incoming.json()['id'],))
-    assert act(client,first,[g1[2]],at+timedelta(minutes=1),kind='undo_arrival',correction_of=incoming.json()['id'])[0].status_code==200
-    assert act(client,second,[g2[0]],at,uid=units[1][0])[0].status_code==200
-    assert act(client,second,[g2[0]],at+timedelta(days=1),kind='transfer',uid=units[2][0])[0].status_code==200
-    assert act(client,second,[g2[1]],at+timedelta(days=2),uid=units[2][0])[0].status_code==200
-    assert act(client,first,g1[:2],at+timedelta(days=2),kind='depart')[0].status_code==200
-    departure,_=act(client,second,[g2[0]],at+timedelta(days=2,hours=1),kind='depart');assert departure.status_code==200
+    def report(response, kind, rid, members, room):
+        assert response.status_code == 200, response.text
+        with app.db() as con:
+            captured = con.execute('SELECT reporting_job_id FROM stay_events WHERE id=?', (response.json()['id'],)).fetchone()
+        job = captured['reporting_job_id']
+        assert job is not None
+        [event] = json.loads(get(job)['payload_json'])['esemenyek'][kind]
+        assert event['foglalasiSzam'] == rid and len(event['vendegek']) == members
+        if kind == 'lakoegysegetCserelt':
+            assert event['elhagyottLakoegyseg']['szobaszam'] == '102'
+            assert event['elfoglaltLakoegyseg']['szobaszam'] == room
+        else:
+            assert event['lakoegyseg']['szobaszam'] == room
+        rehearsal.finish(job)
+        return {g['vendegId'] for g in event['vendegek']}
+
+    incoming, duplicate = act(client, first, g1, at, uid=units[0][0])
+    group_ids = report(incoming, 'erkezett', first, 3, '101')
+    assert client.post(f'/api/reservations/{first}/actual-stay', json=duplicate).json()['duplicate']
+    undo, _ = act(client, first, [g1[2]], at + timedelta(minutes=1), kind='undo_arrival', correction_of=incoming.json()['id'])
+    withdrawn = report(undo, 'tavozott', first, 1, '101')
+    assert withdrawn < group_ids
+    arrived = report(act(client,second,[g2[0]],at,uid=units[1][0])[0], 'erkezett', second, 1, '102')
+    assert report(act(client,second,[g2[0]],at+timedelta(days=1),kind='transfer',uid=units[2][0])[0],
+                  'lakoegysegetCserelt', second, 1, '103') == arrived
+    joined = report(act(client,second,[g2[1]],at+timedelta(days=2),uid=units[2][0])[0], 'erkezett', second, 1, '103')
+    assert not joined & arrived
+    departed = report(act(client,first,g1[:2],at+timedelta(days=2),kind='depart')[0], 'tavozott', first, 2, '101')
+    assert departed == group_ids - withdrawn
+    departure,_=act(client,second,[g2[0]],at+timedelta(days=2,hours=1),kind='depart')
+    assert report(departure, 'tavozott', second, 1, '103') == arrived
     assert client.get(f'/api/reservations/{second}/actual-stay').json()['actual_occupants']==1
-    assert act(client,second,[g2[0]],at+timedelta(days=2,hours=2),kind='undo_departure',correction_of=departure.json()['id'])[0].status_code==200
+    reversal,_=act(client,second,[g2[0]],at+timedelta(days=2,hours=2),kind='undo_departure',correction_of=departure.json()['id'])
+    assert report(reversal, 'erkezett', second, 1, '103') == arrived
     assert client.get(f'/api/reservations/{second}/actual-stay').json()['actual_occupants']==2
 
 

@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 
+import '../../core/network/api_client.dart';
 import 'pms_controller.dart';
 import 'pms_dialogs.dart';
 import 'pms_style.dart';
@@ -250,6 +251,69 @@ class _PhysicalInventoryState extends State<PhysicalInventory>
     if (mounted) await load();
   }
 
+  Future<void> reconcileStock(Json comparison, String roomName) async {
+    final businessDate = data['business_date'] as String;
+    final roomType = Uri.encodeComponent(comparison['room_type_id'] as String);
+    final saved = await showDialog<bool>(
+      context: context,
+      useRootNavigator: false,
+      builder: (_) => InventoryForm(
+        title: 'Correct historical room count',
+        intro: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('$roomName · $businessDate'),
+            Text(
+              ui(
+                'This count applies only to the selected business date. Selling stock and channel availability are separate.',
+              ),
+            ),
+          ],
+        ),
+        labels: const {
+          'inventory_count': 'Active physical units',
+          'reason': 'Reason',
+        },
+        initial: {'inventory_count': comparison['physical_unit_count']},
+        save: (values) async {
+          final count = int.tryParse(values['inventory_count'] as String);
+          if (count == null || count < 0 || count > 500) {
+            throw const ApiException('Enter a whole room count from 0 to 500');
+          }
+          await widget.c.api.put('$base/historical-stock/$roomType', {
+            'business_date': businessDate,
+            'inventory_count': count,
+            'reason': values['reason'],
+          });
+        },
+      ),
+    );
+    if (saved == true && mounted) await load();
+  }
+
+  Widget stockMismatch(Json comparison) {
+    final roomName =
+        rooms
+            .where((room) => room['id'] == comparison['room_type_id'])
+            .map((room) => room['name'] as String)
+            .firstOrNull ??
+        ui('Room type');
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '$roomName · ${ui('Physical units and recorded room stock differ.')} ${comparison['physical_unit_count']} / ${comparison['aggregate_inventory_count']}',
+        ),
+        if (widget.c.user.role == 'owner' &&
+            data['historical_stock_editable'] == true)
+          PmsButton(
+            ui('Correct historical room count'),
+            onPressed: busy ? null : () => reconcileStock(comparison, roomName),
+          ),
+      ],
+    );
+  }
+
   Future<void> periods(Json unit) async {
     await perform(() async {
       final history =
@@ -368,9 +432,7 @@ class _PhysicalInventoryState extends State<PhysicalInventory>
         ),
         for (final comparison in data['aggregate_comparison'] as List? ?? [])
           if (comparison['matches'] != true)
-            Text(
-              '${ui('Physical units and channel inventory differ. Review room-type stock.')} ${comparison['physical_unit_count']} / ${comparison['aggregate_inventory_count']}',
-            ),
+            stockMismatch(Map<String, dynamic>.from(comparison as Map)),
         if ((data['units'] as List? ?? []).isEmpty)
           Text(
             ui(

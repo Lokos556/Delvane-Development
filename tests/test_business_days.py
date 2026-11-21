@@ -41,6 +41,7 @@ def close(client,day,correction=None):
 
 
 def test_closed_property_chronology_automatic_restart_and_scope(client):
+    from ntak_rehearsal_support import Rehearsal
     rt,units=setup(client);day=app.date.today()-timedelta(days=2);calendar(client,day,True)
     operating(client,day,False);client.put(BASE,json=CONFIG)
     result=close(client,day);assert result.status_code==200,result.text
@@ -52,6 +53,7 @@ def test_closed_property_chronology_automatic_restart_and_scope(client):
         assert job['szobaAdatok']=={'osszesSzoba':4,'oooSzobak':4,'oosSzobak':0,'kiadottSzobak':0,'kiadhatoSzobak':0}
         assert job['ferohelyAdatok']['oooFerohelyKapacitas']==10
         assert len(job['uzemenKivuliSzobak']['lakoegyseg'])==4
+    Rehearsal(client).finish(row['job_id'])
     operating(client,day+timedelta(days=1),False)
     app.init_db()
     with app.db() as con:
@@ -92,9 +94,18 @@ def snapshot(client,day):
 
 
 def test_normal_closing_three_actual_nights_two_units_ooo_oos_and_identity_gate(client):
-    rt,units=setup(client);day=app.date.today()-timedelta(days=2);calendar(client,day);operating(client,day)
+    from ntak_rehearsal_support import Rehearsal
+    from test_ntak_evidence import package
+    rt,units=setup(client);day=app.date.today()-timedelta(days=2)
+    previous_day = day - timedelta(days=1)
+    calendar(client,previous_day);operating(client,previous_day,False);operating(client,day)
     assert client.put(PROP+'/ifa-rates',json={'effective_from':str(day),'tax_type':'TETELES','rate':'400','reason':'Fictional tax rate'}).status_code==200
     client.put(BASE,json=CONFIG)
+    assert close(client,day).json()['detail']['code'] == 'previous_business_day_not_closed'
+    closed_previous = close(client,previous_day)
+    assert closed_previous.status_code == 200, closed_previous.text
+    rehearsal = Rehearsal(client)
+    rehearsal.finish(closed_previous.json()['job_id'])
     first,g1=party(client,day,day+timedelta(days=2),2,units[0][0],'Fictional first',False)
     second,g2=party(client,day,day+timedelta(days=2),1,units[1][0],'Fictional second',False)
     at=datetime.fromisoformat(str(day)+'T14:00:00+01:00')
@@ -114,6 +125,9 @@ def test_normal_closing_three_actual_nights_two_units_ooo_oos_and_identity_gate(
     result=close(client,day);assert result.status_code==200,result.text
     s,f,p=snapshot(client,day);assert f['guest_nights']==3 and f['sold_units']==2
     assert s['blocker']=='identity_normalization_unresolved'
+    blocked_export = package(client, s['job_id'])
+    assert blocked_export.status_code == 200
+    assert blocked_export.json()['attempts'] == []
     frozen_facts=s['encrypted_facts']
     for gid in g1+g2:
         with app.db() as con:guest_reporting.identity_for_submission(app,con,'org_casa_rosa','prop_flora',gid,canonical_identity='Fictional '+gid+' Budapest 1986.01.01.')
@@ -127,6 +141,7 @@ def test_normal_closing_three_actual_nights_two_units_ooo_oos_and_identity_gate(
     other=client.get(PROP+'/financial-entries',params={'business_date':str(day)}).json()
     assert len(other['entries'])==len(other['history'])==5
     assert data['szobaAdatok']['kiadottSzobak']==2 and len(data['lakoegysegEjszakak']['lakoegysegEjszaka'])==2
+    rehearsal.finish(s['job_id'])
 
 
 def test_planned_registration_not_actual_and_transaction_rollback(client,monkeypatch):
@@ -172,12 +187,16 @@ def test_outcome_aware_source_corrections_and_frozen_identity(client,outcome,exp
 
 def test_nz03_all_lines_snapshot_and_seven_payments(client):
     from pathlib import Path
+    from ntak_rehearsal_support import Rehearsal
     rt,units=setup(client);day=app.date.today()-timedelta(days=2);calendar(client,day);operating(client,day);client.put(BASE,json=CONFIG)
     client.put(PROP+'/ifa-rates',json={'effective_from':str(day),'tax_type':'TETELES','rate':'400','reason':'Fictional rate'})
     first,g1=party(client,day,day+timedelta(days=2),2,units[0][0],'Fictional first party')
-    second,g2=party(client,day,day+timedelta(days=2),1,units[2][0],'Fictional worksheet party')
+    second,g2=party(client,day-timedelta(days=1),day+timedelta(days=2),1,units[1][0],'Fictional worksheet party')
     at=datetime.fromisoformat(str(day)+'T14:00:00+01:00')
-    for rid,gids,uid in [(first,g1,units[0][0]),(second,g2,units[2][0])]:assert act(client,rid,gids,at,uid=uid)[0].status_code==200
+    assert act(client,first,g1,at,uid=units[0][0])[0].status_code==200
+    assert act(client,second,g2,at-timedelta(days=1),uid=units[1][0])[0].status_code==200
+    moved, _ = act(client,second,g2,at,kind='transfer',uid=units[2][0])
+    assert moved.status_code == 200, moved.text
     # Explicit zero complimentary charge is legitimate source data, not a fabricated revenue.
     p=charge();p.update(unit_price='0');post(client,first,p,day,units[0][0])
     rows=json.loads((Path(__file__).parent/'fixtures/ntak_official_charge_lines.json').read_text(encoding='utf8'))
@@ -191,10 +210,13 @@ def test_nz03_all_lines_snapshot_and_seven_payments(client):
     charges=[c for g in selected['terhelesek'].values() for v in g.values() for c in v]
     assert len(charges)==69 and sum(Decimal(c['osszeg']) for c in charges)==28467
     assert len(selected['koltesek']['koltes'])==7
+    Rehearsal(client).finish(s['job_id'])
 
 
 def test_nz05_day_use_zero_nights_and_post_stay_invoice_dates(client):
+    from ntak_rehearsal_support import Rehearsal
     from test_day_use import make
+    from test_ntak_reporting import get
     rt,units=setup(client);day=app.date.today()-timedelta(days=1);calendar(client,day);operating(client,day);client.put(BASE,json=CONFIG)
     client.put(PROP+'/ifa-rates',json={'effective_from':str(day),'tax_type':'TETELES','rate':'400','reason':'Fictional rate'})
     rid,gids=party(client,day-timedelta(days=2),day-timedelta(days=1),1,units[0][0],'Fictional departed')
@@ -206,11 +228,21 @@ def test_nz05_day_use_zero_nights_and_post_stay_invoice_dates(client):
     assert client.patch('/api/reservations/'+day_id,json={'reporting':{'piaciSzegmens':'ISMERETLEN','ertekesitesiCsatorna':'KOZVETITO_ONLINE'}}).status_code==200
     with app.db() as con:gs=[r['id'] for r in con.execute('SELECT id FROM guest_records WHERE reservation_id=? ORDER BY id',(day_id,))]
     at=datetime.fromisoformat(str(day)+'T10:30:00+01:00')
+    rehearsal = Rehearsal(client)
     for gid,u,amount,method in zip(gs,units[2:],['28000','34500'],['KESZPENZ','BANKKARTYA']):
         client.put(f'/api/registration/records/{gid}/reporting-profile',json={**PROFILE,'ifa_status':'im1','nationality_country':'HU','effective_from':str(day)})
         with app.db() as con:guest_reporting.identity_for_submission(app,con,'org_casa_rosa','prop_flora',gid,canonical_identity='Fictional minor '+gid+' Debrecen 2013.03.07.')
-        assert act(client,day_id,[gid],at,uid=u[0])[0].status_code==200
-        assert act(client,day_id,[gid],at+timedelta(hours=1),kind='depart')[0].status_code==200
+        reports = []
+        for kind, timestamp, element in [('arrive', at, 'erkezett'), ('depart', at+timedelta(hours=1), 'tavozott')]:
+            event, _ = act(client, day_id, [gid], timestamp, kind=kind, uid=u[0] if kind=='arrive' else None)
+            assert event.status_code == 200, event.text
+            job_id = event.json()['reporting_job_id']
+            [submitted] = json.loads(get(job_id)['payload_json'])['esemenyek'][element]
+            assert submitted['lakoegyseg']['szobaszam'] == u[1]['unit_number']
+            assert submitted['foglalasiSzam'] == day_id
+            reports.append(submitted['vendegek'][0]['vendegId'])
+            rehearsal.finish(job_id)
+        assert reports[0] == reports[1]
         p=charge();p.update(category='SZALLASDIJ',subcategory=None,vat='5',in_package=True,unit_price=amount);post(client,day_id,p,day,u[0]);post(client,day_id,payment(method,amount),day,u[0])
     p=charge();p.update(category='EGYEB',subcategory='EGYEB',unit_price='10000');post(client,rid,p,day)
     post(client,rid,payment('BANKKARTYA','10000',document_date=str(day)),day)
@@ -219,29 +251,46 @@ def test_nz05_day_use_zero_nights_and_post_stay_invoice_dates(client):
     data=p['napiFeltoltes'];assert f['guest_nights']==0 and f['sold_units']==0
     assert data['szobaAdatok']['kiadottSzobak']==0
     assert len(data['lakoegysegEjszakak']['lakoegysegEjszaka'])==2
+    sold = {row['ertekesitettLakoegyseg']['lakoegyseg']['szobaszam']: row['ertekesitettLakoegyseg']
+            for row in data['lakoegysegEjszakak']['lakoegysegEjszaka']}
+    for room, amount, method in [('103', 28000, 'KESZPENZ'), ('104', 34500, 'BANKKARTYA')]:
+        [paid] = sold[room]['koltesek']['koltes']
+        assert (Decimal(paid['osszeg']), paid['koltesTipus']) == (amount, method)
     assert data['tartozkodastKovetoTerhelesek']['tartozkodastKovetoTerheles'][0]['datum']==str(day-timedelta(days=1))
     assert data['tartozkodastKovetoKoltesek']['tartozkodastKovetoKoltes'][0]['datum']==str(day)
     assert f['totals']['charges']==f['totals']['payments']=='72500.00'
+    rehearsal.finish(s['job_id'])
 
 
 def test_nz04_exact_tax_and_dob_correction_preserves_original_snapshot(client):
+    from ntak_rehearsal_support import Rehearsal
     rt,units=setup(client);day=app.date.today()-timedelta(days=2);calendar(client,day);operating(client,day);client.put(BASE,json=CONFIG)
     client.put(PROP+'/ifa-rates',json={'effective_from':str(day),'tax_type':'TETELES','rate':'400','reason':'Fictional rate'})
-    rid,gids=party(client,day,day+timedelta(days=2),2,units[2][0],'Fictional NZ04 party')
+    rid,gids=party(client,day-timedelta(days=1),day+timedelta(days=2),2,units[2][0],'Fictional NZ04 party')
     profile={**PROFILE,'date_of_birth':'1986-01-01','ifa_status':'KOTELES','effective_from':str(day),'reason':'Fictional original taxable profile'}
     assert client.put(f'/api/registration/records/{gids[0]}/reporting-profile',json=profile).status_code==200
-    assert act(client,rid,gids,datetime.fromisoformat(str(day)+'T14:00:00+01:00'),uid=units[2][0])[0].status_code==200
+    at = datetime.fromisoformat(str(day)+'T14:00:00+01:00')
+    assert act(client,rid,gids[1:],at-timedelta(days=1),uid=units[2][0])[0].status_code==200
+    assert act(client,rid,gids[:1],at,uid=units[2][0])[0].status_code==200
     item=charge();item.update(category='SZALLASDIJ',subcategory=None,vat='5',in_package=True,unit_price='28000');post(client,rid,item,day,units[2][0])
     item=charge();item.update(category='IFA',subcategory=None,vat='0',unit_price='400',guest_id=gids[0]);tax_id=post(client,rid,item,day,units[2][0])
     assert close(client,day).status_code==200
     old,f,p=snapshot(client,day);assert f['guest_nights']==2 and f['sold_units']==1 and f['ifa_obligation_huf']=='400.00'
-    with app.db() as con:con.execute("UPDATE ntak_jobs SET state='succeeded',error_code=NULL WHERE id=?",(old['job_id'],))
+    rehearsal = Rehearsal(client)
+    rehearsal.finish(old['job_id'])
+    original_guests = p['napiFeltoltes']['lakoegysegEjszakak']['lakoegysegEjszaka'][0]['vendegek']['vendeg']
+    taxable = next(g for g in original_guests if g['ifaStatusz'] == 'KOTELES')
     assert client.put(f'/api/registration/records/{gids[0]}/reporting-profile',json={**profile,'date_of_birth':'1987-02-11','ifa_status':'im5','source':'correction','reason':'Fictional authority exemption and DOB correction'}).status_code==200
     item.update(request_id=str(uuid.uuid4()),supersedes=tax_id,voided=True,reason='Fictional reversal of erroneous IFA charge');post(client,rid,item,day,units[2][0])
     assert close(client,day,'VENDEG_VAGY_IFA_JAVITAS').status_code==200
     new,f,p=snapshot(client,day);assert f['guest_nights']==2 and f['ifa_obligation_huf']=='0.00'
     assert p['napiFeltoltes']['napiZarasBesorolas']['besorolas']=='MODOSITO'
     assert f['totals']['charges']=='28000.00'
+    revised_guests = p['napiFeltoltes']['lakoegysegEjszakak']['lakoegysegEjszaka'][0]['vendegek']['vendeg']
+    corrected = next(g for g in revised_guests if g['ifaStatusz'] == 'im5')
+    assert (corrected['vendegId'], corrected['szuletesiEv']) == (taxable['vendegId'], 1987)
+    evidence = rehearsal.finish(new['job_id'])
+    assert any(link['parent_id'] == old['job_id'] and link['child_id'] == new['job_id'] for link in evidence['lineage'])
     with app.db() as con:assert con.execute('SELECT encrypted_facts FROM daily_snapshots WHERE id=?',(old['id'],)).fetchone()['encrypted_facts']==old['encrypted_facts']
 
 

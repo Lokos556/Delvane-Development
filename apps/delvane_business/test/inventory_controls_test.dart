@@ -13,6 +13,110 @@ import 'package:delvane_business/core/network/api_client.dart';
 import 'support/fake_pms.dart';
 
 void main() {
+  for (final role in ['owner', 'manager']) {
+    testWidgets('historical room stock correction respects $role permissions', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1200, 1200);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final fake = FakePms()..role = role;
+      final auth = await signedIn(fake);
+      final c = PmsController(auth);
+      c.strings.language = 'en';
+      const base = '/api/properties/p1/physical-units';
+      fake.overrides['$base/capacity'] = ApiResponse(
+        200,
+        jsonEncode({
+          'business_date': '2032-05-09',
+          'historical_stock_editable': role == 'owner',
+          'units': [],
+          'aggregate_comparison': [
+            {
+              'room_type_id': 't1',
+              'physical_unit_count': 4,
+              'aggregate_inventory_count': 5,
+              'matches': false,
+            },
+          ],
+        }),
+      );
+      fake.overrides[base] = const ApiResponse(200, '{"units":[]}');
+      fake.overrides['/api/properties/p1/room-types'] = const ApiResponse(
+        200,
+        '{"room_types":[{"id":"t1","name":"Apartment type"}]}',
+      );
+      const target = '$base/historical-stock/t1';
+      fake.overrides[target] = const ApiResponse(
+        200,
+        '{"ok":true,"revision":2}',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: pmsTheme(),
+          home: Scaffold(
+            body: PhysicalInventory(c: c, propertyId: 'p1'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final action = find.text('Correct historical room count');
+      if (role == 'owner') {
+        await tester.tap(action);
+        await tester.pumpAndSettle();
+        expect(find.text('Apartment type · 2032-05-09'), findsOneWidget);
+        final fields = find.descendant(
+          of: find.byType(InventoryForm),
+          matching: find.byType(TextFormField),
+        );
+        expect(
+          tester.widget<TextFormField>(fields.first).controller!.text,
+          '4',
+        );
+        await tester.enterText(
+          fields.last,
+          'Reviewed the historical room list',
+        );
+        await tester.enterText(fields.first, '4.5');
+        await tester.tap(find.text('Save'));
+        await tester.pumpAndSettle();
+        expect(
+          find.text('Enter a whole room count from 0 to 500'),
+          findsOneWidget,
+        );
+        expect(
+          fake.requests.where((request) => request.path == target),
+          isEmpty,
+        );
+        await tester.enterText(fields.first, '4');
+        await tester.tap(find.text('Save'));
+        await tester.pumpAndSettle();
+        final write = fake.requests.singleWhere(
+          (request) => request.path == target,
+        );
+        expect(write.method, 'PUT');
+        expect(write.headers['X-Rosa-CSRF'], fakeCsrf);
+        expect(write.body, {
+          'business_date': '2032-05-09',
+          'inventory_count': 4,
+          'reason': 'Reviewed the historical room list',
+        });
+      } else {
+        expect(action, findsNothing);
+        expect(
+          fake.requests.where((request) => request.path == target),
+          isEmpty,
+        );
+      }
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      c.dispose();
+      auth.dispose();
+    });
+  }
+
   testWidgets(
     'property inventory creates an apartment through the normal API',
     (tester) async {

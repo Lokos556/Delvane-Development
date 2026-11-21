@@ -141,3 +141,43 @@ def test_room_type_mapping_can_change_only_prospectively(client):
     assert cap(client,D1)['units'][0]['room_type_id']==data['room_type_id']
     assert cap(client,D2)['units'][0]['room_type_id']=='fictional-new-type'
     assert cap(client,D1)['units'][0]['unit_number']=='101'
+
+
+def test_historical_stock_validates_scope_count_date_and_revisions(client):
+    login(client)
+    first, details = create(client)
+    second, other = create(client, number='102')
+    room = details['room_type_id']
+    url = f'{BASE}/historical-stock/{room}'
+    body = {'business_date': D2, 'inventory_count': 2, 'reason': 'Reconciled the historical unit register'}
+
+    for invalid in (-1, 501, 1.5, '2', True):
+        assert client.put(url, json={**body, 'inventory_count': invalid}).status_code == 422
+    assert client.put(url, json={**body, 'inventory_count': 1}).status_code == 409
+    assert client.put(url, json={**body, 'business_date': str(app.date.today())}).status_code == 422
+    assert client.put(url.replace('prop_flora', 'prop_other'), json=body).status_code == 404
+    assert client.put(url.replace('prop_flora', 'prop_luna'), json=body).status_code == 404
+    login(client, 'manager')
+    assert client.put(url, json=body).status_code == 403
+    assert cap(client,D2)['historical_stock_editable'] is False
+    login(client)
+    csrf = client.headers.pop('X-Rosa-CSRF')
+    assert client.put(url, json=body).status_code == 403
+    client.headers['X-Rosa-CSRF'] = csrf
+
+    assert client.put(url, json=body).json() == {'ok': True, 'duplicate': False, 'revision': 1}
+    assert client.put(url, json=body).json() == {'ok': True, 'duplicate': True, 'revision': 1}
+    for day in (D1, D3):
+        comparison = next(row for row in cap(client,day)['aggregate_comparison'] if row['room_type_id'] == room)
+        assert comparison['historical_stock'] is None
+    assert client.put(f'{BASE}/{second}', json={**other, 'effective_from': D2, 'active': False}).status_code == 200
+    stale = next(row for row in cap(client,D2)['aggregate_comparison'] if row['room_type_id'] == room)
+    assert stale['aggregate_inventory_count'] == 2 and stale['physical_unit_count'] == 1 and not stale['matches']
+    assert client.put(url, json={**body, 'inventory_count': 1}).json()['revision'] == 2
+    app.init_db()
+    updated = next(row for row in cap(client,D2)['aggregate_comparison'] if row['room_type_id'] == room)
+    assert updated['matches'] and updated['historical_stock']['revision'] == 2
+    with app.db() as con:
+        revisions = con.execute('SELECT revision,inventory_count,recorded_by FROM historical_room_stock ORDER BY revision').fetchall()
+        assert [(row['revision'], row['inventory_count']) for row in revisions] == [(1,2), (2,1)]
+        assert all(row['recorded_by'] for row in revisions)

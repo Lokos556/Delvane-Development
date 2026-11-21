@@ -1412,5 +1412,10 @@
   "Copy redacted JSON": "Kitakart JSON másolása",
   "Enter a reason for accessing the evidence.": "Adja meg a bizonyítékok megtekintésének indokát.",
   "Delvane diagnostic package. This is not an officially accepted NTAK report.": "Delvane diagnosztikai csomag. Ez nem hivatalosan elfogadott NTAK jelentés.",
-  "Raw protocol evidence stays encrypted on the server. Guest identity details and secrets are omitted.": "A nyers protokolladatok titkosítva a szerveren maradnak. A vendégek személyes adatai és a titkok nem szerepelnek a csomagban."
+  "Raw protocol evidence stays encrypted on the server. Guest identity details and secrets are omitted.": "A nyers protokolladatok titkosítva a szerveren maradnak. A vendégek személyes adatai és a titkok nem szerepelnek a csomagban.",
+  "Correct historical room count": "Korábbi szobaszám javítása",
+  "Physical units and recorded room stock differ.": "A fizikai egységek száma eltér a nyilvántartott szobaszámtól.",
+  "This count applies only to the selected business date. Selling stock and channel availability are separate.": "A szobaszám csak a kiválasztott üzleti napra vonatkozik. Az értékesíthető készlet és a csatornák elérhetősége külön kezelendő.",
+  "Active physical units": "Aktív fizikai egységek",
+  "Enter a whole room count from 0 to 500": "Adjon meg egy egész szobaszámot 0 és 500 között."
 }

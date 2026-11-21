@@ -182,10 +182,14 @@ def install(backend):
     backend.app.include_router(router)
 
 
-def reconcile_property(con,org,prop,now):
+def reconcile_property(con,org,prop,now,*,validate_existing=True):
     for ref in con.execute("SELECT reservation_id FROM reservation_unit_allocations WHERE organization_id=? AND property_id=? AND state='active' UNION SELECT reservation_id FROM day_use_allocations WHERE organization_id=? AND property_id=? AND state='active'",(org,prop,org,prop)).fetchall():
         r=dict(con.execute('SELECT * FROM reservations WHERE id=?',(ref['reservation_id'],)).fetchone())
         rows=active(con,r['id']);old={**r,'property_id':rows[0]['property_id'],'arrival_date':rows[0]['booking_from'],'departure_date':rows[0]['booking_to']}
+        # ARI publication projects already validated demand. A different open
+        # stay can temporarily overlap a future allocation before its checkout.
+        if not validate_existing and r['status']=='confirmed' and old==r:
+            continue
         sync_change(con,old,r,now)
 
 

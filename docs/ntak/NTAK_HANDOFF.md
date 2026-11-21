@@ -2,7 +2,19 @@
 
 Checkpoint: 2026-11-19, after Tasks10-14. **Not ready for official validation. Official transmission is disabled.** NTAK work is to pause here while the user prioritizes VIZA; this batch did not begin VIZA or Tasks15-20. This file is intended to work without the previous chat.
 
+## Current Task 20 rehearsal status
+
+[TASK20_READINESS.md](TASK20_READINESS.md) is the current case-level assessment for the 27 official cases. The local checkpoint is `ntak-offline-rehearsal-checkpoint`. The matrix records 22 offline passes, 3 partial cases (ELO_03, ES_02 and ES_05), 2 externally blocked (ELO_01B and AD_01), and 0 officially validated. A single synthetic property now runs the advance-booking, T01–T05, TX and TY exercises through their supported portions. The test keeps FOGL_04 and its forecast changes linked through the TX error cases. EU_02B goes through owner-authorized historical room stock correction, the normal corrected close, mock processing and evidence export without changing mapped Channex availability.
+
+The three partial cases have both isolated and shared-calendar backend evidence. ELO_03 releases room 103 and preserves the blocked booking and cancellation with the same identifier and no delivery attempts. ES_02 and ES_05 exercise the opposite event in interface §9.4.1 and retain redacted historical evidence. The shared rehearsal provisionally treats ES_01A and ES_04B as the mistaken actions. Confirm those sequences and the ELO_01B/ELO_03 country encoding before attempting the official sequence.
+
+The final rehearsal fixed an allocation refresh that blocked an unrelated room transfer and the unsigned information preview's lookup of the nested v9 configuration. **266 shared backend checks and 25 overlapping focused checks passed.** Flutter 3.50.0 / Dart 3.14.0 passed 304 Flutter tests and analysis. Windows x64 release launch passed with an isolated profile and loopback port. Android produced an unsigned release APK and passed static package checks. Full Windows and physical Android operator and screenshot checks remain open. The standalone `test_v293` registration completeness failure reproduced. See the [verification record](TASK20_READINESS.md#final-chronology-and-release-verification) for the exact scope and artifact locations.
+
+Official interoperability remains gated by Task 18 signing, response-security and test certificate/trust verification and by Task 19's final result schema for automatic onboarding. Task 5 first-identity normalization, country encoding and the repeated exercise sequence also remain open. Migration 3090 adds dated stock revisions without changing Channex selling stock. Both transmissions remain disabled. Earlier task status and verification notes below describe their respective checkpoints.
+
 ## Task18 focused readiness update — 2026-11-20
+
+Repository observation during this assignment: HEAD advanced externally to `e0ce3e63c3572273e0313298bd088c1b79d860a9` (`songer`, parent09ae845), containing the prior15-17 work and current18 code/tests/draft reports. The agent ran no commit command, reset or amendment. Both annotated checkpoint targets remain unchanged. Final report/state corrections remain uncommitted; see Task18 report.
 
 **Task18 is partial offline groundwork, not an approved signer/transport.** [TASK18_SIGNING_READINESS.md](TASK18_SIGNING_READINESS.md) is the current security source map and implementation report. Explicit p63 prose requires one Body reference; the illustrative two-reference/duplicate-Timestamp example is inconsistent, not a valid interoperability vector. RSA4096 CSR requirements and the3-day early-expiry rule are confirmed in pp30-32. Current issuer/software mapping, accepted digest/reference profile, response security and test/production trust still prevent full wire completion.
 
@@ -85,15 +97,15 @@ Authority: `docs/ntak/validation/PMS_v9_Interfész_Validációs_Tesztfeladatok_v
 | ELO_01A | Normal create fields/unit allocation/automatic reservation capture covered offline; official endpoint/evidence outstanding |
 | ELO_01B | Normal booking exists; other-foreign EGYEBKULFOLDI encoding is contract-blocked |
 | ELO_02 | Normal guarantee/date/amount modification and revision capture covered; past-arrival policy conflict remains explicit |
-| ELO_03 | Normal cancellation/history/release/capture covered; dependent ELO_01B country/official evidence remains |
+| ELO_03 | Partial. Normal cancellation releases room 103. Linked immutable booking versions remain blocked with zero attempts until ELO_01B country encoding is clarified. |
 | ES_01A | Group actual arrival/registration separation covered; fictional Tibor correction sequence demonstrated, no duplicate genuine arrival |
 | ES_01B | Individual actual arrival in102 covered; first identity gated unless legitimately frozen |
 | ES_01C | Later individual arrival on same booking covered; identity gate as above |
-| ES_02 | Audited erroneous-arrival reversal and unsent/processed semantics covered; source scenario sequence ambiguity remains |
+| ES_02 | Partial. Audited departure counter, two-night corrected close, mock verification and redacted lineage pass. Confirm the repeated Tibor entry relative to ES_01A. |
 | ES_03 | Actual102-to103 transfer, occupancy/allocation history and capture covered |
 | ES_04A | Group actual departure covered; no inference from scheduled date |
 | ES_04B | Partial-party departure leaving another guest present covered |
-| ES_05 | Erroneous-departure reversal/retained history covered; ES_04B/05 sequencing ambiguity remains |
+| ES_05 | Partial. Audited arrival counter, two-night corrected close, mock verification and redacted lineage pass. Confirm the repeated Natasha departure relative to ES_04B. |
 | ES_06A | Same-day103 guest in/out covered with zero nights and normal day-use booking |
 | ES_06B | Same booking's104 guest in/out covered; not split into a fictitious second booking |
 | NZ_01 | Closed-property snapshot:4 OOO rooms/10 regular places, no sold rooms, schema-valid local capture covered |
@@ -140,7 +152,7 @@ Future credential layout/check helpers exist in `government_security.py`; instal
 | 17 | **Completed offline**,15-16 | Owner-authorized evidence export with correlated request/reply/poll/source revision; retained evidence, tenant isolation, redaction/access controls; no keys/salts |
 | 18 | **Partial offline**, normative signing/profile clarification and issued server-held certificate | Primitive RSA/C14N, literal binding, validity and verified TLS tests implemented; approved whole-envelope/response profile and real trust/provisioning remain blocked. See Task18 report. |
 | 19 | 18 plus official final-start-date result schema | Automatic onboarding information query, correlated verification, persisted displayed start date; absent/invalid result blocks reporting schedule |
-| 20 | 1-19 plus all applicable contract resolutions | Full27-case rehearsal via normal API/Flutter operations, exact official fixture/evidence completeness, explicit fixture-only error simulation, Android/Windows builds/device checks and readiness re-audit |
+| 20 | 1-19 plus all applicable contract resolutions | Partial. Shared backend chronology, releases and available smoke checks are recorded in [TASK20_READINESS.md](TASK20_READINESS.md). Official fixture order, signing, official evidence and remaining operator/device checks are open. |
 
 Tasks15-17 were completed in the current resume;18-20 remain unstarted as new tasks. Existing helpers/tests are reusable groundwork.
 

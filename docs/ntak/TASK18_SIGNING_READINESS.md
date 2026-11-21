@@ -57,13 +57,17 @@ The actual ordered plan requires18: resolved official transport/security adapter
 ## Verification
 
 - Main guarded regression: **127 passed**,2 dependency deprecation warnings,117.15s: `test_ntak_security`, `test_ntak_contracts`, `test_ntak_reporting`, `test_ntak_diagnostics`, `test_ntak_evidence`, `test_viza_security`, `test_viza_delivery`.
-- Final focused security/diagnostic result: FINAL_FOCUSED.
+- Final focused security/diagnostic result: **34 passed**,2 dependency deprecation warnings,19.05s, after final metadata-shape guards and documented error-alias recognition. Counts overlap the main run; do not sum them.
 - Synthetic TLS performs mutual certificate authentication, trusted/untrusted chain and hostname checks using MemoryBIO only. Other tests cover all three deterministic SignatureValues, tampering, strict Base64, SHA1/weak-key rejection, literal CN/tax mismatches, missing/key-mismatched/expired credentials,3-day boundary, clock window, malformed XML, missing trust and cross-property/organization/environment/software/endpoint metadata denial before key reading. Failures are visible as blocked Task15 diagnostics; the official transport gate is still asserted.
 - Initial new tests:15 passed,2 failed. One exposed a SHA1-digest alias not rejected by the new helper; now all `#sha1` spellings fail closed. The other omitted required scope arguments to the existing disabled transport; its call was corrected. No existing test expectation was weakened.
 - No Flutter code/API shape changed, so Flutter analysis/tests were not repeated; Tasks16-17's302-pass result remains historical. The independently documented pre-existing v293 failure is unrelated and was not repaired or hidden by this task.
-- `git diff --check` and final checkpoint/source checks: CHECKS_PENDING.
+- `git diff --check` and final checkpoint/source checks: clean; both annotated tag targets unchanged. HEAD advanced externally during this task; see the repository-state note below. All24 source/docs/fixture files in that commit were reviewed for secret signatures/artifacts with no findings; no staging was performed by this agent.
 
-All prior valid uncommitted implementation work was preserved. No operational database, existing private key, real guest data or government endpoint was accessed; no deploy/commit/push/tag change. Tests use the repository's pre-import isolation/network guards. No Flutter source/schema change, new migration, physical-device/build or official acceptance claim.
+All prior valid implementation work was preserved. No operational database, existing private key, real guest data or government endpoint was accessed; this agent ran no deploy, commit, push or tag-change command. Tests use the repository's pre-import isolation/network guards. No Flutter source/schema change, new migration, physical-device/build or official acceptance claim.
+
+## Repository-state observation
+
+Started at `09ae8459ae95299fccfc9af5c1e8ac2d7901701f` with the valid Task15-17 working tree. During the assignment HEAD advanced externally to **e0ce3e63c3572273e0313298bd088c1b79d860a9** (message `songer`, parent09ae845, local commit time2026-11-20T23:38:29+01:00). This agent issued no commit command. That commit includes the existing15-17 work and this assignment's code/tests/draft documents; inspected source matches the tested working tree. It was preserved without reset or amendment. Final test-result/repository-state documentation corrections remain uncommitted. Both annotated tags retain their original targets (`viza-offline-checkpoint`09ae845; `ntak-pre-viza-checkpoint`7b9ead2).
 
 ## External material and decision
 

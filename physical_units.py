@@ -1,6 +1,7 @@
 """Physical inventory is explicit and versioned; aggregate channel stock is untouched."""
 from datetime import date
 import uuid
+from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Cookie, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 from ntak_contracts import contracts, XSD
@@ -38,6 +39,23 @@ def migrate(con, now):
                 (3074,'physical_units_and_operational_periods',now))
 
 
+def migrate_stock_reconciliation(con, now):
+    con.executescript('''
+    CREATE TABLE IF NOT EXISTS historical_room_stock (
+      organization_id TEXT NOT NULL REFERENCES organizations(id),
+      property_id TEXT NOT NULL REFERENCES properties(id),
+      room_type_id TEXT NOT NULL REFERENCES room_types(id),
+      business_date TEXT NOT NULL,
+      revision INTEGER NOT NULL CHECK(revision>0),
+      inventory_count INTEGER NOT NULL CHECK(inventory_count BETWEEN 0 AND 500),
+      reason TEXT NOT NULL, recorded_at TEXT NOT NULL, recorded_by TEXT NOT NULL,
+      PRIMARY KEY(organization_id,property_id,business_date,room_type_id,revision)
+    );
+    ''')
+    con.execute('INSERT OR IGNORE INTO schema_migrations(version,name,applied_at) VALUES (?,?,?)',
+                (3090, 'historical_room_stock_reconciliation', now))
+
+
 class UnitDetails(BaseModel):
     model_config=ConfigDict(extra='forbid',str_strip_whitespace=True)
     effective_from: date
@@ -66,6 +84,21 @@ class CancelPeriod(BaseModel):
     reason: str=Field(min_length=3,max_length=500)
 
 
+class HistoricalStock(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    business_date: date
+    inventory_count: int = Field(strict=True, ge=0, le=500)
+    reason: str = Field(min_length=3, max_length=500)
+
+
+def reconciliation_date_allowed(backend, con, org, prop, day):
+    import business_days
+    calendar = business_days.settings(con, org, prop)
+    organization = con.execute('SELECT timezone FROM organization_settings WHERE organization_id=?', (org,)).fetchone()
+    tz = calendar or organization
+    return day < backend.datetime.now(ZoneInfo(tz['timezone'] if tz else 'Europe/Budapest')).date()
+
+
 def units_on(con,org,prop,day):
     return [dict(x) for x in con.execute('''SELECT u.id,u.property_id,v.* FROM physical_units u
       JOIN physical_unit_versions v ON v.unit_id=u.id
@@ -89,11 +122,24 @@ def capacity(con,org,prop,day):
         details.append({**unit,'operational_state':state,'regular_places':regular})
     aggregate_types=con.execute('SELECT id,inventory_count FROM room_types WHERE organization_id=? AND property_id=? AND active=1',(org,prop)).fetchall()
     represented={r['id']:sum(1 for u in details if u['room_type_id']==r['id']) for r in aggregate_types}
+    # A prior date's documented stock does not redefine live selling stock.
+    history = {}
+    for record in con.execute('''SELECT room_type_id, inventory_count, revision, recorded_at
+        FROM historical_room_stock WHERE organization_id=? AND property_id=? AND business_date=?
+        ORDER BY revision''', (org, prop, str(day))):
+        history[record['room_type_id']] = dict(record)
+    comparison = []
+    for room in aggregate_types:
+        room_id = room['id']
+        historical = history.get(room_id)
+        count = historical['inventory_count'] if historical else room['inventory_count']
+        comparison.append({'room_type_id': room_id, 'aggregate_inventory_count': count,
+                           'physical_unit_count': represented[room_id], 'matches': count == represented[room_id],
+                           'selling_inventory_count': room['inventory_count'], 'historical_stock': historical})
     return {'business_date':str(day),'physical_inventory_only':True,'allocation_supported':False,
             'capacity_basis':'regular_places_exclude_extra_beds',
             'availability_basis':'operational_only_not_reservation_availability',
-            'aggregate_comparison':[{'room_type_id':r['id'],'aggregate_inventory_count':r['inventory_count'],
-               'physical_unit_count':represented[r['id']], 'matches':r['inventory_count']==represented[r['id']]} for r in aggregate_types],
+            'aggregate_comparison':comparison,
             'counts':counts,'units':details}
 
 
@@ -138,7 +184,42 @@ def install(backend):
     def get_capacity(property_id:str,business_date:date,rosa_session:str|None=Cookie(default=None)):
         with backend.db() as con:
             user=authorize(con,rosa_session,property_id)
-            return capacity(con,user['organization_id'],property_id,business_date)
+            org = user['organization_id']
+            return {**capacity(con,org,property_id,business_date),
+                    'historical_stock_editable': user['role']=='owner' and
+                    reconciliation_date_allowed(backend,con,org,property_id,business_date)}
+
+    @router.put('/historical-stock/{room_type_id}')
+    def reconcile_stock(property_id: str, room_type_id: str, body: HistoricalStock, request: Request,
+                        rosa_session: str | None = Cookie(default=None)):
+        with backend.db() as con:
+            user = authorize(con, rosa_session, property_id, True)
+            org = user['organization_id']
+            if not reconciliation_date_allowed(backend, con, org, property_id, body.business_date):
+                raise HTTPException(422, 'Select a past business date to correct historical room stock')
+            stock = next((row for row in capacity(con, org, property_id, body.business_date)['aggregate_comparison']
+                          if row['room_type_id'] == room_type_id), None)
+            if stock is None:
+                raise HTTPException(404, 'Active room type not found in this property')
+            if body.inventory_count != stock['physical_unit_count']:
+                raise HTTPException(409, 'Enter the count of active physical units for this room type and date')
+            previous = stock['historical_stock']
+            if previous and previous['inventory_count'] == body.inventory_count:
+                return {'ok': True, 'duplicate': True, 'revision': previous['revision']}
+            revision = previous['revision'] + 1 if previous else 1
+            day = str(body.business_date)
+            con.execute('''INSERT INTO historical_room_stock
+                (organization_id,property_id,room_type_id,business_date,revision,inventory_count,reason,recorded_at,recorded_by)
+                VALUES (?,?,?,?,?,?,?,?,?)''', (org, property_id, room_type_id, day, revision,
+                                               body.inventory_count, body.reason, backend.now_iso(), user['id']))
+            import business_days
+            business_days.mark_dirty(con, org, property_id, day, user['id'], body.reason)
+            backend.audit_event(con, org, 'physical_unit.historical_stock_corrected',
+                                'Historical room stock reconciled with physical inventory.', actor_user_id=user['id'],
+                                entity_type='room_type', entity_id=room_type_id, request=request,
+                                metadata={'property_id': property_id, 'business_date': day, 'revision': revision,
+                                          'prior_count': stock['aggregate_inventory_count'], 'count': body.inventory_count})
+            return {'ok': True, 'duplicate': False, 'revision': revision}
 
     @router.get('')
     def get_units(property_id:str,business_date:date,rosa_session:str|None=Cookie(default=None)):

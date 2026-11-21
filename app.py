@@ -852,6 +852,7 @@ def init_db(reset: bool = False):
         business_days.migrate(_sys.modules[__name__],con)
         ntak_reporting.ntak_diagnostics.migrate(con,now_iso())
         ntak_reporting.ntak_evidence.migrate(con,now_iso())
+        physical_units.migrate_stock_reconciliation(con,now_iso())
         add_column_if_missing(con,"ntak_jobs","predecessor_job_id","TEXT")
         con.execute("CREATE TABLE IF NOT EXISTS ntak_job_predecessors(job_id TEXT NOT NULL REFERENCES ntak_jobs(id),predecessor_job_id TEXT NOT NULL REFERENCES ntak_jobs(id),PRIMARY KEY(job_id,predecessor_job_id))")
         con.execute("INSERT OR IGNORE INTO schema_migrations(version,name,applied_at) VALUES (?,?,?)",(3079,"stay_reporting_causal_dependencies",now_iso()))
@@ -6529,7 +6530,7 @@ def _queue_reservation_availability(con: DBConnection, org_id: str, property_id:
     """Recalculate availability for every mapped local room type."""
     if date_from==date_to:date_to=(date.fromisoformat(date_to)+timedelta(days=1)).isoformat()
     if _allocation_fanout:
-        reservation_allocations.reconcile_property(con,org_id,property_id,now_iso())
+        reservation_allocations.reconcile_property(con,org_id,property_id,now_iso(),validate_existing=False)
         types={r['room_type_id'] for r in con.execute("SELECT DISTINCT room_type_id FROM reservation_unit_allocations WHERE organization_id=? AND property_id=? AND date_from<? AND date_to>?",(org_id,property_id,date_to,date_from))}
         types.update(r['room_type_id'] for r in con.execute("SELECT DISTINCT room_type_id FROM day_use_allocations WHERE organization_id=? AND property_id=? AND date_from>=? AND date_from<?",(org_id,property_id,date_from,date_to)))
         if types:
@@ -8338,6 +8339,7 @@ def _ntak_start_date_request_xml(connection: Any) -> str:
     from ntak_contracts import ContractError, start_date_request
     import uuid
     cfg=_safe_json(connection.get("public_config_json") if isinstance(connection,dict) else connection["public_config_json"],{})
+    cfg=cfg.get('ntak_v9',cfg)
     try:
         return start_date_request(cfg,str(uuid.uuid4()),_ntak_iso_now()).decode("utf-8")
     except ContractError as exc:
