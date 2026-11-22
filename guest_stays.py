@@ -225,9 +225,12 @@ def apply(backend,con,org,rid,action,actor,*,source='owner_review'):
         if action.kind=='arrive':con.execute('INSERT INTO guest_occupancy(id,reservation_id,guest_id,unit_id,started_at,arrival_event_id) VALUES (?,?,?,?,?,?)',(str(uuid.uuid4()),rid,gid,uid,stamp(at),eid))
         else:con.execute('UPDATE guest_occupancy SET ended_at=?,departure_event_id=? WHERE guest_id=? AND ended_at IS NULL AND voided=0',(stamp(at),eid,gid))
     event=dict(con.execute('SELECT * FROM stay_events WHERE id=?',(eid,)).fetchone());job=capture(backend,con,event)
-    if action.kind=='depart' and r['stay_type']=='day_use':
-        import day_use
-        day_use.refresh_cleaning(backend,con,org)
+    if action.kind=='depart':
+        if r['stay_type']=='day_use':
+            import day_use
+            day_use.refresh_cleaning(backend,con,org)
+        else:
+            backend._refresh_overnight_cleaning(con, org, r['property_id'])
     import business_days
     business_days.dirty_range(con,org,r['property_id'],r['arrival_date'],actor,action.reason)
     backend.audit_event(con,org,'guest.actual_'+action.kind,'Actual stay operation recorded.',actor_user_id=actor,entity_type='reservation',entity_id=rid,metadata={'event_id':eid,'source':source,'guest_count':len(gids),'unit_id':uid})
@@ -331,6 +334,8 @@ def extended(backend,con,r,tz,action,actor,source,at,day,digest,gids):
             for v in records:
                 if action.kind=='undo_arrival':con.execute('UPDATE guest_occupancy SET voided=1,ended_at=?,departure_event_id=? WHERE id=?',(stamp(at),eid,v['id']))
                 else:con.execute('UPDATE guest_occupancy SET ended_at=NULL,departure_event_id=NULL WHERE id=?',(v['id'],))
+    if r['stay_type']=='overnight' and action.kind in ('undo_departure','correct_timestamp'):
+        backend._refresh_overnight_cleaning(con, r['organization_id'], r['property_id'])
     return {'ok':True,'id':eid,'duplicate':False}
 
 

@@ -614,8 +614,10 @@ class _BusinessClosingPanelState extends State<BusinessClosingPanel>
     }
   });
   @override
-  Widget build(BuildContext context) => ExpansionTile(
-    title: Text(ui('Daily closing and finances')),
+  Widget build(BuildContext context) => PmsExpandablePanel(
+    title: ui('Daily closing and finances'),
+    subtitle: ui('Open a property to review finances or close a business day.'),
+    icon: Icons.receipt_long_outlined,
     onExpansionChanged: (open) {
       if (open) {
         refresh();
@@ -624,20 +626,32 @@ class _BusinessClosingPanelState extends State<BusinessClosingPanel>
     children: [
       errors(),
       for (final p in properties)
-        ListTile(
-          title: Text('${p['name']}'),
-          trailing: PmsButton(
-            ui('Open daily closing'),
-            onPressed: busy
-                ? null
-                : () => showDialog(
-                    context: context,
-                    useRootNavigator: false,
-                    builder: (_) => BusinessDayDialog(
-                      api: PmsWorkflows(widget.c),
-                      propertyId: '${p['id']}',
-                    ),
-                  ),
+        SizedBox(
+          width: double.infinity,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 3),
+            child: Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 12,
+              runSpacing: 4,
+              children: [
+                Text(widget.c.propertyLabel(text(p, 'name'))),
+                PmsButton(
+                  ui('Open daily closing'),
+                  onPressed: busy
+                      ? null
+                      : () => showDialog(
+                          context: context,
+                          useRootNavigator: false,
+                          builder: (_) => BusinessDayDialog(
+                            api: PmsWorkflows(widget.c),
+                            propertyId: '${p['id']}',
+                          ),
+                        ),
+                ),
+              ],
+            ),
           ),
         ),
     ],

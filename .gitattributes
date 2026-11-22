@@ -1,6 +1,12 @@
 # Auto detect text files and perform LF normalization
 * text=auto
 
+# Keep the Linux UAT bundle byte-for-byte consistent when staged on Windows.
+tests/run_uat_postgres_smoke.sh text eol=lf
+tests/run_uat_windows_relay.sh text eol=lf
+tests/uat_postgres_smoke.py text eol=lf
+tests/uat_preflight_egress.nft text eol=lf
+
 # Preserve byte-hashed official VIZA contract assets on every platform.
 docs/viza/contracts/countries.json -text whitespace=cr-at-eol
 docs/viza/contracts/errors.json -text whitespace=cr-at-eol

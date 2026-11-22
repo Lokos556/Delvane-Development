@@ -64,6 +64,7 @@ class _DelvaneBusinessAppState extends State<DelvaneBusinessApp> {
             AuthController(
               origin: configuration!.origin,
               environment: configuration.environment,
+              uatTunnelCertificate: configuration.uatTunnelCertificate,
               store: const PlatformSessionStore(),
             );
         if (auth!.phase == AuthPhase.restoring) auth!.restore();

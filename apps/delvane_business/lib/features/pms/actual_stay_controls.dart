@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 
 import 'dart:math';
 
+import '../workspace/workspace_models.dart' show text;
 import 'inventory_controls.dart';
 import 'pms_controller.dart';
 import 'pms_dialogs.dart';
@@ -58,8 +59,10 @@ class _ActualOccupancyPanelState extends State<ActualOccupancyPanel>
     }
   });
   @override
-  Widget build(BuildContext context) => ExpansionTile(
-    title: Text(ui('Actual occupancy and guest stays')),
+  Widget build(BuildContext context) => PmsExpandablePanel(
+    title: ui('Actual occupancy and guest stays'),
+    subtitle: ui('Review arrivals, departures and guests currently staying.'),
+    icon: Icons.bed_outlined,
     onExpansionChanged: (v) {
       if (v) refresh();
     },
@@ -68,7 +71,9 @@ class _ActualOccupancyPanelState extends State<ActualOccupancyPanel>
       PmsButton(ui('Refresh'), onPressed: busy ? null : refresh),
       for (final r in rows)
         ListTile(
-          title: Text('${r['property_name']} · ${r['guest_name']}'),
+          title: Text(
+            '${widget.c.propertyLabel(text(r, 'property_name'))} · ${r['guest_name']}',
+          ),
           subtitle: Text(
             '${ui('Actual occupants')}: ${r['actual_occupants']} · ${ui('Expected guests')}: ${r['guest_count']}',
           ),

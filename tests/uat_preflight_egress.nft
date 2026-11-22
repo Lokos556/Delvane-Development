@@ -1,0 +1,17 @@
+table inet delvane_uat_preflight {
+    chain host_input {
+        type filter hook input priority -150; policy accept;
+        iifname "br-delvane-uat" counter drop
+    }
+
+    chain host_output {
+        type filter hook output priority -150; policy accept;
+        oifname "br-delvane-uat" counter drop
+    }
+
+    chain cross_network {
+        type filter hook forward priority -150; policy accept;
+        iifname "br-delvane-uat" oifname != "br-delvane-uat" counter drop
+        iifname != "br-delvane-uat" oifname "br-delvane-uat" counter drop
+    }
+}

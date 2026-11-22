@@ -104,14 +104,17 @@ void main() {
               await tester.ensureVisible(find.text('Test House').last);
               await tester.tap(find.text('Test House').last);
             } else if (entry.key == 'calendar') {
-              await tester.ensureVisible(find.text('Go to month'));
-              await tester.tap(find.text('Go to month'));
+              final period = find.byKey(const ValueKey('calendar-period'));
+              await tester.ensureVisible(period);
+              await tester.tap(period);
+              await tester.pumpAndSettle();
+              await tester.tap(find.byTooltip('Switch to input'));
               await tester.pumpAndSettle();
               await tester.enterText(
                 find.byType(TextFormField).last,
-                '2032-05',
+                '05/01/2032',
               );
-              await tester.tap(find.text('Go'));
+              await tester.tap(find.text('OK'));
             }
             await tester.pumpAndSettle();
             final main = find

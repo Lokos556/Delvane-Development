@@ -24,7 +24,8 @@ ThemeData delvaneTheme() {
     useMaterial3: true,
     colorScheme: scheme,
     scaffoldBackgroundColor: DelvaneColors.canvas,
-    fontFamily: 'Segoe UI',
+    fontFamily: 'Inter',
+    fontFamilyFallback: const ['Segoe UI', 'Segoe UI Symbol', 'Arial'],
     dividerColor: DelvaneColors.line,
     textTheme: const TextTheme(
       headlineLarge: TextStyle(

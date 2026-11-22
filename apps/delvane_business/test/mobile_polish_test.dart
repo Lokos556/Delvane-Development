@@ -8,7 +8,7 @@ import 'package:delvane_business/features/pms/pms_controller.dart';
 import 'package:delvane_business/features/pms/pms_shell.dart';
 import 'package:delvane_business/features/pms/pms_style.dart';
 import 'package:delvane_business/features/pms/pms_icons.dart';
-import 'package:delvane_business/features/pms/mobile_calendar_day.dart';
+import 'package:delvane_business/features/pms/booking_calendar.dart';
 
 import 'android_readiness_test.dart' show phone, androidFixture;
 import 'support/fake_pms.dart';
@@ -299,16 +299,17 @@ void main() {
   );
 
   testWidgets(
-    'calendar uses existing colors, no clipped names, readable overflow selector',
+    'mobile calendar keeps cells compact and opens every booking for the day',
     (t) async {
       phone(t);
       String? opened;
-      var created = false;
+      String? created;
       final stays = [
         for (var i = 0; i < 6; i++)
           <String, dynamic>{
             'id': 'r$i',
-            'guest_name': 'Vendég $i',
+            'status': 'confirmed',
+            'guest_name': 'Guest $i',
             'property_name': 'Apartment $i',
             'arrival_date': '2032-05-10',
             'departure_date': '2032-05-12',
@@ -317,40 +318,38 @@ void main() {
       await t.pumpWidget(
         host(
           Scaffold(
-            body: Center(
-              child: MobileCalendarDay(
-                date: DateTime(2032, 5, 10),
-                inMonth: true,
-                width: 49,
-                stays: stays,
-                arrivals: 6,
-                departures: 0,
-                colorFor: (_) => const Color(0xFF087F8C),
-                onCreate: () => created = true,
-                onReservation: (id) => opened = id,
+            body: SingleChildScrollView(
+              child: BookingCalendar(
+                selection: CalendarSelection(DateTime(2032, 5, 1)),
+                properties: const [],
+                reservations: stays,
+                propertyLabel: (name) => name,
+                onOpen: (id) => opened = id,
+                onCreate: (date) => created = date,
               ),
             ),
           ),
         ),
       );
-      expect(find.text('+3'), findsOneWidget);
-      expect(find.text('Apartment 0'), findsNothing);
-      expect(t.widget<Text>(find.text('10')).style!.fontSize, 18);
-      final bar = find.byKey(const ValueKey('mobile-stay-r0-2032-05-10'));
-      expect(t.getSize(bar).height, 15); // 12px color plus 3px spacing.
-      expect(
-        (t.widget<Container>(bar).decoration! as BoxDecoration).color,
-        const Color(0xFF087F8C),
-      );
-      await t.tap(find.byKey(const ValueKey('calendar-day-2032-05-10')));
-      expect(created, isTrue);
-      await t.tap(find.byKey(const ValueKey('mobile-stays-2032-05-10')));
+      final cell = find.byKey(const ValueKey('calendar-day-2032-05-10'));
+      expect(t.getSize(cell).height, lessThan(50));
+      await t.ensureVisible(cell);
+      await t.tap(cell);
       await t.pumpAndSettle();
-      expect(find.text('6 érkezés · 0 távozás'), findsOneWidget);
-      await t.ensureVisible(find.text('Vendég 5'));
-      await t.tap(find.text('Vendég 5'));
+      await t.ensureVisible(find.text('Guest 5'));
+      await t.tap(find.text('Guest 5'));
       await t.pumpAndSettle();
       expect(opened, 'r5');
+      await t.ensureVisible(cell);
+      await t.tap(cell);
+      await t.pumpAndSettle();
+      final create = find.descendant(
+        of: find.byType(PmsModal),
+        matching: find.text(ui('Add a stay')),
+      );
+      await t.tap(create);
+      await t.pumpAndSettle();
+      expect(created, '2032-05-10');
       expect(t.takeException(), isNull);
     },
   );
@@ -379,15 +378,38 @@ void main() {
           host(PmsShell(auth: auth, initialPage: PmsPage.reservations)),
         );
         await t.pumpAndSettle();
-        expect(find.byKey(ValueKey('mobile-stay-r1-$arrival')), findsOneWidget);
-        expect(find.byKey(ValueKey('mobile-stay-r1-$departure')), findsNothing);
-        final arrivalCell = t.widget<MobileCalendarDay>(
-          find.byWidgetPredicate(
-            (w) => w is MobileCalendarDay && isoDate(w.date) == arrival,
+        final arrivalCell = find.byKey(ValueKey('calendar-day-$arrival'));
+        final departureCell = find.byKey(ValueKey('calendar-day-$departure'));
+        await t.ensureVisible(arrivalCell);
+        await t.tap(arrivalCell);
+        await t.pumpAndSettle();
+        final modal = find.byType(PmsModal);
+        expect(
+          find.descendant(
+            of: modal,
+            matching: find.textContaining(ui('Arrival')),
           ),
+          findsOneWidget,
         );
-        expect(arrivalCell.arrivals, 1);
-        expect(arrivalCell.stays, hasLength(1));
+        await t.tap(find.byTooltip(ui('Close dialog')));
+        await t.pumpAndSettle();
+        await t.ensureVisible(departureCell);
+        await t.tap(departureCell);
+        await t.pumpAndSettle();
+        expect(
+          find.descendant(
+            of: modal,
+            matching: find.textContaining(ui('Departure')),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: modal,
+            matching: find.textContaining(ui('Occupied night')),
+          ),
+          findsNothing,
+        );
         expect(t.takeException(), isNull);
       } finally {
         await t.pumpWidget(const SizedBox());

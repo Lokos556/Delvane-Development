@@ -3,10 +3,16 @@ import 'dart:convert';
 import 'dart:io';
 
 class ApiResponse {
-  const ApiResponse(this.statusCode, this.body, {this.setCookies = const []});
+  const ApiResponse(
+    this.statusCode,
+    this.body, {
+    this.setCookies = const [],
+    this.attempts = 1,
+  });
   final int statusCode;
   final String body;
   final List<String> setCookies;
+  final int attempts;
 }
 
 abstract interface class ApiTransport {
@@ -21,51 +27,181 @@ abstract interface class ApiTransport {
 
 /// Native-platform transport. No socket is opened until request() is called.
 class IoApiTransport implements ApiTransport {
+  IoApiTransport([this._securityContext]);
+
+  final SecurityContext? _securityContext;
   HttpClient? _client;
+  final Set<HttpClient> _retryClients = {};
+  int _generation = 0;
+
+  HttpClient _openClient() => HttpClient(context: _securityContext)
+    ..connectionTimeout = const Duration(seconds: 15)
+    ..idleTimeout = const Duration(seconds: 3)
+    ..maxConnectionsPerHost = 6
+    ..findProxy = (_) => 'DIRECT';
+
   @override
   Future<ApiResponse> request(
     String method,
     Uri uri,
     Map<String, String> headers,
     Object? body,
+  ) => _requestWithDeadline(
+    method,
+    uri,
+    headers,
+    body,
+    const Duration(seconds: 20),
+  );
+
+  Future<ApiResponse> _requestWithDeadline(
+    String method,
+    Uri uri,
+    Map<String, String> headers,
+    Object? body,
+    Duration timeout,
   ) async {
-    final client = _client ??= HttpClient()
-      ..connectionTimeout = const Duration(seconds: 15)
-      ..findProxy = (_) => 'DIRECT';
-    final request = await client.openUrl(method, uri);
-    // Never forward a session or a password through an HTTP redirect.
-    request.followRedirects = false;
-    headers.forEach(request.headers.set);
-    // HttpClientRequest.write defaults to Latin-1 without a charset. JSON text
-    // must reach FastAPI as UTF-8, including combining marks and non-Latin text.
-    if (body != null) request.add(utf8.encode(jsonEncode(body)));
-    final response = await request.close();
-    final bytes = <int>[];
-    await for (final chunk in response) {
-      if (bytes.length + chunk.length > 8 * 1024 * 1024) {
-        throw const ApiException('The server response is too large.');
+    final generation = _generation;
+    final elapsed = Stopwatch()..start();
+    try {
+      return await _attempt(
+        _client ??= _openClient(),
+        method,
+        uri,
+        headers,
+        body,
+        timeout,
+      );
+    } on IOException catch (failure) {
+      if (generation != _generation) {
+        throw const ApiException(
+          'The request was cancelled.',
+          kind: ApiFailure.cancelled,
+        );
       }
-      bytes.addAll(chunk);
+      final remaining = timeout - elapsed.elapsed;
+      if (method != 'GET' ||
+          remaining < const Duration(milliseconds: 300) ||
+          (failure is! SocketException && failure is! HttpException)) {
+        rethrow;
+      }
+      // A dropped idle connection can safely be retried for a read. Use a
+      // fresh connection without closing the pool used by other requests.
+      final fresh = _openClient();
+      _retryClients.add(fresh);
+      try {
+        final result = await _attempt(
+          fresh,
+          method,
+          uri,
+          headers,
+          body,
+          remaining,
+        );
+        return ApiResponse(
+          result.statusCode,
+          result.body,
+          setCookies: result.setCookies,
+          attempts: 2,
+        );
+      } on IOException {
+        if (generation != _generation) {
+          throw const ApiException(
+            'The request was cancelled.',
+            kind: ApiFailure.cancelled,
+          );
+        }
+        rethrow;
+      } finally {
+        _retryClients.remove(fresh);
+        fresh.close(force: true);
+      }
     }
-    return ApiResponse(
-      response.statusCode,
-      utf8.decode(bytes),
-      setCookies: response.headers[HttpHeaders.setCookieHeader] ?? const [],
+  }
+
+  Future<ApiResponse> _attempt(
+    HttpClient client,
+    String method,
+    Uri uri,
+    Map<String, String> headers,
+    Object? body,
+    Duration timeout,
+  ) async {
+    HttpClientRequest? pending;
+    StreamIterator<List<int>>? reader;
+    var timedOut = false;
+    final future = () async {
+      final request = pending = await client.openUrl(method, uri);
+      if (timedOut) {
+        request.abort();
+        throw TimeoutException('Request deadline exceeded');
+      }
+      // Never forward a session or a password through an HTTP redirect.
+      request.followRedirects = false;
+      headers.forEach(request.headers.set);
+      // HttpClientRequest.write defaults to Latin-1 without a charset. JSON text
+      // must reach FastAPI as UTF-8, including combining marks and non-Latin text.
+      if (body != null) request.add(utf8.encode(jsonEncode(body)));
+      final response = await request.close();
+      final bytes = <int>[];
+      final stream = reader = StreamIterator(response);
+      try {
+        while (!timedOut && await stream.moveNext()) {
+          final chunk = stream.current;
+          if (bytes.length + chunk.length > 8 * 1024 * 1024) {
+            throw const ApiException('The server response is too large.');
+          }
+          bytes.addAll(chunk);
+        }
+      } finally {
+        await stream.cancel();
+      }
+      return ApiResponse(
+        response.statusCode,
+        utf8.decode(bytes),
+        setCookies: response.headers[HttpHeaders.setCookieHeader] ?? const [],
+      );
+    }();
+    return future.timeout(
+      timeout,
+      onTimeout: () {
+        timedOut = true;
+        if (reader case final stream?) {
+          unawaited(stream.cancel());
+        } else {
+          pending?.abort();
+        }
+        throw TimeoutException('Request deadline exceeded');
+      },
     );
   }
 
   @override
   void close() {
+    _generation++;
     _client?.close(force: true);
     _client = null;
+    for (final retry in _retryClients) {
+      retry.close(force: true);
+    }
+    _retryClients.clear();
   }
 }
 
+enum ApiFailure { http, connection, tls, timeout, cancelled, response }
+
 class ApiException implements Exception {
-  const ApiException(this.message, {this.statusCode, this.code, this.field});
+  const ApiException(
+    this.message, {
+    this.statusCode,
+    this.code,
+    this.field,
+    this.kind,
+  });
   final String? code, field;
   final String message;
   final int? statusCode;
+  final ApiFailure? kind;
   @override
   String toString() => 'ApiException: $message';
 }
@@ -76,6 +212,7 @@ class ApiClient {
     required this.baseUrl,
     ApiTransport? transport,
     this.sessionHeaders,
+    this.diagnosticsFile,
     this.timeout = const Duration(seconds: 20),
     bool allowInsecureLoopback = false,
   }) : _transport = transport ?? IoApiTransport() {
@@ -96,7 +233,59 @@ class ApiClient {
   final ApiTransport _transport;
   final Map<String, String> Function()? sessionHeaders;
   final Duration timeout;
+  final File? diagnosticsFile;
+  Future<void> _diagnosticWrites = Future.value();
+  static const _diagnosticPaths = {
+    '/api/client/environment',
+    '/api/me',
+    '/api/operations/today-command',
+    '/api/owner/dashboard',
+    '/api/worker/dashboard',
+    '/api/intelligence',
+    '/api/rosa/provider',
+    '/api/rosa/conversation',
+    '/api/reservations',
+    '/api/properties',
+    '/api/reception/summary',
+    '/api/inbox',
+    '/api/communications/outbox',
+    '/api/automation/rules',
+    '/api/operations/timeline',
+    '/api/guest-journeys',
+    '/api/organization',
+    '/api/notifications',
+  };
+
+  void _record(
+    String method,
+    String route,
+    String outcome,
+    int? status,
+    int? attempts,
+    Stopwatch watch,
+  ) {
+    final file = diagnosticsFile;
+    if (file == null) return;
+    final entry = jsonEncode({
+      'at': DateTime.now().toUtc().toIso8601String(),
+      'method': method,
+      'route': _diagnosticPaths.contains(route) ? route : 'other',
+      'outcome': outcome,
+      'status': status,
+      'attempts': attempts,
+      'elapsed_ms': watch.elapsedMilliseconds,
+    });
+    _diagnosticWrites = _diagnosticWrites.then((_) async {
+      try {
+        await file.writeAsString('$entry\n', mode: FileMode.append);
+      } on FileSystemException {
+        // Opt-in local diagnostics cannot affect the operator request.
+      }
+    });
+  }
+
   void Function()? onUnauthorized;
+  void Function()? onMutation;
 
   Future<Object?> get(String path) => _request('GET', path);
   Future<Object?> post(String path, Object body) =>
@@ -132,14 +321,31 @@ class ApiClient {
         segments.any((s) => s == '..' || s == '.')) {
       throw ArgumentError('Only same-origin /api/ paths are supported.');
     }
+    final watch = Stopwatch()..start();
+    String outcome = 'response';
+    int? statusCode;
+    int? attempts;
     try {
-      final response = await _transport
-          .request(method, baseUrl.resolveUri(relative), {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json; charset=utf-8',
-            ...?sessionHeaders?.call(),
-          }, body)
-          .timeout(timeout);
+      final requestHeaders = {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json; charset=utf-8',
+        ...?sessionHeaders?.call(),
+      };
+      final uri = baseUrl.resolveUri(relative);
+      final transport = _transport;
+      final response = await (transport is IoApiTransport
+          ? transport._requestWithDeadline(
+              method,
+              uri,
+              requestHeaders,
+              body,
+              timeout,
+            )
+          : transport
+                .request(method, uri, requestHeaders, body)
+                .timeout(timeout));
+      statusCode = response.statusCode;
+      attempts = response.attempts;
       if (response.statusCode < 200 || response.statusCode >= 300) {
         if (response.statusCode == 401 && path != '/api/login') {
           onUnauthorized?.call();
@@ -165,20 +371,49 @@ class ApiClient {
               ? 'Access denied or security token expired. Sign in again if needed.'
               : response.statusCode == 429
               ? 'Too many attempts. Wait before trying again.'
+              : response.statusCode == 503
+              ? 'The backend reported temporary unavailability.'
+              : response.statusCode >= 500
+              ? 'This request failed on the backend.'
               : 'The server could not complete the request.',
           statusCode: response.statusCode,
           code: code,
           field: field,
+          kind: ApiFailure.http,
         );
       }
+      if (method != 'GET') onMutation?.call();
+      outcome = 'success';
       return response;
+    } on ApiException catch (failure) {
+      outcome = failure.kind?.name ?? 'response';
+      rethrow;
     } on TimeoutException {
-      _transport.close();
-      throw const ApiException('The request timed out.');
+      outcome = 'timeout';
+      throw const ApiException(
+        'The request timed out.',
+        kind: ApiFailure.timeout,
+      );
+    } on TlsException {
+      outcome = 'tls';
+      throw const ApiException(
+        'The secure connection could not be verified.',
+        kind: ApiFailure.tls,
+      );
     } on FormatException {
-      throw const ApiException('The server returned an invalid response.');
+      outcome = 'response';
+      throw const ApiException(
+        'The server returned an invalid response.',
+        kind: ApiFailure.response,
+      );
     } on IOException {
-      throw const ApiException('The server could not be reached.');
+      outcome = 'connection';
+      throw const ApiException(
+        'The connection was interrupted.',
+        kind: ApiFailure.connection,
+      );
+    } finally {
+      _record(method, relative.path, outcome, statusCode, attempts, watch);
     }
   }
 

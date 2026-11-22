@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'chat_session.dart';
 
 import 'package:flutter/foundation.dart';
@@ -27,7 +29,12 @@ enum PmsPage {
 }
 
 class PmsController extends ChangeNotifier {
-  PmsController(this.auth, {PmsPage? initialPage}) {
+  PmsController(this.auth, {PmsPage? initialPage, DateTime Function()? clock})
+    : _clock = clock ?? DateTime.now {
+    _scope = _authScope;
+    _invalidateOnMutation = _invalidateReads;
+    api.onMutation = _invalidateOnMutation;
+    auth.addListener(_authChanged);
     page =
         initialPage ??
         (user.isOperator
@@ -48,6 +55,128 @@ class PmsController extends ChangeNotifier {
     canRead: () => auth.user?.isOperator == true,
   );
   String? chatRefreshError;
+  static const _freshFor = Duration(seconds: 25);
+  final DateTime Function() _clock;
+  final Map<String, (Object?, DateTime)> _reads = {};
+  final Map<String, Future<Object?>> _pending = {};
+  late final VoidCallback _invalidateOnMutation;
+  late (String, String, String)? _scope;
+  int _readGeneration = 0;
+  Future<void>? _identityRequest;
+  DateTime? _identityChecked;
+  bool refreshing = false;
+  final Map<String, String> sectionErrors = {};
+  ApiFailure? connectionIssue;
+
+  bool get isUat =>
+      auth.workspaceId?.startsWith('staging:delvane-uat-') == true;
+  bool hasSection(String key) => data.containsKey(key);
+  int get readRevision => _readGeneration;
+  (String, String, String)? get _authScope => switch (auth.user) {
+    final identity? => (identity.id, identity.organizationId, identity.role),
+    null => null,
+  };
+
+  String propertyLabel(String name) => !isUat
+      ? name
+      : switch (name) {
+          'prop_uat_a' => t('Reporting apartment'),
+          'prop_uat_sibling' => t('Second apartment'),
+          _ => name,
+        };
+
+  String get roleLabel => t(switch (user.role) {
+    'owner' => 'Owner',
+    'manager' => 'Manager',
+    'cleaner' => 'Cleaner',
+    'maintenance' => 'Maintenance',
+    _ => user.role,
+  });
+
+  String get modeLabel => t(mode == 'observe' ? 'Observer mode' : mode);
+
+  String activityLabel(Json event) {
+    final message = text(event, 'message');
+    final actor = text(event, 'actor');
+    final prefix = '$actor added ';
+    if (!isUat || actor.isEmpty || !message.startsWith(prefix)) return message;
+    final booking = RegExp(
+      r'^(.+) to (prop_uat_a|prop_uat_sibling) \((\d{4}-\d{2}-\d{2})–(\d{4}-\d{2}-\d{2})\)\.$',
+    ).firstMatch(message.substring(prefix.length));
+    if (booking == null) return message;
+    return t(
+      '$actor added ${booking[1]} to ${propertyLabel(booking[2]!)} '
+      '(${uiDate(booking[3]!)}–${uiDate(booking[4]!)}).',
+    );
+  }
+
+  List<Json> get activity => rows('timeline').where((event) {
+    // The backend appends these demo-only rows to every timeline response.
+    return !const {'sys1', 'sys2', 'sys3'}.contains(event['id']);
+  }).toList();
+
+  void _authChanged() {
+    final scope = _authScope;
+    if (_scope == scope) return;
+    _scope = scope;
+    _identityChecked = null;
+    _invalidateReads();
+    data.clear();
+    receptionDrafts.clear();
+    receptionSelected = null;
+    chat.invalidateAccess();
+    ++_generation;
+    if (scope != null) {
+      if (!allows(page)) page = primary.first;
+      unawaited(load());
+    }
+  }
+
+  void _invalidateReads() {
+    ++_readGeneration;
+    _reads.clear();
+    _pending.clear();
+  }
+
+  Future<Object?> _read(String path, {required bool force}) {
+    final cached = _reads[path];
+    if (!force &&
+        cached != null &&
+        _clock().difference(cached.$2) < _freshFor) {
+      return Future.value(cached.$1);
+    }
+    return _pending.putIfAbsent(path, () {
+      final generation = _readGeneration;
+      return api
+          .get(path)
+          .then((value) {
+            if (!_disposed && generation == _readGeneration) {
+              _reads[path] = (value, _clock());
+            }
+            return value;
+          })
+          .whenComplete(() {
+            if (generation == _readGeneration) _pending.remove(path);
+          });
+    });
+  }
+
+  Future<void> _checkIdentity({required bool force}) {
+    final lastChecked = _identityChecked;
+    if (!force &&
+        lastChecked != null &&
+        _clock().difference(lastChecked) < _freshFor) {
+      return Future.value();
+    }
+    final scope = _scope;
+    return _identityRequest ??= auth
+        .revalidate()
+        .then((_) {
+          if (_scope == scope) _identityChecked = _clock();
+        })
+        .whenComplete(() => _identityRequest = null);
+  }
+
   bool loading = true, saving = false, _disposed = false;
   int _generation = 0;
   String? error, actionError;
@@ -97,8 +226,8 @@ class PmsController extends ChangeNotifier {
     PmsPage.security => 'Security Center',
   });
   String t(String value) => strings.t(value);
-  Json object(String key) => jsonObject(data[key]);
-  List<Json> rows(String key) => jsonRows(data[key]);
+  Json object(String key) => optionalObject(data[key]);
+  List<Json> rows(String key) => optionalRows(data[key]);
   void emit() {
     if (!_disposed) notifyListeners();
   }
@@ -109,143 +238,205 @@ class PmsController extends ChangeNotifier {
   }
 
   Future<void> navigate(PmsPage next) async {
-    if (saving || !allows(next)) return;
-    page = next;
-    await load();
+    if (saving || auth.user == null || !allows(next)) return;
+    await _load(next, force: false);
   }
 
-  Future<void> load() async {
+  Future<void> refreshIfStale() => navigate(page);
+  Future<void> load() => _load(page, force: true);
+
+  Map<String, String> _routes(PmsPage selected) {
+    final paths = <String, String>{};
+    switch (selected) {
+      case PmsPage.today:
+        if (user.isOperator) {
+          paths.addAll({
+            'command': '/api/operations/today-command',
+            'dashboard': '/api/owner/dashboard',
+          });
+        } else {
+          paths['worker'] = '/api/worker/dashboard';
+        }
+      case PmsPage.schedule:
+        paths['worker'] = '/api/worker/dashboard';
+      case PmsPage.intelligence:
+        paths.addAll({
+          'intelligence': '/api/intelligence',
+          'provider': '/api/rosa/provider',
+          'conversation': '/api/rosa/conversation',
+        });
+      case PmsPage.reservations:
+        paths.addAll({
+          'reservations': '/api/reservations',
+          'properties': '/api/properties',
+        });
+      case PmsPage.inbox:
+        paths.addAll({
+          'summary': '/api/reception/summary',
+          'inbox': '/api/inbox',
+          'outbox': '/api/communications/outbox',
+          'rules': '/api/automation/rules',
+        });
+      case PmsPage.operations:
+        paths.addAll({
+          'timeline': '/api/operations/timeline',
+          'journeys': '/api/guest-journeys',
+          'properties': '/api/properties',
+          'team': '/api/team/overview',
+          'intelligence': '/api/intelligence',
+        });
+      case PmsPage.maintenance:
+        paths.addAll({
+          'maintenance': '/api/maintenance',
+          'properties': user.isOperator
+              ? '/api/properties'
+              : '/api/operations/properties',
+        });
+      case PmsPage.supplies:
+        paths['inventory'] = '/api/inventory';
+      case PmsPage.team:
+        paths['team'] = '/api/team/overview';
+        paths['properties'] = '/api/properties';
+      case PmsPage.train:
+        paths['knowledge'] = '/api/knowledge';
+      case PmsPage.simulation:
+        paths.addAll({
+          'organization': '/api/organization',
+          'actions': '/api/rosa/actions',
+          'memory': '/api/memory',
+          'preferences': '/api/notifications/preferences',
+        });
+      case PmsPage.integrations:
+        paths.addAll({
+          'integrations': '/api/integrations',
+          'sync': '/api/integration-sync/summary',
+          'government': '/api/government/status',
+          'properties': '/api/properties',
+          'integrationEvents': '/api/integration-events',
+        });
+      case PmsPage.security:
+        paths.addAll({
+          'security': '/api/security',
+          'audit': '/api/audit',
+          'retention': '/api/retention',
+          'runtime': '/api/system/runtime',
+        });
+    }
+    return paths;
+  }
+
+  Future<void> _load(PmsPage selected, {required bool force}) async {
+    if (_disposed || auth.user == null) return;
     final generation = ++_generation;
-    final selected = page;
-    final retainChat =
-        selected == PmsPage.intelligence &&
-        data.containsKey('conversation') &&
-        data.containsKey('intelligence') &&
-        data.containsKey('provider');
+    final readGeneration = _readGeneration;
     final chatRevision = chat.revision;
-    loading = !retainChat;
+    final samePage = selected == page;
+    page = selected;
+    final paths = _routes(selected);
+    if (!samePage) data.clear();
+    for (final entry in paths.entries) {
+      if (_reads[entry.value] case (final value, _)) {
+        data[entry.key] = value;
+      }
+    }
     error = null;
+    sectionErrors.clear();
     chatRefreshError = null;
-    if (!retainChat) data.clear();
+    final needsFetch =
+        force ||
+        paths.values.any((path) {
+          final cached = _reads[path];
+          return cached == null || _clock().difference(cached.$2) >= _freshFor;
+        });
+    loading = data.isEmpty;
+    refreshing = needsFetch;
     emit();
+
+    bool current() =>
+        !_disposed && generation == _generation && auth.user != null;
     try {
       if (strings.data.isEmpty) await strings.load();
-      await auth.revalidate();
-      if (_disposed || generation != _generation || auth.user == null) return;
-      if (selected == PmsPage.intelligence && !user.isOperator) {
-        throw const ApiException('Operator access required.', statusCode: 403);
-      }
-      final paths = <String, String>{};
-      switch (selected) {
-        case PmsPage.today:
-          if (user.isOperator) {
-            paths.addAll({
-              'command': '/api/operations/today-command',
-              'dashboard': '/api/owner/dashboard',
-            });
-          } else {
-            paths['worker'] = '/api/worker/dashboard';
-          }
-        case PmsPage.schedule:
-          paths['worker'] = '/api/worker/dashboard';
-        case PmsPage.intelligence:
-          paths.addAll({
-            'intelligence': '/api/intelligence',
-            'provider': '/api/rosa/provider',
-            'conversation': '/api/rosa/conversation',
-          });
-        case PmsPage.reservations:
-          paths.addAll({
-            'reservations': '/api/reservations',
-            'properties': '/api/properties',
-          });
-        case PmsPage.inbox:
-          paths.addAll({
-            'summary': '/api/reception/summary',
-            'inbox': '/api/inbox',
-            'outbox': '/api/communications/outbox',
-            'rules': '/api/automation/rules',
-          });
-        case PmsPage.operations:
-          paths.addAll({
-            'timeline': '/api/operations/timeline',
-            'journeys': '/api/guest-journeys',
-            'intelligence': '/api/intelligence',
-          });
-        case PmsPage.maintenance:
-          paths.addAll({
-            'maintenance': '/api/maintenance',
-            'properties': user.isOperator
-                ? '/api/properties'
-                : '/api/operations/properties',
-          });
-        case PmsPage.supplies:
-          paths['inventory'] = '/api/inventory';
-        case PmsPage.team:
-          paths['team'] = '/api/team/overview';
-          paths['properties'] = '/api/properties';
-        case PmsPage.train:
-          paths['knowledge'] = '/api/knowledge';
-        case PmsPage.simulation:
-          paths.addAll({
-            'organization': '/api/organization',
-            'actions': '/api/rosa/actions',
-            'memory': '/api/memory',
-            'preferences': '/api/notifications/preferences',
-          });
-        case PmsPage.integrations:
-          paths.addAll({
-            'integrations': '/api/integrations',
-            'sync': '/api/integration-sync/summary',
-            'government': '/api/government/status',
-            'properties': '/api/properties',
-            'integrationEvents': '/api/integration-events',
-          });
-        case PmsPage.security:
-          paths.addAll({
-            'security': '/api/security',
-            'audit': '/api/audit',
-            'retention': '/api/retention',
-            'runtime': '/api/system/runtime',
-          });
-      }
-      final result = <String, Object?>{};
-      for (final entry in paths.entries) {
-        result[entry.key] = await api.get(entry.value);
-        if (_disposed || generation != _generation || auth.user == null) return;
-      }
-      // Notifications are an independent shell utility, not a reason to fabricate a page.
-      if (user.isOperator) {
-        mode = text(
-          jsonObject(await api.get('/api/organization')),
-          'operating_mode',
-        );
-        try {
-          final notifications = jsonObject(await api.get('/api/notifications'));
-          unread = (notifications['unread'] as num?)?.toInt() ?? 0;
-        } on ApiException {
-          /* Notification drawer exposes its own retry state. */
-        }
-      }
-      if (_disposed || generation != _generation || auth.user == null) return;
-      data.addAll(result);
-      if (result['conversation'] != null && chat.revision == chatRevision) {
-        chat.syncHistory(jsonObject(result['conversation']), notify: false);
-      }
-      loading = false;
-    } catch (e) {
-      if (_disposed || generation != _generation) return;
-      if (e is ApiException && (e.statusCode == 401 || e.statusCode == 403)) {
+      await _checkIdentity(force: force);
+      if (!current()) return;
+    } on ApiException catch (failure) {
+      if (!current()) return;
+      if (failure.statusCode == 401 || failure.statusCode == 403) {
+        _invalidateReads();
         data.clear();
         chat.invalidateAccess();
-        error = safeError(e);
-      } else if (retainChat) {
-        chatRefreshError = safeError(e);
-      } else {
-        error = safeError(e);
       }
-      loading = false;
+      connectionIssue = failure.kind;
+      error = safeError(failure);
+      loading = refreshing = false;
+      emit();
+      return;
     }
+
+    Future<void> loadSection(MapEntry<String, String> entry) async {
+      try {
+        final result = await _read(entry.value, force: force);
+        if (!current() || readGeneration != _readGeneration) return;
+        data[entry.key] = result;
+        if (entry.key == 'conversation' &&
+            result != null &&
+            chat.revision == chatRevision) {
+          chat.syncHistory(jsonObject(result), notify: false);
+        }
+        loading = false;
+      } on ApiException catch (failure) {
+        if (!current() || readGeneration != _readGeneration) return;
+        if (failure.statusCode == 403) {
+          data.remove(entry.key);
+          _reads.remove(entry.value);
+          if (entry.key == 'conversation') chat.invalidateAccess();
+        }
+        if (failure.kind != ApiFailure.cancelled) {
+          sectionErrors[entry.key] = safeError(failure);
+          if (entry.key == 'conversation') {
+            chatRefreshError = safeError(failure);
+          }
+          connectionIssue = failure.kind;
+        }
+      }
+      if (current()) emit();
+    }
+
+    if (user.isOperator) {
+      Future<void> loadUtility(
+        String path,
+        void Function(Json value) update,
+      ) async {
+        try {
+          final result = await _read(path, force: false);
+          if (current() && readGeneration == _readGeneration) {
+            update(jsonObject(result));
+          }
+        } on ApiException {
+          // Page content and the drawer each report their own request status.
+        }
+      }
+
+      unawaited(
+        loadUtility('/api/organization', (value) {
+          mode = text(value, 'operating_mode', mode);
+          emit();
+        }),
+      );
+      unawaited(
+        loadUtility('/api/notifications', (value) {
+          unread = (value['unread'] as num?)?.toInt() ?? 0;
+          emit();
+        }),
+      );
+    }
+
+    await Future.wait(paths.entries.map(loadSection));
+    if (!current()) return;
+    if (data.isEmpty && sectionErrors.isNotEmpty) {
+      error = sectionErrors.values.first;
+    }
+    if (sectionErrors.isEmpty) connectionIssue = null;
+    loading = refreshing = false;
     emit();
   }
 
@@ -283,9 +474,24 @@ class PmsController extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     ++_generation;
+    auth.removeListener(_authChanged);
+    if (api.onMutation == _invalidateOnMutation) api.onMutation = null;
+    _invalidateReads();
     chat.dispose();
     super.dispose();
   }
+}
+
+String intelligenceBrief(Json data) {
+  if (!data.containsKey('arrivals')) return '';
+  final arrivals = optionalRows(data['arrivals']).length;
+  final departures = optionalRows(data['departures']).length;
+  final tasks = optionalRows(data['tasks']).length;
+  final approvals = optionalRows(data['approvals']).length;
+  return ui(
+    'Arrivals: $arrivals. Departures: $departures. '
+    'Operational tasks: $tasks. Decisions needed: $approvals.',
+  );
 }
 
 String safeError(Object error) => error is ApiException

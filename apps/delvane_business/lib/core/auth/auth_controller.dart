@@ -51,14 +51,26 @@ class AuthController extends ChangeNotifier {
     ApiTransport? transport,
     DateTime Function()? clock,
     this.environment = ApiEnvironment.local,
+    List<int>? uatTunnelCertificate,
   }) : now = clock ?? DateTime.now {
     final configuration = ApiConfiguration(
       environment: environment,
       origin: origin,
+      uatTunnelCertificate: uatTunnelCertificate,
     );
+    SecurityContext? tunnelTrust;
+    if (uatTunnelCertificate != null) {
+      try {
+        tunnelTrust = SecurityContext(withTrustedRoots: false)
+          ..setTrustedCertificatesBytes(uatTunnelCertificate);
+      } on TlsException {
+        throw ArgumentError('The Windows UAT tunnel certificate is invalid.');
+      }
+    }
     api = ApiClient(
       baseUrl: configuration.origin,
-      transport: transport,
+      transport: transport ?? IoApiTransport(tunnelTrust),
+      diagnosticsFile: tunnelTrust == null ? null : _tunnelDiagnostics(),
       allowInsecureLoopback: configuration.isLocal,
       sessionHeaders: () => {
         if (_cookie != null) 'Cookie': 'rosa_session=$_cookie',
@@ -72,6 +84,11 @@ class AuthController extends ChangeNotifier {
         '${configuration.isLocal ? '' : '${environment.name}.'}'
         '${Uri.encodeComponent(configuration.origin.origin)}';
   }
+  static File? _tunnelDiagnostics() {
+    final path = Platform.environment['DELVANE_UAT_API_LOG'];
+    return path == null || path.isEmpty ? null : File(path);
+  }
+
   final ApiEnvironment environment;
   final SessionStore store;
   final DateTime Function() now;

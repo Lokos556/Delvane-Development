@@ -1,6 +1,7 @@
 import 'actual_stay_controls.dart';
 import 'financial_controls.dart';
-import 'mobile_calendar_day.dart';
+import 'booking_calendar.dart';
+import 'operations_dashboard.dart';
 
 import 'dart:async';
 
@@ -40,23 +41,38 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
   late final c = PmsController(widget.auth, initialPage: widget.initialPage);
   final scroll = ScrollController();
   final chat = TextEditingController();
-  DateTime month = DateTime(DateTime.now().year, DateTime.now().month);
-  int journeyPage = 0;
+  final calendarSelection = CalendarSelection(DateTime.now());
+  String? operationsProperty;
+  late final Timer operationsRefresh;
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     unawaited(c.load());
+    operationsRefresh = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed &&
+          !c.loading &&
+          !c.refreshing &&
+          !c.saving &&
+          const [
+            PmsPage.today,
+            PmsPage.operations,
+            PmsPage.schedule,
+          ].contains(c.page)) {
+        unawaited(c.refreshIfStale());
+      }
+    });
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) unawaited(c.load());
+    if (state == AppLifecycleState.resumed) unawaited(c.refreshIfStale());
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    operationsRefresh.cancel();
     c.dispose();
     scroll.dispose();
     chat.dispose();
@@ -83,7 +99,8 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
       return;
     }
     if (kind == RecordKind.reservation) {
-      await showDialog<bool>(
+      final readRevision = c.readRevision;
+      final changed = await showDialog<bool>(
         useRootNavigator: false,
         context: context,
         barrierDismissible: false,
@@ -98,7 +115,11 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
           },
         ),
       );
-      if (mounted && c.auth.user != null) await c.load();
+      if (mounted &&
+          c.auth.user != null &&
+          (changed == true || c.readRevision != readRevision)) {
+        await c.refreshIfStale();
+      }
       return;
     }
     // Preserve the verified record/permission implementation while its visual modal port continues.
@@ -132,13 +153,16 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> newReservation([String? date]) async {
+  Future<void> newReservation([String? date, String? property]) async {
     final changed = await showDialog<bool>(
       useRootNavigator: false,
       context: context,
       barrierDismissible: false,
-      builder: (_) =>
-          ReservationEditor(api: PmsWorkflows(c), initialDate: date),
+      builder: (_) => ReservationEditor(
+        api: PmsWorkflows(c),
+        initialDate: date,
+        initialProperty: property,
+      ),
     );
     if (changed == true && mounted && c.auth.user != null) await c.load();
   }
@@ -209,18 +233,31 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
         ),
         Row(
           children: [
-            SizedBox(width: 6),
+            const SizedBox(width: 6),
             DecoratedBox(
               decoration: BoxDecoration(
-                color: PmsStyle.yellow,
+                color: c.connectionIssue == null
+                    ? PmsStyle.yellow
+                    : PmsStyle.muted,
                 shape: BoxShape.circle,
               ),
-              child: SizedBox(width: 8, height: 8),
+              child: const SizedBox(width: 8, height: 8),
             ),
-            SizedBox(width: 8),
-            Text(
-              ui('DELVANE ONLINE'),
-              style: TextStyle(fontSize: 9, letterSpacing: 1),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                ui(
+                  c.connectionIssue == null
+                      ? (c.isUat ? 'UAT test workspace' : 'Workspace active')
+                      : c.isUat
+                      ? 'UAT updates delayed'
+                      : 'Some updates delayed',
+                ),
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ],
         ),
@@ -237,7 +274,7 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
                     },
               borderRadius: BorderRadius.circular(24),
               child: Container(
-                height: 76,
+                constraints: const BoxConstraints(minHeight: 74),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(24),
@@ -289,10 +326,7 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
                             ),
                           ),
                           Text(
-                            ui(
-                              c.user.role[0].toUpperCase() +
-                                  c.user.role.substring(1),
-                            ),
+                            c.roleLabel,
                             style: const TextStyle(fontSize: 11),
                           ),
                         ],
@@ -310,7 +344,7 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
             c.user.name,
             style: const TextStyle(fontWeight: FontWeight.w700),
           ),
-          Text(ui(c.user.role), style: const TextStyle(fontSize: 12)),
+          Text(c.roleLabel, style: const TextStyle(fontSize: 12)),
           PmsButton(c.t('Sign out'), onPressed: widget.auth.logout),
         ],
       ],
@@ -343,7 +377,7 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                Text(ui(c.user.role), style: const TextStyle(fontSize: 12)),
+                Text(c.roleLabel, style: const TextStyle(fontSize: 12)),
               ],
             ),
           ),
@@ -597,7 +631,7 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
                 ? 18.0
                 : mobile
                 ? 10.0
-                : (MediaQuery.sizeOf(context).width * .05).clamp(24.0, 80.0);
+                : (MediaQuery.sizeOf(context).width * .026).clamp(20.0, 48.0);
             return Scaffold(
               drawer: mobile
                   ? Drawer(
@@ -715,12 +749,9 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
                                       else if (!intelligencePage)
                                         Padding(
                                           padding: const EdgeInsets.only(
-                                            bottom: 28,
+                                            bottom: 18,
                                           ),
-                                          child: SizedBox(
-                                            height: 41,
-                                            child: utility(),
-                                          ),
+                                          child: utility(),
                                         ),
                                       if (c.actionError != null)
                                         Text(
@@ -736,24 +767,44 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
                                             child: CircularProgressIndicator(),
                                           ),
                                         )
-                                      else if (c.error != null)
+                                      else if (c.error != null ||
+                                          c.sectionErrors.isNotEmpty)
                                         PmsCard(
-                                          child: Column(
+                                          child: Wrap(
+                                            spacing: 12,
+                                            runSpacing: 8,
+                                            crossAxisAlignment:
+                                                WrapCrossAlignment.center,
                                             children: [
-                                              Text(ui(c.error!)),
                                               Text(
                                                 ui(
-                                                  'No demo data has been substituted.',
+                                                  c.error ?? 'Some sections could not be updated.',
                                                 ),
                                               ),
+                                              if (c.error == null)
+                                                Text(
+                                                  ui(
+                                                    c
+                                                        .sectionErrors
+                                                        .values
+                                                        .first,
+                                                  ),
+                                                ),
                                               PmsButton(
                                                 ui('Retry'),
                                                 onPressed: c.load,
                                               ),
                                             ],
                                           ),
-                                        )
-                                      else
+                                        ),
+                                      if (!c.loading && c.refreshing)
+                                        const Padding(
+                                          padding: EdgeInsets.only(bottom: 8),
+                                          child: LinearProgressIndicator(
+                                            minHeight: 2,
+                                          ),
+                                        ),
+                                      if (!c.loading && c.data.isNotEmpty)
                                         content(
                                           viewportHeight: viewport.maxHeight,
                                         ),
@@ -770,7 +821,6 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
                         c.error == null &&
                         c.user.isOperator &&
                         const [
-                          PmsPage.reservations,
                           PmsPage.inbox,
                           PmsPage.team,
                           PmsPage.train,
@@ -832,7 +882,10 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
                     color: const Color(0xFFF0ECE6),
                     borderRadius: BorderRadius.circular(4),
                   ),
-                  child: Text(ui('Ctrl K'), style: TextStyle(fontSize: 8)),
+                  child: Text(
+                    ui('Ctrl K'),
+                    style: const TextStyle(fontSize: 11),
+                  ),
                 ),
               ],
             ],
@@ -866,7 +919,7 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
         TextButton(
           onPressed: () => c.navigate(PmsPage.simulation),
           child: Text(
-            ui(c.mode).toUpperCase(),
+            c.modeLabel,
             style: const TextStyle(
               fontSize: 14,
               letterSpacing: 2,
@@ -896,7 +949,7 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
       case PmsPage.schedule:
         return workers(true);
       case PmsPage.reservations:
-        return calendar();
+        return calendar(viewportHeight: viewportHeight);
       case PmsPage.intelligence:
         return intelligence(viewportHeight: viewportHeight);
       case PmsPage.operations:
@@ -925,305 +978,332 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        ActualOccupancyPanel(c: c),
-        BusinessClosingPanel(c: c),
         PmsPageHeader(
           key: const ValueKey('today-header'),
-          eyebrow: WebStrings.current.language == 'hu'
-              ? uiDate(text(cmd, 'date'))
-              : text(cmd, 'date'),
+          eyebrow: '',
           title: c.t("Today's command center"),
-          description: ui('$urgent urgent'),
+          description: text(cmd, 'date').isEmpty
+              ? ''
+              : uiDate(text(cmd, 'date')),
           actions: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFF2B8),
-                borderRadius: BorderRadius.circular(22),
-              ),
-              child: Text(
-                ui('$urgent URGENT'),
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: .5,
+            if (c.hasSection('command'))
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF2B8),
+                  borderRadius: BorderRadius.circular(22),
+                ),
+                child: Text(
+                  ui('$urgent URGENT'),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: .5,
+                  ),
                 ),
               ),
-            ),
           ],
         ),
-        LayoutBuilder(
-          builder: (context, box) {
-            final count = MediaQuery.sizeOf(context).width <= 720 ? 2 : 4,
-                w = (box.maxWidth - 12 * (count - 1)) / count;
-            final metrics = {
-              'Arrivals': arrivals.length,
-              'Departures': optionalRows(cmd['departures']).length,
-              'Turnovers': cleaning
-                  .where((r) => r['deadline_time'] != null)
-                  .length,
-              'Registration issues': registration.length,
-            };
-            return Wrap(
-              key: const ValueKey('today-metrics'),
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                for (final e in metrics.entries)
-                  SizedBox(
-                    width: w,
-                    height: 66,
-                    child: PmsCard(
-                      radius: 24,
-                      shadow: true,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 18,
-                        vertical: 16,
-                      ),
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [Color(0xF7FFFFFF), Color(0xE0FAF6EC)],
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              c.t(e.key),
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
+        if (c.hasSection('command')) ...[
+          LayoutBuilder(
+            builder: (context, box) {
+              final count = box.maxWidth < 780 ? 2 : 4,
+                  w = (box.maxWidth - 12 * (count - 1)) / count;
+              final metrics = {
+                'Arrivals': arrivals.length,
+                'Departures': optionalRows(cmd['departures']).length,
+                'Turnovers': cleaning
+                    .where((r) => r['deadline_time'] != null)
+                    .length,
+                'Registration issues': registration.length,
+              };
+              return Wrap(
+                key: const ValueKey('today-metrics'),
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  for (final e in metrics.entries)
+                    SizedBox(
+                      width: w,
+                      child: PmsCard(
+                        radius: 12,
+                        shadow: false,
+                        color: Colors.white,
+                        borderColor: PmsStyle.panelLine,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 13,
+                          vertical: 12,
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                c.t(e.key),
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
-                          ),
-                          Text(
-                            '${e.value}',
-                            style: const TextStyle(
-                              fontFamily: 'Georgia',
-                              fontSize: 24,
-                              color: Colors.black,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-              ],
-            );
-          },
-        ),
-        const SizedBox(height: 22),
-        if (registration.isNotEmpty) ...[
-          PmsCard(
-            key: const ValueKey('registration-strip'),
-            radius: 22,
-            shadow: false,
-            color: Colors.transparent,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                ConstrainedBox(
-                  constraints: const BoxConstraints(minHeight: 54),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            PmsEyebrow(c.t('Guest registration').toUpperCase()),
                             Text(
-                              c.t('Registration needs attention'),
+                              '${e.value}',
                               style: const TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w700,
-                                height: 1.3,
+                                fontSize: 24,
+                                color: Colors.black,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(width: 20),
-                      Text(
-                        '${registration.length}',
-                        style: const TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                for (final r in registration)
-                  InkWell(
-                    borderRadius: BorderRadius.circular(18),
-                    onTap: () => record(RecordKind.reservation, text(r, 'id')),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 13,
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            width: 28,
-                            height: 28,
-                            alignment: Alignment.center,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFF5E8C8),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Text(
-                              '!',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 13),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  text(r, 'guest_name'),
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                Text(
-                                  '${text(r, 'property_name')} · ${c.t('arrives today')} · ${text(r, 'arrival_time')}',
-                                  style: const TextStyle(fontSize: 12),
-                                ),
-                                if (MediaQuery.sizeOf(context).width <= 720)
-                                  Padding(
-                                    padding: EdgeInsets.only(top: 12),
-                                    child: Text(
-                                      ui('Open stay →'),
-                                      style: TextStyle(fontSize: 12),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                          if (MediaQuery.sizeOf(context).width > 720)
-                            Padding(
-                              padding: EdgeInsets.only(top: 8),
-                              child: Text(
-                                ui('Open stay →'),
-                                style: TextStyle(fontSize: 12),
-                              ),
-                            ),
-                        ],
-                      ),
                     ),
-                  ),
-              ],
-            ),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 22),
-        ],
-        PmsColumns(key: const ValueKey('today-board'), [
-          queue(
-            'Arrivals',
-            arrivals,
-            (r) => record(RecordKind.reservation, text(r, 'id')),
-            time: 'arrival_time',
-            title: 'guest_name',
-          ),
-          queue(
-            'Turnovers',
-            cleaning,
-            (r) => record(RecordKind.property, text(r, 'property_id')),
-            time: 'deadline_time',
-            title: 'property_name',
-          ),
-          queue(
-            'Open maintenance',
-            issues.take(5).toList(),
-            (r) => c.navigate(PmsPage.maintenance),
-            time: 'severity',
-            title: 'title',
-          ),
-        ]),
-        const SizedBox(height: 34),
-        PmsEyebrow(c.t('Properties')),
-        Text(
-          c.t('Properties'),
-          style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w700),
-        ),
-        const SizedBox(height: 12),
-        PmsColumns(key: const ValueKey('properties-grid'), [
-          for (final p in optionalRows(dashboard['properties']))
-            Material(
+          if (registration.isNotEmpty) ...[
+            PmsCard(
+              key: const ValueKey('registration-strip'),
+              radius: 22,
+              shadow: false,
               color: Colors.transparent,
-              child: InkWell(
-                onTap: () => record(RecordKind.property, text(p, 'id')),
-                borderRadius: BorderRadius.circular(18),
-                child: PmsCard(
-                  radius: 18,
-                  shadow: false,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              text(p, 'name'),
-                              style: const TextStyle(
-                                fontSize: 23.2,
-                                fontWeight: FontWeight.w700,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(minHeight: 54),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              PmsEyebrow(
+                                c.t('Guest registration').toUpperCase(),
+                              ),
+                              Text(
+                                c.t('Registration needs attention'),
+                                style: const TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w700,
+                                  height: 1.3,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 20),
+                        Text(
+                          '${registration.length}',
+                          style: const TextStyle(
+                            fontSize: 25,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  for (final r in registration)
+                    InkWell(
+                      borderRadius: BorderRadius.circular(18),
+                      onTap: () =>
+                          record(RecordKind.reservation, text(r, 'id')),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 13,
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: 28,
+                              height: 28,
+                              alignment: Alignment.center,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFF5E8C8),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Text(
+                                '!',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                ),
                               ),
                             ),
-                          ),
-                          PmsBadge(
-                            c.t(p['state'] == 'ready' ? 'Ready' : 'Attention'),
-                            tone: text(p, 'state'),
-                            large: p['state'] != 'ready',
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 18),
-                      Text(
-                        (p['reasons'] as List? ?? []).isEmpty
-                            ? c.t('No blockers detected.')
-                            : (p['reasons'] as List).join(' · '),
-                        style: const TextStyle(fontSize: 16),
-                      ),
-                      const SizedBox(height: 28),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              ui(
-                                'Next: ${displayDate(p['next_arrival'] as String?)}',
+                            const SizedBox(width: 13),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    text(r, 'guest_name'),
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  Text(
+                                    '${c.propertyLabel(text(r, 'property_name'))} · ${c.t('arrives today')} · ${text(r, 'arrival_time')}',
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                  if (MediaQuery.sizeOf(context).width <= 720)
+                                    Padding(
+                                      padding: EdgeInsets.only(top: 12),
+                                      child: Text(
+                                        ui('Open stay →'),
+                                        style: TextStyle(fontSize: 12),
+                                      ),
+                                    ),
+                                ],
                               ),
-                              style: const TextStyle(fontSize: 12),
                             ),
-                          ),
-                          Text(
-                            ui('Open →'),
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
+                            if (MediaQuery.sizeOf(context).width > 720)
+                              Padding(
+                                padding: EdgeInsets.only(top: 8),
+                                child: Text(
+                                  ui('Open stay →'),
+                                  style: TextStyle(fontSize: 12),
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
-                    ],
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 22),
+          ],
+          PmsColumns(key: const ValueKey('today-board'), [
+            queue(
+              'Arrivals',
+              arrivals,
+              (r) => record(RecordKind.reservation, text(r, 'id')),
+              time: 'arrival_time',
+              title: 'guest_name',
+            ),
+            queue(
+              'Turnovers',
+              cleaning,
+              (r) => record(RecordKind.property, text(r, 'property_id')),
+              time: 'deadline_time',
+              title: 'property_name',
+            ),
+            queue(
+              'Open maintenance',
+              issues.take(5).toList(),
+              (r) => c.navigate(PmsPage.maintenance),
+              time: 'severity',
+              title: 'title',
+            ),
+          ]),
+        ],
+        if (c.hasSection('dashboard')) ...[
+          const SizedBox(height: 18),
+          Text(
+            c.t('Properties'),
+            style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 12),
+          PmsColumns(key: const ValueKey('properties-grid'), [
+            for (final p in optionalRows(dashboard['properties']))
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => record(RecordKind.property, text(p, 'id')),
+                  borderRadius: BorderRadius.circular(18),
+                  child: PmsCard(
+                    radius: 18,
+                    shadow: false,
+                    borderColor: PmsStyle.panelLine,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                c.propertyLabel(text(p, 'name')),
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            PmsBadge(
+                              c.t(switch (p['state']) {
+                                'ready' => 'Ready',
+                                'occupied' => 'Occupied',
+                                'cleaning' => 'Cleaning pending',
+                                _ => 'Attention',
+                              }),
+                              tone: text(p, 'state'),
+                              large: p['state'] != 'ready',
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          (p['reasons'] as List? ?? []).isEmpty
+                              ? c.t('No blockers detected.')
+                              : (p['reasons'] as List)
+                                    .map((reason) => ui('$reason'))
+                                    .join(' · '),
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                ui(
+                                  'Next: ${displayDate(p['next_arrival'] as String?)}',
+                                ),
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                            ),
+                            Text(
+                              ui('Open →'),
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-        ]),
+          ]),
+        ],
+        const SizedBox(height: 18),
+        stayAndClosingTools(),
       ],
     );
   }
+
+  Widget stayAndClosingTools() => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Text(
+        ui('Stay and closing tools'),
+        style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700),
+      ),
+      const SizedBox(height: 10),
+      ActualOccupancyPanel(c: c),
+      const SizedBox(height: 8),
+      BusinessClosingPanel(c: c),
+    ],
+  );
 
   Widget queue(
     String label,
@@ -1284,7 +1364,6 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
                             : Text(
                                 text(r, time, '—'),
                                 style: const TextStyle(
-                                  fontFamily: 'Georgia',
                                   fontSize: 14,
                                   fontWeight: FontWeight.w700,
                                   color: Color(0xFF554F43),
@@ -1306,9 +1385,9 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
                             Text(
                               time == 'arrival_time'
                                   ? ui(
-                                      '${text(r, 'property_name')} · ${r['guest_count'] ?? ''} guests',
+                                      '${c.propertyLabel(text(r, 'property_name'))} · ${ui("${r['guest_count'] ?? 0} guests")}',
                                     )
-                                  : '${text(r, 'assigned_name', text(r, 'property_name'))} · ${ui(text(r, 'status'))}',
+                                  : '${text(r, 'assigned_name', c.propertyLabel(text(r, 'property_name')))} · ${ui(text(r, 'status'))}',
                               style: const TextStyle(fontSize: 11),
                             ),
                           ],
@@ -1337,9 +1416,13 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
     final tasks = optionalRows(d['tasks'])
         .where(
           (r) =>
-              schedule ||
-              r['scheduled_date'] == d['date'] ||
-              r['status'] == 'in_progress',
+              (schedule ||
+                  r['scheduled_date'] == d['date'] ||
+                  (r['status'] != 'complete' &&
+                      text(r, 'scheduled_date').compareTo(text(d, 'date')) <
+                          0) ||
+                  r['status'] == 'in_progress') &&
+              r['status'] != 'cancelled',
         )
         .toList();
     return Column(
@@ -1373,6 +1456,11 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
                         'Checkout ${text(t, 'earliest_time', '—')} · Check-in ${text(t, 'deadline_time', '—')} · ${t['next_guest_count'] ?? '—'} guests',
                       ),
                     ),
+                    if (t['waiting_for_checkout'] == true)
+                      PmsBadge(
+                        ui('Waiting for actual checkout'),
+                        tone: 'attention',
+                      ),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
@@ -1395,7 +1483,10 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
                         title: Text(text(item, 'label')),
                         value:
                             item['completed'] == 1 || item['completed'] == true,
-                        onChanged: c.saving || t['status'] == 'complete'
+                        onChanged:
+                            c.saving ||
+                                t['status'] == 'complete' ||
+                                t['waiting_for_checkout'] == true
                             ? null
                             : (v) => c.act(() async {
                                 await c.mutate(
@@ -1409,7 +1500,7 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
                       PmsButton(
                         c.t('Start cleaning'),
                         primary: true,
-                        onPressed: c.saving
+                        onPressed: c.saving || t['waiting_for_checkout'] == true
                             ? null
                             : () => c.act(() async {
                                 await c.mutate(
@@ -1424,6 +1515,7 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
                         primary: true,
                         onPressed:
                             c.saving ||
+                                t['waiting_for_checkout'] == true ||
                                 optionalRows(t['checklist']).any(
                                   (i) =>
                                       i['completed'] != 1 &&
@@ -1465,479 +1557,33 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
     );
   }
 
-  Widget calendar() {
-    final rows = c
-            .rows('reservations')
-            .where((r) => r['status'] == 'confirmed')
-            .toList(),
-        props = c.rows('properties');
-    final start = month.subtract(Duration(days: month.weekday - 1));
-    const months = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
-    ];
-    const colors = [
-      Color(0xFF087F8C),
-      Color(0xFF7357D9),
-      Color(0xFFD65B22),
-      Color(0xFF1971C2),
-      Color(0xFFB02E72),
-      Color(0xFF477A36),
-      Color(0xFF8A6418),
-      Color(0xFF52616B),
-    ];
-    return Padding(
-      padding: MediaQuery.sizeOf(context).width <= 760
-          ? const EdgeInsets.only(top: 8)
-          : const EdgeInsets.fromLTRB(24, 28, 24, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          PmsPageHeader(
-            titleLineHeight: 1.35,
-            descriptionSize: MediaQuery.sizeOf(context).width <= 760 ? 12 : 16,
-            titleSize: MediaQuery.sizeOf(context).width <= 430
-                ? 26
-                : MediaQuery.sizeOf(context).width <= 760
-                ? 30
-                : (MediaQuery.sizeOf(context).width * .03).clamp(30, 44),
-            eyebrow: ui('DELVANE · RESERVATIONS'),
-            title: ui('Calendar'),
-            description: ui('All properties. One clear view.'),
-            actions: [
-              PmsButton(
-                ui('+ New reservation'),
-                primary: true,
-                onPressed: () => newReservation(),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          PmsCard(
-            padding: EdgeInsets.zero,
-            shadow: false,
-            child: Column(
-              children: [
-                Wrap(
-                  spacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    PmsButton(
-                      '\u2039',
-                      onPressed: () => setState(
-                        () => month = DateTime(month.year, month.month - 1),
-                      ),
-                    ),
-                    PmsButton(
-                      ui('Today'),
-                      onPressed: () => setState(
-                        () => month = DateTime(
-                          DateTime.now().year,
-                          DateTime.now().month,
-                        ),
-                      ),
-                    ),
-                    PmsButton(
-                      '\u203a',
-                      onPressed: () => setState(
-                        () => month = DateTime(month.year, month.month + 1),
-                      ),
-                    ),
-                    Text(
-                      WebStrings.current.language == 'hu'
-                          ? '${month.year}. ${ui(months[month.month - 1])}'
-                          : '${months[month.month - 1]} ${month.year}',
-                      style: const TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    PmsButton(
-                      ui('Go to month'),
-                      small: true,
-                      onPressed: () => showDialog<bool>(
-                        useRootNavigator: false,
-                        context: context,
-                        barrierDismissible: false,
-                        builder: (_) => PmsTextDialog(
-                          title: ui('Go to month'),
-                          lines: 1,
-                          label: ui('Month (YYYY-MM)'),
-                          submitLabel: ui('Go'),
-                          initial: isoDate(month).substring(0, 7),
-                          save: (value) async {
-                            if (!validDate('$value-01')) {
-                              throw const FormatException('Invalid month');
-                            }
-                            setState(() => month = DateTime.parse('$value-01'));
-                          },
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    for (final day in [
-                      'Mon',
-                      'Tue',
-                      'Wed',
-                      'Thu',
-                      'Fri',
-                      'Sat',
-                      'Sun',
-                    ])
-                      Expanded(
-                        child: Center(
-                          child: Text(
-                            ui(day).toUpperCase(),
-                            style: const TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: .5,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                LayoutBuilder(
-                  builder: (context, box) {
-                    final width = box.maxWidth / 7;
-                    return Wrap(
-                      children: [
-                        for (var i = 0; i < 42; i++)
-                          Builder(
-                            builder: (context) {
-                              final date = start.add(Duration(days: i)),
-                                  iso = isoDate(start.add(Duration(days: i)));
-                              final stays = rows
-                                  .where(
-                                    (r) =>
-                                        text(
-                                                  r,
-                                                  'arrival_date',
-                                                ).compareTo(iso) <=
-                                                0 &&
-                                            text(
-                                                  r,
-                                                  'departure_date',
-                                                ).compareTo(iso) >
-                                                0 ||
-                                        (r['stay_type'] == 'day_use' &&
-                                            r['arrival_date'] == iso),
-                                  )
-                                  .toList();
-                              if (MediaQuery.sizeOf(context).width <= 760) {
-                                return MobileCalendarDay(
-                                  date: date,
-                                  inMonth: date.month == month.month,
-                                  width: width,
-                                  stays: stays,
-                                  arrivals: rows
-                                      .where((r) => r['arrival_date'] == iso)
-                                      .length,
-                                  departures: rows
-                                      .where((r) => r['departure_date'] == iso)
-                                      .length,
-                                  colorFor: (r) =>
-                                      colors[props
-                                              .indexWhere(
-                                                (p) =>
-                                                    p['id'] == r['property_id'],
-                                              )
-                                              .clamp(0, 100000) %
-                                          colors.length],
-                                  onCreate: () => newReservation(iso),
-                                  onReservation: (id) =>
-                                      record(RecordKind.reservation, id),
-                                );
-                              }
-                              return Container(
-                                width: width,
-                                constraints: BoxConstraints(
-                                  minHeight:
-                                      MediaQuery.sizeOf(context).width <= 430
-                                      ? 72
-                                      : MediaQuery.sizeOf(context).width <= 760
-                                      ? (MediaQuery.sizeOf(context).width * .17)
-                                            .clamp(78, 116)
-                                      : 158,
-                                ),
-                                padding: const EdgeInsets.all(3),
-                                decoration: BoxDecoration(
-                                  color: date.month == month.month
-                                      ? Colors.white
-                                      : const Color(0xFFF8F7F4),
-                                  border: Border.all(
-                                    color: const Color(0x85FFFFFF),
-                                    width: 1,
-                                  ),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    SizedBox(
-                                      height: 25,
-                                      child: Align(
-                                        alignment: Alignment.centerLeft,
-                                        child: InkWell(
-                                          key: ValueKey('calendar-day-$iso'),
-                                          onTap: () => newReservation(iso),
-                                          child: Padding(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 6,
-                                            ),
-                                            child: Text(
-                                              '${date.day}',
-                                              style: const TextStyle(
-                                                fontSize: 12,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    if (MediaQuery.sizeOf(context).width >
-                                            760 &&
-                                        rows.any(
-                                          (r) =>
-                                              r['arrival_date'] == iso ||
-                                              r['departure_date'] == iso,
-                                        ))
-                                      Text(
-                                        ui(
-                                          '${rows.where((r) => r['arrival_date'] == iso).length} in · ${rows.where((r) => r['departure_date'] == iso).length} out',
-                                        ),
-                                        style: const TextStyle(fontSize: 9),
-                                      ),
-                                    for (final r in stays.take(3))
-                                      Padding(
-                                        padding: const EdgeInsets.only(top: 4),
-                                        child: InkWell(
-                                          onTap: () => record(
-                                            RecordKind.reservation,
-                                            text(r, 'id'),
-                                          ),
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 3,
-                                              vertical: 2,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: const Color(0x6BFFFFFF),
-                                              borderRadius:
-                                                  BorderRadius.circular(18),
-                                            ),
-                                            child: Row(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Container(
-                                                  width: 5,
-                                                  height: 5,
-                                                  margin: const EdgeInsets.only(
-                                                    top: 4,
-                                                    right: 5,
-                                                  ),
-                                                  decoration: BoxDecoration(
-                                                    color:
-                                                        colors[(props
-                                                                .indexWhere(
-                                                                  (p) =>
-                                                                      p['id'] ==
-                                                                      r['property_id'],
-                                                                )
-                                                                .clamp(0, 99)) %
-                                                            colors.length],
-                                                    shape: BoxShape.circle,
-                                                  ),
-                                                ),
-                                                Expanded(
-                                                  child: Column(
-                                                    crossAxisAlignment:
-                                                        CrossAxisAlignment
-                                                            .stretch,
-                                                    children: [
-                                                      Text(
-                                                        text(r, 'guest_name'),
-                                                        maxLines: 1,
-                                                        overflow: TextOverflow
-                                                            .ellipsis,
-                                                        style: const TextStyle(
-                                                          color: Colors.black,
-                                                          fontSize: 10.8,
-                                                          height: 1.1,
-                                                          fontWeight:
-                                                              FontWeight.w700,
-                                                        ),
-                                                      ),
-                                                      if (MediaQuery.sizeOf(
-                                                            context,
-                                                          ).width >
-                                                          760)
-                                                        Text(
-                                                          text(r, 'source'),
-                                                          maxLines: 1,
-                                                          overflow: TextOverflow
-                                                              .ellipsis,
-                                                          style:
-                                                              const TextStyle(
-                                                                color: Colors
-                                                                    .black,
-                                                                fontSize: 10.8,
-                                                                height: 1.1,
-                                                              ),
-                                                        ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    if (stays.length > 3)
-                                      InkWell(
-                                        onTap: () => showDialog<void>(
-                                          useRootNavigator: false,
-                                          context: context,
-                                          builder: (_) => PmsModal(
-                                            title: iso,
-                                            child: Column(
-                                              children: [
-                                                for (final stay in stays)
-                                                  ListTile(
-                                                    title: Text(
-                                                      text(stay, 'guest_name'),
-                                                    ),
-                                                    subtitle: Text(
-                                                      text(
-                                                        stay,
-                                                        'property_name',
-                                                      ),
-                                                    ),
-                                                    onTap: () {
-                                                      Navigator.pop(context);
-                                                      record(
-                                                        RecordKind.reservation,
-                                                        text(stay, 'id'),
-                                                      );
-                                                    },
-                                                  ),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                        child: Text(
-                                          ui('+${stays.length - 3} more'),
-                                          style: const TextStyle(fontSize: 9),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
-                      ],
-                    );
-                  },
-                ),
-                const SizedBox(height: 14),
-                Wrap(
-                  spacing: 20,
-                  children: [
-                    Text(ui('PROPERTIES')),
-                    for (final p in props)
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 18,
-                            height: 12,
-                            decoration: BoxDecoration(
-                              color: colors[props.indexOf(p) % colors.length],
-                              borderRadius: BorderRadius.circular(3),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(text(p, 'name')),
-                        ],
-                      ),
-                  ],
-                ),
-                Text(
-                  ui('Stay covers check-in through the night before checkout'),
-                  style: TextStyle(fontSize: 11),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          PmsEyebrow(ui('WORKSPACE')),
-          Text(
-            ui('Everything else, close at hand'),
-            style: TextStyle(fontSize: 23, fontWeight: FontWeight.w700),
-          ),
-          PmsCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (final page in [
-                  PmsPage.today,
-                  PmsPage.inbox,
-                  PmsPage.team,
-                  PmsPage.train,
-                ])
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: PmsNavItem(
-                      c.label(page),
-                      selected: c.page == page,
-                      onPressed: () => c.navigate(page),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          if (c.rows('reservations').any((r) => r['status'] == 'inquiry')) ...[
-            const SizedBox(height: 24),
-            PmsEyebrow(ui('NOT CONFIRMED')),
-            Text(
-              ui('Inquiries'),
-              style: TextStyle(fontSize: 23, fontWeight: FontWeight.w700),
-            ),
-            for (final inquiry
-                in c
-                    .rows('reservations')
-                    .where((r) => r['status'] == 'inquiry')
-                    .take(8))
-              ListTile(
-                title: Text(text(inquiry, 'guest_name')),
-                subtitle: Text(
-                  '${text(inquiry, 'property_name')} · ${text(inquiry, 'arrival_date')} → ${text(inquiry, 'departure_date')}',
-                ),
-                trailing: Text(text(inquiry, 'source')),
-                onTap: () =>
-                    record(RecordKind.reservation, text(inquiry, 'id')),
-              ),
-          ],
-        ],
+  Widget calendar({double? viewportHeight}) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      BookingCalendar(
+        selection: calendarSelection,
+        properties: c.rows('properties'),
+        reservations: c.rows('reservations'),
+        propertyLabel: c.propertyLabel,
+        onOpen: (id) => record(RecordKind.reservation, id),
+        onCreate: (date) => newReservation(date, calendarSelection.property),
+        onZoom: () {
+          if (scroll.hasClients) scroll.jumpTo(0);
+        },
+        viewportHeight: viewportHeight,
+        loading: !c.hasSection('reservations') && c.refreshing,
       ),
-    );
-  }
+      if (c.user.isOperator && c.error == null) ...[
+        const SizedBox(height: 20),
+        Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 850),
+            child: PmsAskBar(key: const ValueKey('ask-reservations'), c: c),
+          ),
+        ),
+      ],
+    ],
+  );
 
   Widget intelligence({double? viewportHeight}) => IntelligenceWorkspace(
     c: c,
@@ -1946,105 +1592,13 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
     viewportHeight: viewportHeight,
   );
 
-  Widget operations() {
-    final journeys = c.rows('journeys'),
-        timeline = c.rows('timeline'),
-        intel = c.object('intelligence');
-    final pages = (journeys.length / 8).ceil().clamp(1, 1000000);
-    journeyPage = journeyPage.clamp(0, pages - 1);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        ActualOccupancyPanel(c: c),
-        BusinessClosingPanel(c: c),
-        heading(
-          ui('OPERATIONS'),
-          ui('One living timeline.'),
-          ui(
-            'Reservations, Delvane decisions, guest preparation and team actions stay connected.',
-          ),
-        ),
-        PmsEyebrow(ui('GUEST STATUS')),
-        Text(
-          ui('Preparation intelligence'),
-          style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
-        ),
-        if (journeys.length > 8)
-          Wrap(
-            spacing: 12,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              PmsButton(
-                '‹',
-                onPressed: journeyPage == 0
-                    ? null
-                    : () => setState(() => journeyPage--),
-              ),
-              Text(
-                '${journeyPage * 8 + 1}–${((journeyPage + 1) * 8).clamp(0, journeys.length)} / ${journeys.length}',
-              ),
-              PmsButton(
-                '›',
-                onPressed: journeyPage >= pages - 1
-                    ? null
-                    : () => setState(() => journeyPage++),
-              ),
-            ],
-          ),
-        if (journeys.isEmpty) PmsEmpty(ui('No upcoming guests.')),
-        for (final r in journeys.skip(journeyPage * 8).take(8))
-          PmsCard(
-            child: ListTile(
-              title: Text(text(r, 'guest_name')),
-              subtitle: Text(
-                '${text(r, 'property_name')} \u00b7 ${ui(text(r, 'current_stage'))}',
-              ),
-              trailing: Text('${r['current_stage_index']}/${r['stage_total']}'),
-              onTap: () => record(RecordKind.reservation, text(r, 'id')),
-            ),
-          ),
-        const SizedBox(height: 24),
-        PmsColumns([
-          PmsCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  ui('Activity timeline'),
-                  style: TextStyle(fontSize: 23, fontWeight: FontWeight.w700),
-                ),
-                for (final r in timeline)
-                  ListTile(
-                    title: Text(text(r, 'message')),
-                    subtitle: Text(
-                      '${uiDateTime(text(r, 'created_at'))} \u00b7 ${text(r, 'actor', 'Delvane')}',
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          PmsCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  ui('Cleaner coordination'),
-                  style: TextStyle(fontSize: 23, fontWeight: FontWeight.w700),
-                ),
-                for (final r in optionalRows(intel['tasks']))
-                  ListTile(
-                    title: Text(text(r, 'property_name')),
-                    subtitle: Text(
-                      '${text(r, 'scheduled_date')} \u00b7 ${text(r, 'assigned_name', 'Unassigned')}',
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ], columns: 2),
-      ],
-    );
-  }
+  Widget operations() => OperationsDashboard(
+    c: c,
+    property: operationsProperty,
+    onPropertyChanged: (value) => setState(() => operationsProperty = value),
+    openReservation: (id) => record(RecordKind.reservation, id),
+    tools: stayAndClosingTools(),
+  );
 
   Widget administration() {
     if (c.page == PmsPage.integrations) return IntegrationsPage(c: c);

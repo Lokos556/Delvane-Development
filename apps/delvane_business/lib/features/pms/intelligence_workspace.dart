@@ -8,7 +8,6 @@ import 'overflow_row.dart';
 
 import 'package:material_ui/material_ui.dart';
 
-import '../workspace/workspace_models.dart';
 import 'pms_controller.dart';
 import 'pms_style.dart';
 import 'operational_desk.dart';
@@ -183,7 +182,7 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
         children: [
           if (!mobile)
             Container(
-              height: 70,
+              constraints: const BoxConstraints(minHeight: 64),
               padding: EdgeInsets.symmetric(horizontal: mobile ? 12 : 20),
               decoration: const BoxDecoration(
                 color: Color(0xA6FFFCF6),
@@ -204,7 +203,6 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
                         Text(
                           ui('Delvane AI'),
                           style: TextStyle(
-                            fontFamily: 'Georgia',
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
                           ),
@@ -214,7 +212,7 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
                             provider['external_fallback_configured'] == true
                                 ? ui('OpenAI configured · Facts from PMS')
                                 : ui('Local-first · No external AI'),
-                            style: const TextStyle(fontSize: 10),
+                            style: const TextStyle(fontSize: 12),
                           ),
                       ],
                     ),
@@ -229,7 +227,7 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
                   TextButton(
                     onPressed: () => c.navigate(PmsPage.simulation),
                     child: Text(
-                      ui(c.mode).toUpperCase(),
+                      c.modeLabel,
                       style: const TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
@@ -270,15 +268,14 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
                                   Text(
                                     ui('LIVE BRIEFING'),
                                     style: TextStyle(
-                                      fontSize: 10,
+                                      fontSize: 12,
                                       fontWeight: FontWeight.w800,
                                       letterSpacing: 1,
                                     ),
                                   ),
                                   Text(
-                                    text(d, 'brief'),
+                                    intelligenceBrief(d),
                                     style: const TextStyle(
-                                      fontFamily: 'Georgia',
                                       fontSize: 14,
                                       height: 1.5,
                                     ),
@@ -315,8 +312,7 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
                               ui('Start a conversation with Delvane'),
                               textAlign: TextAlign.center,
                               style: TextStyle(
-                                fontFamily: 'Georgia',
-                                fontSize: 28,
+                                fontSize: 24,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
@@ -632,10 +628,7 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
                       ),
                     ),
                   ),
-                  Text(
-                    '${entry.$2}',
-                    style: const TextStyle(fontFamily: 'Georgia', fontSize: 24),
-                  ),
+                  Text('${entry.$2}', style: const TextStyle(fontSize: 24)),
                 ],
               ),
             ],

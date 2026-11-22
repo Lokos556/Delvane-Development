@@ -68,13 +68,30 @@ class _MaintenancePageState extends State<MaintenancePage> {
           },
           onChanged: c.saving ? null : (v) => setState(() => filter = v),
         ),
-        PmsColumns([for (final m in items) caseCard(m)], columns: 2),
+        PmsColumns([
+          for (final item in items) MaintenanceCaseCard(c: c, item: item),
+        ], columns: 2),
         if (items.isEmpty) PmsEmpty(ui('No maintenance cases in this view.')),
       ],
     );
   }
+}
 
-  Widget caseCard(Json m) {
+class MaintenanceCaseCard extends StatelessWidget {
+  const MaintenanceCaseCard({
+    super.key,
+    required this.c,
+    required this.item,
+    this.onStatusChanged,
+  });
+
+  final PmsController c;
+  final Json item;
+  final Future<void> Function()? onStatusChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final m = item;
     final status = text(m, 'status');
     final next = ['reported', 'assigned', 'open'].contains(status)
         ? 'in_progress'
@@ -138,9 +155,10 @@ class _MaintenancePageState extends State<MaintenancePage> {
                 primary: next != 'in_progress',
                 onPressed: c.saving
                     ? null
-                    : () => c.act(
-                        () => OperationsWorkflows(c).maintenanceStatus(m, next),
-                      ),
+                    : () => c.act(() async {
+                        await OperationsWorkflows(c).maintenanceStatus(m, next);
+                        await onStatusChanged?.call();
+                      }),
               ),
             ),
         ],
@@ -150,8 +168,9 @@ class _MaintenancePageState extends State<MaintenancePage> {
 }
 
 class MaintenanceEditor extends StatefulWidget {
-  const MaintenanceEditor({super.key, required this.c});
+  const MaintenanceEditor({super.key, required this.c, this.initialProperty});
   final PmsController c;
+  final String? initialProperty;
   @override
   State<MaintenanceEditor> createState() => _MaintenanceEditorState();
 }
@@ -160,9 +179,9 @@ class _MaintenanceEditorState extends State<MaintenanceEditor>
     with PmsActions<MaintenanceEditor> {
   final form = GlobalKey<FormState>();
   final title = TextEditingController(), detail = TextEditingController();
-  late String property = widget.c.rows('properties').isEmpty
-      ? ''
-      : text(widget.c.rows('properties').first, 'id');
+  late String property =
+      widget.initialProperty ??
+      text(widget.c.rows('properties').firstOrNull ?? {}, 'id');
   String severity = 'medium';
   bool saved = false;
   @override

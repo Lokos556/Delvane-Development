@@ -8,7 +8,6 @@ import 'package:intl/intl.dart';
 import 'dart:convert';
 
 import 'package:material_ui/material_ui.dart';
-import 'package:flutter/services.dart';
 
 import '../workspace/workspace_models.dart';
 import 'pms_controller.dart';
@@ -34,10 +33,11 @@ class ReservationEditor extends StatefulWidget {
     required this.api,
     this.reservation,
     this.initialDate,
+    this.initialProperty,
   });
   final PmsWorkflows api;
   final Json? reservation;
-  final String? initialDate;
+  final String? initialDate, initialProperty;
   @override
   State<ReservationEditor> createState() => _ReservationEditorState();
 }
@@ -94,7 +94,7 @@ class _ReservationEditorState extends State<ReservationEditor>
       fields['planned_departure_time']!.text = '13:00';
     }
     source = text(r, 'source', 'Direct');
-    property = text(r, 'property_id');
+    property = text(r, 'property_id', widget.initialProperty ?? '');
     room = text(r, 'room_type_id');
     load();
   }
@@ -102,8 +102,8 @@ class _ReservationEditorState extends State<ReservationEditor>
   Future<void> load() async {
     final ok = await perform(() async {
       properties = await widget.api.rows('/api/properties');
-      if (property.isEmpty && properties.isNotEmpty) {
-        property = text(properties.first, 'id');
+      if (!editing && !properties.any((p) => p['id'] == property)) {
+        property = properties.isEmpty ? '' : text(properties.first, 'id');
       }
       if (property.isNotEmpty) rooms = await widget.api.rooms(property);
       if (!rooms.any((r) => r['id'] == room)) {
@@ -943,6 +943,18 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
             spacing: 8,
             runSpacing: 8,
             children: [
+              if (data?['precheckin_invitation'] case final Map invitation)
+                Text(
+                  ui(switch (invitation['status']) {
+                    'awaiting_approval' =>
+                      'Pre-check-in invitation awaits approval in Reception.',
+                    'ready' =>
+                      'Pre-check-in invitation is ready for local simulation.',
+                    'simulated_sent' =>
+                      'Pre-check-in invitation simulated locally.',
+                    _ => 'Guest pre-check-in invitation',
+                  }),
+                ),
               if (registration != 'complete' && r['status'] == 'confirmed') ...[
                 PmsButton(
                   ui('Send guest check-in link'),
@@ -1016,42 +1028,7 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
       return;
     }
     if (!mounted) return;
-    await showDialog<void>(
-      useRootNavigator: false,
-      context: context,
-      builder: (_) => PmsModal(
-        title: ui('Secure guest links'),
-        eyebrow: ui('GUEST PRE-CHECK-IN'),
-        width: 600,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              ui(
-                'Send each guest their own link. Generating/copying a link does not send a message.',
-              ),
-            ),
-            for (final link in optionalRows(response?['links']))
-              PmsCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(text(link, 'guest_name')),
-                    Text(text(link, 'completeness')),
-                    SelectableText(text(link, 'url')),
-                    PmsButton(
-                      ui('Copy link'),
-                      onPressed: () => Clipboard.setData(
-                        ClipboardData(text: text(link, 'url')),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
+    await showGuestCheckinLinks(context, optionalRows(response?['links']));
   }
 
   Future<void> verify() async {

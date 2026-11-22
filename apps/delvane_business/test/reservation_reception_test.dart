@@ -251,7 +251,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      final more = find.text('+1 more').first;
+      final more = find.text('+3 more').first;
       await tester.ensureVisible(more);
       await tester.tap(more);
       await tester.pumpAndSettle();
@@ -261,10 +261,18 @@ void main() {
       await tester.pumpAndSettle();
       final cell = find.byKey(ValueKey('calendar-day-$day'));
       await tester.ensureVisible(cell);
-      await tester.tap(cell);
+      await tester.tapAt(tester.getTopLeft(cell) + const Offset(12, 10));
       await tester.pumpAndSettle();
-      expect(find.text(day), findsOneWidget);
-      expect(find.text('Add a stay'), findsOneWidget);
+      final details = find.byKey(const ValueKey('calendar-selected-day'));
+      expect(
+        find.descendant(of: details, matching: find.text(day)),
+        findsOneWidget,
+      );
+      await tester.tap(
+        find.descendant(of: details, matching: find.text('Add a stay')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(ReservationEditor), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
       auth.dispose();
     },

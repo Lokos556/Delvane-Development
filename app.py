@@ -2679,70 +2679,107 @@ def seed_demo(con: sqlite3.Connection):
     )
 
 
-def refresh_cleaning_tasks(org_id: str):
-    """Create/update cleaner tasks from reservation departures. No manual schedule duplication."""
-    with db() as con:
-        cleaner = con.execute("SELECT id FROM users WHERE organization_id=? AND role='cleaner' AND active=1 ORDER BY id LIMIT 1", (org_id,)).fetchone()
-        assigned = cleaner["id"] if cleaner else None
-        props = con.execute("SELECT * FROM properties WHERE organization_id=?", (org_id,)).fetchall()
-        valid_source_keys: set[str] = set()
-        for prop in props:
-            outgoing = con.execute(
-                """SELECT * FROM reservations WHERE organization_id=? AND property_id=? AND status='confirmed' AND stay_type='overnight'
-                   AND departure_date>=? AND departure_date<=? ORDER BY departure_date""",
-                (org_id, prop["id"], str(date.today()-timedelta(days=1)), str(date.today()+timedelta(days=14))),
-            ).fetchall()
-            for prev in outgoing:
-                day = prev["departure_date"]
-                nxt = con.execute(
-                    """SELECT * FROM reservations WHERE organization_id=? AND property_id=? AND status='confirmed'
-                       AND arrival_date>=? ORDER BY arrival_date LIMIT 1""",
-                    (org_id, prop["id"], day),
-                ).fetchone()
-                source_key = f"cleaning:{prop['id']}:{day}"
-                valid_source_keys.add(source_key)
-                deadline = prop["checkin_time"] if nxt and nxt["arrival_date"] == day else None
-                priority = "high" if deadline else "normal"
-                reqs = json.loads(nxt["special_requests"] or "[]") if nxt else []
-                detail_parts = [f"Previous guest checks out at {prop['checkout_time']}."]
-                if nxt:
-                    detail_parts.append(f"Next arrival: {nxt['arrival_date']} at {nxt['arrival_time'] or prop['checkin_time']} · {nxt['guest_count']} guests.")
-                else:
-                    detail_parts.append("No upcoming reservation found.")
-                if reqs:
-                    detail_parts.append("Special preparation: " + ", ".join(reqs) + ".")
-                existing = con.execute("SELECT * FROM work_tasks WHERE source_key=?", (source_key,)).fetchone()
-                values = (
-                    org_id, prop["id"], assigned, "cleaning", f"Clean {prop['name']}", " ".join(detail_parts), day,
-                    prop["checkout_time"], deadline, priority, prev["id"], nxt["id"] if nxt else None
-                )
-                if existing:
-                    # Preserve in-progress/completed states but dynamically refresh reservation-derived details/times.
-                    # Preserve a human/Rosa reassignment. Reservation refresh owns timing/context, not staffing.
-                    con.execute(
-                        """UPDATE work_tasks SET organization_id=?,property_id=?,task_type=?,title=?,detail=?,scheduled_date=?,earliest_time=?,deadline_time=?,priority=?,previous_reservation_id=?,next_reservation_id=? WHERE source_key=?""",
-                        (values[0],values[1],values[3],values[4],values[5],values[6],values[7],values[8],values[9],values[10],values[11],source_key),
-                    )
-                else:
-                    con.execute(
-                        """INSERT INTO work_tasks
-                        (id,organization_id,property_id,assigned_to,task_type,title,detail,scheduled_date,earliest_time,deadline_time,priority,status,source_key,previous_reservation_id,next_reservation_id,created_at)
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                        (new_id("task"),) + values[:10] + ("open", source_key, values[10], values[11], now_iso()),
-                    )
-        # Reservation date changes and cancellations must not leave ghost turnover tasks.
-        # Completed tasks remain as operational history; only live derived tasks are pruned.
-        live_tasks = con.execute(
-            "SELECT id,source_key FROM work_tasks WHERE organization_id=? AND task_type='cleaning' AND status!='complete' AND source_key LIKE 'cleaning:%'",
-            (org_id,),
-        ).fetchall()
-        for task in live_tasks:
-            if task["source_key"] not in valid_source_keys:
-                con.execute("DELETE FROM work_tasks WHERE id=?", (task["id"],))
-        for task in con.execute("SELECT id FROM work_tasks WHERE organization_id=? AND task_type='cleaning'",(org_id,)).fetchall():
-            ensure_task_checklist(con,org_id,task["id"])
+def _actual_checkout_for_cleaning(con, reservation_id):
+    """Effective final departure, excluding voided visits and partial departures."""
+    if con.execute("""SELECT 1 FROM guest_occupancy WHERE reservation_id=?
+                      AND ended_at IS NULL AND voided=0""", (reservation_id,)).fetchone():
+        return None
+    last = con.execute("""SELECT o.ended_at,e.timezone FROM guest_occupancy o
+        JOIN stay_events e ON e.id=o.departure_event_id
+        WHERE o.reservation_id=? AND o.voided=0 AND e.kind='depart'
+        ORDER BY o.ended_at DESC LIMIT 1""", (reservation_id,)).fetchone()
+    return datetime.fromisoformat(last["ended_at"]).astimezone(ZoneInfo(last["timezone"])) if last else None
 
-        day_use.refresh_cleaning(_sys.modules[__name__],con,org_id)
+
+def _refresh_overnight_cleaning(con, org_id, property_id=None):
+    cleaner = con.execute("SELECT id FROM users WHERE organization_id=? AND role='cleaner' AND active=1 ORDER BY id LIMIT 1", (org_id,)).fetchone()
+    assigned = cleaner["id"] if cleaner else None
+    sql = "SELECT * FROM properties WHERE organization_id=?"
+    args = [org_id]
+    if property_id is not None:
+        sql += " AND id=?"
+        args.append(property_id)
+    today = date.today()
+    lower, upper = str(today-timedelta(days=1)), str(today+timedelta(days=14))
+    for prop in con.execute(sql+" ORDER BY id", args):
+        pid = prop["id"]
+        # Serialize this projection with actual occupancy and worker mutations.
+        con.execute("UPDATE properties SET id=id WHERE id=? AND organization_id=?", (pid, org_id))
+        outgoing = con.execute("""SELECT r.* FROM reservations r WHERE r.organization_id=?
+            AND r.property_id=? AND r.stay_type='overnight' AND (
+            (r.status='confirmed' AND r.departure_date BETWEEN ? AND ?) OR EXISTS (
+              SELECT 1 FROM guest_occupancy o JOIN stay_events e ON e.id=o.departure_event_id
+              WHERE o.reservation_id=r.id AND o.voided=0 AND e.kind='depart' AND e.business_date BETWEEN ? AND ?
+            )) ORDER BY r.departure_date,r.id""", (org_id, pid, lower, upper, lower, upper)).fetchall()
+        valid_keys = set()
+        for prev in outgoing:
+            planned_day = prev["departure_date"]
+            actual = _actual_checkout_for_cleaning(con, prev["id"])
+            if actual is None and (prev["status"] != "confirmed" or not lower <= planned_day <= upper):
+                continue
+            day = str(actual.date()) if actual else planned_day
+            earliest = actual.strftime("%H:%M") if actual else prop["checkout_time"]
+            nxt = con.execute("""SELECT * FROM reservations WHERE organization_id=? AND property_id=?
+                AND status='confirmed' AND id!=? AND arrival_date>=? ORDER BY arrival_date,id LIMIT 1""",
+                (org_id, pid, prev["id"], planned_day)).fetchone()
+            key = f"cleaning:{pid}:{planned_day}"
+            valid_keys.add(key)
+            deadline = prop["checkin_time"] if nxt and nxt["arrival_date"] <= day else None
+            priority = "high" if deadline else "normal"
+            description = f"Actual checkout recorded on {day} at {earliest}." if actual else f"Previous guest checks out at {earliest}."
+            if nxt:
+                description += f" Next arrival: {nxt['arrival_date']} at {nxt['arrival_time'] or prop['checkin_time']} · {nxt['guest_count']} guests."
+                if nxt["arrival_date"] < day:
+                    description += " The planned turnover was missed."
+                requests = json.loads(nxt["special_requests"] or "[]")
+                if requests:
+                    description += " Special preparation: " + ", ".join(requests) + "."
+            else:
+                description += " No upcoming reservation found."
+            existing = con.execute("SELECT id,status FROM work_tasks WHERE source_key=?", (key,)).fetchone()
+            if existing and existing["status"] == "complete":
+                continue
+            if not existing:
+                # A date change on an uncompleted booking carries its assignment
+                # and checklist forward when the old slot is now empty.
+                moved = con.execute("""SELECT t.id FROM work_tasks t WHERE t.organization_id=? AND t.property_id=?
+                    AND t.previous_reservation_id=? AND t.status IN ('open','in_progress')
+                    AND t.source_key LIKE 'cleaning:%' AND NOT EXISTS (
+                      SELECT 1 FROM reservations r WHERE r.organization_id=t.organization_id
+                      AND r.property_id=t.property_id AND r.id!=? AND r.status='confirmed'
+                      AND r.stay_type='overnight' AND 'cleaning:' || r.property_id || ':' || r.departure_date=t.source_key
+                    ) LIMIT 1""",(org_id, pid, prev["id"], prev["id"])).fetchone()
+                if moved:
+                    con.execute("UPDATE work_tasks SET source_key=? WHERE id=?", (key, moved["id"]))
+                    existing = moved
+            next_id = nxt["id"] if nxt else None
+            if existing:
+                con.execute("""UPDATE work_tasks SET detail=?,scheduled_date=?,earliest_time=?,deadline_time=?,
+                    priority=?,previous_reservation_id=?,next_reservation_id=? WHERE id=?""",
+                    (description, day, earliest, deadline, priority, prev["id"], next_id, existing["id"]))
+                task_id = existing["id"]
+            else:
+                task_id = new_id("task")
+                con.execute("""INSERT INTO work_tasks
+                    (id,organization_id,property_id,assigned_to,task_type,title,detail,scheduled_date,earliest_time,
+                     deadline_time,priority,status,source_key,previous_reservation_id,next_reservation_id,created_at)
+                    VALUES (?,?,?,?,'cleaning',?,?,?,?,?,?,'open',?,?,?,?)""",
+                    (task_id, org_id, pid, assigned, f"Clean {prop['name']}", description, day, earliest,
+                     deadline, priority, key, prev["id"], next_id, now_iso()))
+            ensure_task_checklist(con, org_id, task_id)
+        for task in con.execute("""SELECT id,source_key FROM work_tasks WHERE organization_id=? AND property_id=?
+            AND status!='complete' AND source_key LIKE 'cleaning:%'""", (org_id, pid)).fetchall():
+            if task["source_key"] not in valid_keys:
+                con.execute("DELETE FROM work_tasks WHERE id=?", (task["id"],))
+
+
+def refresh_cleaning_tasks(org_id: str):
+    """Refresh reservation-derived cleaning in one scoped transaction."""
+    with db() as con:
+        _refresh_overnight_cleaning(con, org_id)
+        for task in con.execute("SELECT id FROM work_tasks WHERE organization_id=? AND task_type='cleaning'", (org_id,)).fetchall():
+            ensure_task_checklist(con, org_id, task["id"])
+        day_use.refresh_cleaning(_sys.modules[__name__], con, org_id)
 
 
 def session_user(token: str | None) -> dict[str, Any] | None:
@@ -2797,7 +2834,10 @@ def _worker_property_access(con, user, property_id):
 
 def _lock_reservation(con, reservation_id, org_id=None):
     # Lock property before booking, matching physical inventory/allocation writes.
-    con.execute("UPDATE properties SET id=id WHERE id IN (SELECT property_id FROM reservations WHERE id=?)",(reservation_id,))
+    scope = " AND organization_id=?" if org_id is not None else ""
+    params = (reservation_id, org_id) if org_id is not None else (reservation_id,)
+    con.execute("UPDATE properties SET id=id WHERE id IN (SELECT property_id FROM reservations WHERE id=?"
+                + scope + ")", params)
     # Serialize guest slots, token consumption and booking changes in both supported DBs.
     query="UPDATE reservations SET id=id WHERE id=?"
     args=[reservation_id]
@@ -2837,27 +2877,30 @@ def _validate_registration_label(con, reservation, value):
 
 def property_readiness(con: sqlite3.Connection, org_id: str):
     result = []
+    today = date.today()
     for prop in con.execute("SELECT * FROM properties WHERE organization_id=? ORDER BY name", (org_id,)):
         next_res = con.execute(
             """SELECT * FROM reservations WHERE organization_id=? AND property_id=? AND status='confirmed' AND arrival_date>=?
                ORDER BY arrival_date LIMIT 1""",
             (org_id, prop["id"], str(date.today())),
         ).fetchone()
-        task = con.execute(
-            """SELECT * FROM work_tasks WHERE organization_id=? AND property_id=? AND task_type='cleaning' AND scheduled_date>=?
-               ORDER BY scheduled_date LIMIT 1""",
-            (org_id, prop["id"], str(date.today()-timedelta(days=1))),
-        ).fetchone()
+        near_arrival = next_res and next_res["arrival_date"] <= str(today+timedelta(days=1))
+        through = next_res["arrival_date"] if near_arrival else str(today)
+        task = con.execute("""SELECT status FROM work_tasks WHERE organization_id=? AND property_id=?
+            AND task_type='cleaning' AND status!='cancelled' AND scheduled_date BETWEEN ? AND ?
+            ORDER BY CASE WHEN status='complete' THEN 1 ELSE 0 END,scheduled_date DESC,id LIMIT 1""",
+            (org_id, prop["id"], str(today-timedelta(days=1)), through)).fetchone()
+        occupied = con.execute("""SELECT 1 FROM guest_occupancy o JOIN reservations r ON r.id=o.reservation_id
+            WHERE r.organization_id=? AND r.property_id=? AND o.ended_at IS NULL AND o.voided=0 LIMIT 1""",
+            (org_id, prop["id"])).fetchone()
         reasons = []
-        if next_res and next_res["arrival_date"] <= str(date.today()+timedelta(days=1)):
-            if next_res["registration_status"] != "complete":
-                reasons.append("Guest registration incomplete")
-            if task and task["scheduled_date"] <= next_res["arrival_date"] and task["status"] != "complete":
-                reasons.append("Cleaning not finished")
-        if reasons:
-            state = "attention" if any("registration" in x.lower() for x in reasons) else "cleaning"
-        else:
-            state = "ready"
+        if near_arrival and _registration_state(con, next_res) != "complete":
+            reasons.append("Guest registration incomplete")
+        if occupied:
+            reasons.append("Guests are still checked in")
+        if task and task["status"] != "complete":
+            reasons.append("Cleaning not finished")
+        state = "occupied" if occupied else "cleaning" if "Cleaning not finished" in reasons else "attention" if reasons else "ready"
         result.append({
             "id": prop["id"], "name": prop["name"], "state": state, "reasons": reasons,
             "next_guest": next_res["guest_name"] if next_res else None,
@@ -3644,6 +3687,54 @@ def communication_payload(row: Any) -> dict[str,Any]:
     return d
 
 
+CHECKIN_INVITATION = "guest_checkin_invitation"
+
+
+def _prepare_guest_invitation(con, org, reservation_id, *, replace=False):
+    """Called under the booking write lock, in the same transaction as confirmation."""
+    reservation = con.execute(
+        "SELECT * FROM reservations WHERE organization_id=? AND id=?", (org, reservation_id)
+    ).fetchone()
+    active = reservation["status"] == "confirmed"
+    if replace or not active:
+        con.execute("""UPDATE communication_outbox SET status='cancelled',updated_at=?
+            WHERE organization_id=? AND reservation_id=? AND message_type=? AND status!='cancelled'""",
+            (now_iso(), org, reservation_id, CHECKIN_INVITATION))
+    if not active or reservation["departure_date"] < str(date.today()):
+        return
+    _ensure_guest_records(con, reservation)
+    if not _guests_needing_precheckin(con, reservation):
+        return
+    existing = con.execute("""SELECT id FROM communication_outbox
+        WHERE organization_id=? AND reservation_id=? AND message_type=?
+        AND (status!='cancelled' OR ?=0) LIMIT 1""",
+        (org, reservation_id, CHECKIN_INVITATION, int(replace))).fetchone()
+    if existing:
+        return
+    outbox_id = new_id("out")
+    now = now_iso()
+    # Store no token, URL or identity here. Reception previews and audit logs can
+    # be read independently of the short-lived link issuance response.
+    con.execute("""INSERT INTO communication_outbox
+        (id,organization_id,reservation_id,property_id,channel,message_type,subject,body,
+         scheduled_for,status,generated_by,created_at,updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,'awaiting_approval','local',?,?)""",
+        (outbox_id, org, reservation_id, reservation["property_id"], "Rosa preview",
+         CHECKIN_INVITATION, "Guest pre-check-in invitation",
+         "Prepare secure pre-check-in links for guests who still need to submit their details.",
+         now, now, now))
+    audit_event(con, org, "guest.invitation.prepared", "Guest pre-check-in invitation prepared locally.",
+                actor_type="system", entity_type="reservation", entity_id=reservation_id,
+                metadata={"outbox_id": outbox_id})
+
+
+def _lock_guest_invitation(con, row, org):
+    _lock_reservation(con, row["reservation_id"], org)
+    return con.execute(
+        "SELECT * FROM communication_outbox WHERE id=? AND organization_id=?", (row["id"], org)
+    ).fetchone()
+
+
 def _knowledge_value(con: DBConnection, org: str, prop_id: str, key: str) -> str | None:
     item=knowledge_lookup(con,org,prop_id,key)
     return item["value"] if item else None
@@ -3900,6 +3991,7 @@ def worker_dashboard(rosa_session: str | None = Cookie(default=None)):
             task["checklist"]=checklist
             task["checklist_done"]=sum(1 for item in checklist if item["completed"])
             task["checklist_total"]=len(checklist)
+            task["waiting_for_checkout"] = task["status"] != "complete" and _cleaning_waits_for_checkout(con, task)
         return {"date":str(date.today()),"tasks":tasks}
 
 
@@ -4256,6 +4348,7 @@ def reservation_create(body: ReservationCreateBody, rosa_session: str | None = C
             reservation_allocations.replace(con,row,[a.model_dump(mode='json') for a in body.allocations],user['id'],'Normal reservation form',now_iso())
             _queue_reservation_availability(con,user['organization_id'],body.property_id,body.arrival_date,body.departure_date,reason='Initial physical allocation',force=True,room_type_id=room_type_id)
         ntak_reporting.capture_reservation(con,user["organization_id"],rid)
+        _prepare_guest_invitation(con, user["organization_id"], rid)
     delivery=_drain_channex_ari_outbox(organization_id=user["organization_id"],limit=2,ignore_throttle=True)
     refresh_cleaning_tasks(user["organization_id"])
     return {"ok":True,"id":rid,"channex_delivery":delivery}
@@ -4421,9 +4514,12 @@ def reservation_update(reservation_id: str, body: ReservationUpdateBody, rosa_se
         if status=='confirmed' and data.get('stay_type',old['stay_type'])=='overnight' and not reservation_allocations.active(con,reservation_id) and con.execute("SELECT id FROM reservations WHERE property_id=? AND stay_type='day_use' AND status='confirmed' LIMIT 1",(prop_id,)).fetchone():
             day_use.aggregate_check(con,{**dict(old),**data,'property_id':prop_id,'room_type_id':room_type_id},{room_type_id:1})
         if "special_requests" in data: data["special_requests"]=json.dumps(data["special_requests"])
+        replace_invitation = False
         if data:
             before={k:old[k] for k in data if k in old.keys()}
-            if any(k in data and data[k]!=old[k] for k in ("property_id","room_type_id","arrival_date","departure_date","guest_count","guest_name","status")):
+            replace_invitation = any(k in data and data[k]!=old[k] for k in
+                                     ("property_id","room_type_id","arrival_date","departure_date","guest_count","guest_name","status"))
+            if replace_invitation:
                 _revoke_guest_links(con,reservation_id)
             data["updated_at"]=now_iso()
             con.execute("UPDATE reservations SET "+",".join(f"{k}=?" for k in data)+" WHERE id=?",[*data.values(),reservation_id])
@@ -4460,6 +4556,7 @@ def reservation_update(reservation_id: str, body: ReservationUpdateBody, rosa_se
             for rt in {row['room_type_id']}|{a['room_type_id'] for a in previous+reservation_allocations.active(con,reservation_id)}:
                 _queue_reservation_availability(con,user['organization_id'],row['property_id'],row['arrival_date'],row['departure_date'],reason='Physical allocations changed',force=True,room_type_id=rt)
         ntak_reporting.capture_reservation(con,user["organization_id"],reservation_id)
+        _prepare_guest_invitation(con, user["organization_id"], reservation_id, replace=replace_invitation)
     delivery=_drain_channex_ari_outbox(organization_id=user["organization_id"],limit=2,ignore_throttle=True)
     refresh_cleaning_tasks(user["organization_id"])
     return {"ok":True,"channex_delivery":delivery}
@@ -4518,6 +4615,7 @@ def reservation_cancel(reservation_id: str, body: CancellationBody | None = None
                 force=True,room_type_id=room_type_id or None
             )
         ntak_reporting.capture_reservation(con,user["organization_id"],reservation_id)
+        _prepare_guest_invitation(con, user["organization_id"], reservation_id)
     delivery=_drain_channex_ari_outbox(organization_id=user["organization_id"],limit=2,ignore_throttle=True)
     refresh_cleaning_tasks(user["organization_id"])
     return {"ok":True,"channex_delivery":delivery}
@@ -4819,6 +4917,10 @@ def communication_outbox_update(outbox_id: str, body: CommunicationUpdateBody, r
     with db() as con:
         row=con.execute("SELECT * FROM communication_outbox WHERE id=? AND organization_id=?",(outbox_id,user["organization_id"])).fetchone()
         if not row: raise HTTPException(404,"Communication not found")
+        if row["message_type"] == CHECKIN_INVITATION:
+            row = _lock_guest_invitation(con, row, user["organization_id"])
+            if body.body is not None or body.status != "cancelled" or row["status"] == "simulated_sent":
+                raise HTTPException(409, "Use the invitation approval and simulation actions.")
         new_body=row["body"] if body.body is None else body.body.strip()
         status=row["status"] if body.status is None else body.status
         if status not in {"draft","preview","awaiting_approval","ready","simulated_sent","cancelled"}: raise HTTPException(400,"Invalid communication status")
@@ -4832,6 +4934,10 @@ def communication_outbox_approve(outbox_id: str, rosa_session: str | None = Cook
     with db() as con:
         row=con.execute("SELECT * FROM communication_outbox WHERE id=? AND organization_id=?",(outbox_id,user["organization_id"])).fetchone()
         if not row: raise HTTPException(404,"Communication not found")
+        if row["message_type"] == CHECKIN_INVITATION:
+            row = _lock_guest_invitation(con, row, user["organization_id"])
+            if row["status"] in {"ready", "simulated_sent"}:
+                return {"ok": True, "status": row["status"], "external_send": False}
         if row["status"]=="cancelled": raise HTTPException(409,"Cancelled communication cannot be approved")
         con.execute("UPDATE communication_outbox SET status='ready',updated_at=? WHERE id=?",(now_iso(),outbox_id))
         audit_event(con,user["organization_id"],"reception.message.approved","Guest communication approved for Rosa preview delivery.",actor_user_id=user["id"],entity_type="communication",entity_id=outbox_id)
@@ -4839,11 +4945,34 @@ def communication_outbox_approve(outbox_id: str, rosa_session: str | None = Cook
 
 
 @app.post("/api/communications/outbox/{outbox_id}/simulate-send")
-def communication_outbox_simulate_send(outbox_id: str, rosa_session: str | None = Cookie(default=None)):
+def communication_outbox_simulate_send(outbox_id: str, request: Request, rosa_session: str | None = Cookie(default=None)):
     user=require_user(rosa_session); require_roles(user,"owner","manager")
     with db() as con:
         row=con.execute("SELECT * FROM communication_outbox WHERE id=? AND organization_id=?",(outbox_id,user["organization_id"])).fetchone()
         if not row: raise HTTPException(404,"Communication not found")
+        if row["message_type"] == CHECKIN_INVITATION:
+            org = user["organization_id"]
+            row = _lock_guest_invitation(con, row, org)
+            if row["status"] == "simulated_sent":
+                return {"ok": True, "status": "simulated_sent", "external_send": False, "duplicate": True}
+            if row["status"] != "ready":
+                raise HTTPException(409, "Approve the current invitation before simulation.")
+            reservation = con.execute("SELECT * FROM reservations WHERE id=? AND organization_id=?",
+                                      (row["reservation_id"], org)).fetchone()
+            if (not reservation or reservation["status"] != "confirmed" or
+                    reservation["property_id"] != row["property_id"] or
+                    reservation["departure_date"] < str(date.today())):
+                raise HTTPException(409, "The reservation is no longer eligible for this invitation.")
+            _ensure_guest_records(con, reservation)
+            links = _issue_guest_checkin_links(con, reservation, request)
+            if not links:
+                raise HTTPException(409, "All guests have already submitted their pre-check-in details.")
+            con.execute("UPDATE communication_outbox SET status='simulated_sent',updated_at=? WHERE id=?",
+                        (now_iso(), outbox_id))
+            audit_event(con, org, "guest.invitation.simulated", "Guest invitation simulated locally. Nothing was sent.",
+                        actor_user_id=user["id"], entity_type="reservation", entity_id=reservation["id"],
+                        metadata={"outbox_id": outbox_id, "guest_count": len(links)}, request=request)
+            return {"ok": True, "status": "simulated_sent", "external_send": False, "links": links}
         if row["status"]=="cancelled": raise HTTPException(409,"Cancelled communication cannot be simulated")
         con.execute("UPDATE communication_outbox SET status='simulated_sent',updated_at=? WHERE id=?",(now_iso(),outbox_id))
         record_rosa_action(con,user["organization_id"],"send_guest_message",entity_type="communication",entity_id=outbox_id,source_type="reception",source_id=outbox_id,payload={"body":row["body"],"channel":row["channel"]},status="simulated",actor_user_id=user["id"])
@@ -4964,15 +5093,12 @@ def start_task(task_id: str, rosa_session: str | None = Cookie(default=None)):
     user = require_user(rosa_session)
     require_roles(user, "cleaner", "maintenance")
     with db() as con:
-        con.execute("UPDATE work_tasks SET id=id WHERE id=? AND organization_id=?",(task_id,user["organization_id"]))
-        task = con.execute("SELECT * FROM work_tasks WHERE id=? AND organization_id=? AND assigned_to=?", (task_id,user["organization_id"],user["id"])).fetchone()
-        if not task or (task["task_type"]=="cleaning" and user["role"]!="cleaner"):
-            raise HTTPException(404, "Task not found")
-        if (task['source_key'] or '').startswith('day-use-cleaning:'):
-            uid=task['source_key'].rsplit(':',1)[-1]
-            if con.execute('SELECT id FROM guest_occupancy WHERE unit_id=? AND ended_at IS NULL AND voided=0',(uid,)).fetchone():raise HTTPException(409,'Guests are still physically occupying this unit')
+        task = _assigned_worker_task(con, user, task_id)
         if task["status"] == "complete":
             raise HTTPException(409, "Task is already complete")
+        _require_cleaning_access(con, task)
+        if task["status"] == "in_progress":
+            return {"ok":True}
         con.execute("UPDATE work_tasks SET status='in_progress',started_at=COALESCE(started_at,?) WHERE id=?", (now_iso(),task_id))
         prop = con.execute("SELECT name FROM properties WHERE id=?", (task["property_id"],)).fetchone()["name"]
         con.execute("INSERT INTO activity(organization_id,actor_user_id,message,created_at) VALUES (?,?,?,?)", (user["organization_id"],user["id"],f"{user['full_name']} started cleaning {prop}.",now_iso()))
@@ -4984,13 +5110,15 @@ def finish_task(task_id: str, body: NoteBody, rosa_session: str | None = Cookie(
     user = require_user(rosa_session)
     require_roles(user, "cleaner", "maintenance")
     with db() as con:
-        con.execute("UPDATE work_tasks SET id=id WHERE id=? AND organization_id=?",(task_id,user["organization_id"]))
-        task = con.execute("SELECT * FROM work_tasks WHERE id=? AND organization_id=? AND assigned_to=?", (task_id,user["organization_id"],user["id"])).fetchone()
-        if not task or (task["task_type"]=="cleaning" and user["role"]!="cleaner"):
-            raise HTTPException(404, "Task not found")
+        task = _assigned_worker_task(con, user, task_id)
+        if task["status"] == "complete":
+            return {"ok":True}
+        _require_cleaning_access(con, task)
         ensure_task_checklist(con,user["organization_id"],task_id)
         remaining=con.execute("SELECT COUNT(*) c FROM task_checklist_items WHERE task_id=? AND organization_id=? AND completed=0",(task_id,user["organization_id"])).fetchone()["c"]
-        if remaining and REQUIRE_COMPLETE_CHECKLIST:
+        actual_turnover = ((task["source_key"] or "").startswith("cleaning:")
+                           and _actual_checkout_for_cleaning(con, task["previous_reservation_id"]))
+        if remaining and (REQUIRE_COMPLETE_CHECKLIST or actual_turnover):
             raise HTTPException(409,f"Complete the cleaning checklist first ({remaining} remaining)")
         con.execute("UPDATE work_tasks SET status='complete',finished_at=?,worker_note=? WHERE id=?", (now_iso(),body.note.strip(),task_id))
         prop = con.execute("SELECT name FROM properties WHERE id=? AND organization_id=?", (task["property_id"],user["organization_id"])).fetchone()["name"]
@@ -4999,6 +5127,38 @@ def finish_task(task_id: str, body: NoteBody, rosa_session: str | None = Cookie(
         con.execute("INSERT INTO activity(organization_id,actor_user_id,message,created_at) VALUES (?,?,?,?)", (user["organization_id"],user["id"],message,now_iso()))
         audit_event(con,user["organization_id"],"cleaning.completed",f"Cleaning completed for {prop}.",actor_user_id=user["id"],entity_type="work_task",entity_id=task_id)
     return {"ok":True}
+
+
+def _assigned_worker_task(con, user, task_id):
+    args = (task_id, user["organization_id"], user["id"])
+    con.execute("""UPDATE properties SET id=id WHERE id IN (
+        SELECT property_id FROM work_tasks WHERE id=? AND organization_id=? AND assigned_to=?
+    )""", args)
+    con.execute("UPDATE work_tasks SET id=id WHERE id=? AND organization_id=? AND assigned_to=?", args)
+    task = con.execute("SELECT * FROM work_tasks WHERE id=? AND organization_id=? AND assigned_to=?", args).fetchone()
+    if not task or (task["task_type"]=="cleaning" and user["role"]!="cleaner"):
+        raise HTTPException(404, "Task not found")
+    return task
+
+
+def _cleaning_waits_for_checkout(con, task):
+    key = task["source_key"] or ""
+    if key.startswith("day-use-cleaning:"):
+        return con.execute("""SELECT 1 FROM guest_occupancy
+            WHERE unit_id=? AND ended_at IS NULL AND voided=0""", (key.rsplit(":",1)[-1],)).fetchone() is not None
+    if key.startswith("cleaning:"):
+        return con.execute("""SELECT 1 FROM guest_occupancy o JOIN reservations r ON r.id=o.reservation_id
+            WHERE r.organization_id=? AND r.property_id=? AND r.departure_date=?
+            AND o.ended_at IS NULL AND o.voided=0""",
+            (task["organization_id"], task["property_id"], key.rsplit(":",1)[-1])).fetchone() is not None
+    return False
+
+
+def _require_cleaning_access(con, task):
+    if task["status"] == "cancelled":
+        raise HTTPException(409, "This task was cancelled.")
+    if _cleaning_waits_for_checkout(con, task):
+        raise HTTPException(409, "Guests are still checked in.")
 
 
 @app.post("/api/rosa/ask")
@@ -7477,16 +7637,20 @@ def _enrich_imported_guest(con: DBConnection, org_id: str, reservation_id: str, 
 def _apply_channex_event(con: DBConnection, integration: Any, event: dict[str, Any], room_type_id: str | None = None) -> dict[str, Any]:
     """Apply one durably staged revision while preserving owner-enriched fields."""
     org=integration["organization_id"]
+    con.execute("UPDATE properties SET id=id WHERE id=? AND organization_id=?",
+                (integration["property_id"], org))
     source=_provider_source(str((event.get("payload") or {}).get("ota_name") or integration["provider"]))
     existing=con.execute("""SELECT * FROM reservations WHERE organization_id=? AND property_id=?
                             AND source=? AND external_ref=? ORDER BY created_at LIMIT 1""",
                          (org,integration["property_id"],source,event["external_ref"])).fetchone()
     previous_window=(existing["arrival_date"],existing["departure_date"]) if existing else None
     status=event.get("status","active")
+    replace_invitation = False
     if status=="cancelled" and existing:
         kind="cancelled" if existing["status"]!="cancelled" else "unchanged"
         reservation_id=existing["id"]
         if kind=="cancelled":
+            _revoke_guest_links(con, reservation_id)
             con.execute("UPDATE reservations SET status='cancelled',updated_at=? WHERE id=? AND organization_id=?",(now_iso(),reservation_id,org))
     elif status=="cancelled":
         reservation_id=new_id("res")
@@ -7519,6 +7683,9 @@ def _apply_channex_event(con: DBConnection, integration: Any, event: dict[str, A
             desired["total_huf"]=provider_total
         diffs={key:value for key,value in desired.items() if existing[key]!=value}
         if diffs:
+            replace_invitation = bool(diffs.keys() - {"total_huf"})
+            if replace_invitation:
+                _revoke_guest_links(con, reservation_id)
             con.execute("UPDATE reservations SET guest_name=?,arrival_date=?,departure_date=?,guest_count=?,total_huf=COALESCE(?,total_huf),room_type_id=COALESCE(?,room_type_id),status='confirmed',updated_at=? WHERE id=? AND organization_id=?",
                         (event["guest_name"],event["arrival_date"],event["departure_date"],event["guest_count"],provider_total,room_type_id,now_iso(),reservation_id,org))
             _enrich_imported_guest(con,org,reservation_id,event)
@@ -7539,6 +7706,7 @@ def _apply_channex_event(con: DBConnection, integration: Any, event: dict[str, A
             if initiator not in {"guest","host","platform_system","unknown"}: initiator="unknown"
             _record_cancellation(con,org,reservation_id,initiator,cancellation.get("cancellation_reason"),"channel")
         _queue_government_events(con,org,integration["property_id"],reservation_id,f"reservation.{ {'new':'created','changed':'updated','cancelled':'cancelled'}[kind] }")
+        _prepare_guest_invitation(con, org, reservation_id, replace=replace_invitation)
         if previous_window:
             _queue_reservation_availability(
                 con,org,integration["property_id"],previous_window[0],previous_window[1],
@@ -7841,6 +8009,22 @@ def _guest_checkin_token_hash(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
+def _guests_needing_precheckin(con, reservation):
+    return con.execute("""SELECT g.id,g.full_name,g.completeness FROM guest_records g
+        LEFT JOIN guest_identity_verifications v ON v.guest_record_id=g.id
+        WHERE g.organization_id=? AND g.reservation_id=?
+        AND (g.completeness!='complete' OR v.status='rejected') ORDER BY g.id""",
+        (reservation["organization_id"], reservation["id"])).fetchall()
+
+
+def _issue_guest_checkin_links(con, reservation, request):
+    base = str(request.base_url).rstrip("/")
+    return [{"guest_record_id": guest["id"], "guest_name": guest["full_name"],
+             "completeness": guest["completeness"],
+             "url": f"{base}/guest/checkin/{_create_guest_checkin_token(con, reservation, guest)}"}
+            for guest in _guests_needing_precheckin(con, reservation)]
+
+
 def _create_guest_checkin_token(con: DBConnection, reservation: Any, guest_record: Any) -> str:
     raw=secrets.token_urlsafe(32)
     digest=_guest_checkin_token_hash(raw)
@@ -7932,6 +8116,11 @@ def guest_checkin_submit(token: str, body: GuestCheckinSubmitBody, request: Requ
         remaining=con.execute("SELECT COUNT(*) c FROM guest_records WHERE reservation_id=? AND completeness!='complete'",(row["reservation_id"],)).fetchone()["c"]
         status=_sync_registration(con,row["reservation_id"],row["organization_id"])
         con.execute("UPDATE reservations SET registration_status=?,updated_at=? WHERE id=?",(status,now_iso(),row["reservation_id"]))
+        if not _guests_needing_precheckin(con, {"id": row["reservation_id"], "organization_id": row["organization_id"]}):
+            con.execute("""UPDATE communication_outbox SET status='cancelled',updated_at=?
+                WHERE organization_id=? AND reservation_id=? AND message_type=?
+                AND status IN ('awaiting_approval','ready')""",
+                (now_iso(), row["organization_id"], row["reservation_id"], CHECKIN_INVITATION))
         audit_event(con,row["organization_id"],"guest.self_checkin.completed","Guest completed remote pre-check-in; owner verification is still required.",actor_type="guest",entity_type="guest_record",entity_id=guest_id,metadata={"reservation_id":row["reservation_id"],"scan_method":body.scan_method,"verification_status":"needs_review"})
         return {"ok":True,"status":"pre_checkin_complete_needs_owner_review","verification_status":"needs_review","reservation_registration_status":status,"remaining_guest_records":remaining}
 
@@ -7988,18 +8177,7 @@ def guest_checkin_links(reservation_id:str,request:Request,rosa_session:str|None
         if reservation["departure_date"] < str(date.today()): raise HTTPException(409,"Guest check-in links cannot be generated for a completed stay.")
         records=_ensure_guest_records(con,reservation)
         if len(records)!=int(reservation["guest_count"]): raise HTTPException(409,"Guest records require review")
-        base=str(request.base_url).rstrip("/")
-        links=[]
-        for record in records:
-            review=con.execute("SELECT status FROM guest_identity_verifications WHERE guest_record_id=?",(record["id"],)).fetchone()
-            if record["completeness"]=="complete" and (not review or review["status"]!="rejected"): continue
-            existing=con.execute("SELECT token_hash FROM guest_checkin_tokens WHERE reservation_id=? AND guest_record_id=? AND status='active' AND expires_at>? ORDER BY created_at DESC LIMIT 1",(reservation_id,record["id"],now_iso())).fetchone()
-            if existing:
-                # Existing raw token cannot be recovered; rotate it so the owner gets a usable URL.
-                raw=_create_guest_checkin_token(con,reservation,record)
-            else:
-                raw=_create_guest_checkin_token(con,reservation,record)
-            links.append({"guest_record_id":record["id"],"guest_name":record["full_name"],"completeness":record["completeness"],"url":f"{base}/guest/checkin/{raw}"})
+        links = _issue_guest_checkin_links(con, reservation, request)
         audit_event(con,user["organization_id"],"guest.self_checkin.links_generated","Generated secure guest pre-check-in links.",actor_user_id=user["id"],entity_type="reservation",entity_id=reservation_id,metadata={"guest_count":len(links)},request=request,session_id=user.get("session_id"))
         return {"ok":True,"links":links}
 
@@ -8985,7 +9163,11 @@ def reservation_detail(reservation_id: str, rosa_session: str | None = Cookie(de
             guest_profile={**dict(guest),"stay_count":len(stays),"previous_stays":previous[:4],"preferences":prefs}
             guest_profile["history_summary"]=summary
         maint=rows(con.execute("SELECT id,title,severity,status,assigned_to,due_at,created_at FROM maintenance_cases WHERE organization_id=? AND property_id=? AND status NOT IN ('verified') ORDER BY created_at DESC LIMIT 8",(org,r["property_id"])))
-        return {"reservation":dict(r),"notes":notes,"messages":messages,"registration":records,"cleaning":cleaning,"events":events,"guest":dict(guest) if guest else None,"guest_profile":guest_profile,"maintenance":maint}
+        invitation = con.execute("""SELECT id,status FROM communication_outbox WHERE organization_id=?
+            AND reservation_id=? AND message_type=? AND status!='cancelled' LIMIT 1""",
+            (org, reservation_id, CHECKIN_INVITATION)).fetchone()
+        return {"reservation":dict(r),"notes":notes,"messages":messages,"registration":records,"cleaning":cleaning,"events":events,"guest":dict(guest) if guest else None,"guest_profile":guest_profile,"maintenance":maint,
+                "precheckin_invitation": dict(invitation) if invitation else None}
 
 @app.post("/api/reservations/{reservation_id}/registration-reminder")
 def reservation_registration_reminder(reservation_id: str, request: Request, rosa_session: str | None = Cookie(default=None)):
@@ -9076,11 +9258,11 @@ def checklist_get(task_id: str, rosa_session: str | None = Cookie(default=None))
 def checklist_toggle(task_id: str, item_id: str, body: ChecklistToggleBody, request: Request, rosa_session: str | None = Cookie(default=None)):
     user=require_user(rosa_session); require_roles(user,"cleaner")
     with db() as con:
-        con.execute("UPDATE work_tasks SET id=id WHERE id=? AND organization_id=?",(task_id,user["organization_id"]))
-        task=con.execute("SELECT * FROM work_tasks WHERE id=? AND organization_id=?",(task_id,user["organization_id"])).fetchone()
+        task=_assigned_worker_task(con, user, task_id)
         item=con.execute("SELECT * FROM task_checklist_items WHERE id=? AND task_id=? AND organization_id=?",(item_id,task_id,user["organization_id"])).fetchone()
         if not task or not item or task["assigned_to"]!=user["id"]: raise HTTPException(404,"Checklist item not found")
         if task["status"]=="complete": raise HTTPException(409,"Completed cleaning cannot be edited")
+        _require_cleaning_access(con, task)
         con.execute("UPDATE task_checklist_items SET completed=?,completed_by=?,completed_at=? WHERE id=?",(1 if body.completed else 0,user["id"] if body.completed else None,now_iso() if body.completed else None,item_id))
         audit_event(con,user["organization_id"],"cleaning.checklist_updated",f"Checklist item {'completed' if body.completed else 'reopened'}: {item['label']}",actor_user_id=user["id"],entity_type="work_task",entity_id=task_id,request=request)
     return {"ok":True}

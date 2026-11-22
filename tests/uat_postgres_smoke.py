@@ -10,6 +10,7 @@ from pathlib import Path
 import secrets
 import sys
 from urllib.parse import urlsplit
+from uuid import uuid4
 
 
 def verify_isolation():
@@ -93,6 +94,39 @@ def verify_migrations(app, database):
         assert con.execute("SELECT ? LIKE 'Synt%' AS matches", ('Synthetic',)).fetchone()['matches']
 
 
+def verify_historical_correction(api, app, reporting_base, reason, day):
+    property_api = '/api/properties/prop_uat_a'
+    day_url = f'{property_api}/business-days/{day}'
+    api.request('PUT', f'{property_api}/business-calendar', {
+        'start_date': str(day), 'automatic': False, **reason,
+    })
+    api.request('PUT', day_url, {'operating': False, **reason})
+    api.request('POST', f'{day_url}/close', reason)
+    stock = f'{property_api}/physical-units/historical-stock/room_uat'
+    revision = api.request('PUT', stock, {'business_date': str(day), 'inventory_count': 1, **reason})[0]
+    assert revision == {'ok': True, 'duplicate': False, 'revision': 1}
+    api.request('PUT', f'{property_api}/ifa-rates', {
+        'effective_from': str(day), 'tax_type': 'TETELES', 'rate': '400', **reason,
+    })
+    api.request('PUT', day_url, {'operating': True, **reason})
+    api.request('POST', f'{day_url}/close', {'correction_reason': 'TECH_HIBA_ADATJAVITAS', **reason})
+    with app.db() as con:
+        snapshots = con.execute('''SELECT job_id, revision, encrypted_facts FROM daily_snapshots
+                                   WHERE property_id='prop_uat_a' ORDER BY revision''').fetchall()
+    first, revised = snapshots
+    assert (first['revision'], revised['revision']) == (1, 2)
+    assert app.decrypt_json(first['encrypted_facts'])['operating'] is False
+    facts = app.decrypt_json(revised['encrypted_facts'])
+    assert facts['operating'] is True
+    [comparison] = facts['capacity']['aggregate_comparison']
+    assert comparison['historical_stock']['revision'] == 1
+    assert comparison['selling_inventory_count'] == 1
+    evidence = api.request('POST', f"{reporting_base}/jobs/{revised['job_id']}/evidence-export", reason)[0]
+    assert any(edge['parent_id'] == first['job_id'] and edge['child_id'] == revised['job_id']
+               for edge in evidence['lineage'])
+    assert evidence['attempts'] == [] and not evidence['official_acceptance_confirmed']
+
+
 def main():
     database = verify_isolation()
     import app
@@ -109,16 +143,20 @@ def main():
         'environment': 'staging', 'deployment_id': os.environ['ROSA_DEPLOYMENT_ID'], 'secure_cookies': True,
     }
     mode = sys.argv[1:]
-    if mode in (['--verify-restart'], ['--verify-restore']):
+    if mode in (['--verify-restart'], ['--verify-crash'], ['--verify-restore']):
         with app.db() as con:
             old = con.execute('''SELECT e.encrypted_snapshot,j.state,j.attempts FROM ntak_evidence_versions e
-                                 JOIN ntak_jobs j ON j.id=e.job_id WHERE e.property_id='prop_uat_a' ''').fetchone()
+                                 JOIN ntak_jobs j ON j.id=e.job_id
+                                 WHERE e.property_id='prop_uat_a' AND j.operation='reservation' ''').fetchone()
             assert old['state'] == 'blocked' and old['attempts'] == 0
             assert app.decrypt_json(old['encrypted_snapshot'])
             assert con.execute('SELECT COUNT(*) AS count FROM organizations').fetchone()['count'] == 2
+            assert con.execute('SELECT COUNT(*) AS count FROM daily_snapshots').fetchone()['count'] == 2
         if mode == ['--verify-restore']:
             assert database.endswith('_restored')
             print('New database restored migration 3090, synthetic tenants and decryptable blocked evidence.')
+        elif mode == ['--verify-crash']:
+            print('Application crash recovery retained migration 3090 and decryptable blocked evidence.')
         else:
             print('Restart retained migration 3090, synthetic tenants and decryptable blocked evidence.')
         return
@@ -133,8 +171,9 @@ def main():
     api.request('PUT', base, config, status=403, csrf=False)
     assert api.request('PUT', base, config)[0]['transmission_enabled'] is False
     day = date.today() + timedelta(days=3)
+    historical_day = date.today() - timedelta(days=2)
     unit = api.request('POST', '/api/properties/prop_uat_a/physical-units', {
-        'effective_from': str(date.today()), 'room_type_id': 'room_uat', 'building': 'Synthetic building',
+        'effective_from': str(historical_day), 'room_type_id': 'room_uat', 'building': 'Synthetic building',
         'unit_number': '101', 'classification': 'STANDARD', 'single_beds': 1, 'double_beds': 1,
         'extra_beds': 0, 'reason': 'Fictional lab inventory',
     })[0]['id']
@@ -158,6 +197,10 @@ def main():
     api.request('PUT', base, {**config, 'environment': 'production'}, status=409)
     export = f'/jobs/{job["id"]}/evidence-export'
     reason = {'reason': 'Fictional deployment smoke review'}
+    replay = api.request('POST', base + f'/jobs/{job["id"]}/replay', {
+        'request_id': str(uuid4()), **reason,
+    }, status=409)[0]
+    assert replay['detail']['code'] == 'replay_not_permitted'
     data, headers, raw = api.request('POST', base + export, reason)
     assert not data['official_acceptance_confirmed'] and not data['transmission_enabled'] and data['attempts'] == []
     assert b'Synthetic UAT guest' not in raw and b'wire_base64' not in raw
@@ -168,6 +211,7 @@ def main():
                                     JOIN ntak_jobs j ON j.id=e.job_id WHERE e.job_id=?''', (job['id'],)).fetchone()
         assert booking['id'] in retained['payload_json'] and booking['id'] not in retained['encrypted_snapshot']
     api.request('POST', base.replace('prop_uat_a', 'prop_uat_sibling') + export, reason, status=404)
+    verify_historical_correction(api, app, base, reason, historical_day)
     viza = '/api/government/viza/properties/prop_uat_a'
     model = api.request('GET', viza)[0]
     assert not model['official_transmission_enabled'] and model['connection_state'] == 'not_verified'
@@ -178,6 +222,7 @@ def main():
     foreign.request('GET', viza, status=404)
     print('PostgreSQL 3090, contract imports, fresh tenant bootstrap, scoped diagnostics and redacted evidence passed.')
     print('Secure session cookies, CSRF, scope, environment separation, missing credentials and disabled transports passed.')
+    print('Historical stock correction, immutable daily snapshot lineage and denied blocked resend passed.')
 
 
 if __name__ == '__main__':

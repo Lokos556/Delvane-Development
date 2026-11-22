@@ -18,10 +18,26 @@ abstract final class PmsStyle {
   static const canvas = Colors.white;
   static const soft = Color(0xFFFAF7F0);
   static const line = Color(0x85FFFFFF);
-  static const font = 'Segoe UI';
+  static const panelLine = Color(0xFFE8E6DF);
+  static const font = 'Inter';
   static const sidebarWidth = 235.0;
   static const mobileBreakpoint = 760.0;
   static const logo = 'assets/delvane-icon.png';
+  static TextStyle pageTitle(
+    BuildContext context, {
+    double? size,
+    double height = 1.16,
+  }) {
+    final mobile = MediaQuery.sizeOf(context).width <= mobileBreakpoint;
+    return TextStyle(
+      fontSize: size ?? (mobile ? 30 : 36),
+      height: height,
+      letterSpacing: -.8,
+      fontWeight: FontWeight.w700,
+      color: ink,
+    );
+  }
+
   // CSS backdrop-filter: blur(...) saturate(...). Applied only to actual glass
   // layers, not every nested card (which would repeatedly filter the backdrop).
   static canvas_ui.ImageFilter glassFilter(double blur, double saturation) {
@@ -73,7 +89,7 @@ ThemeData pmsTheme() => ThemeData(
   ),
   useMaterial3: true,
   fontFamily: PmsStyle.font,
-  fontFamilyFallback: const ['Segoe UI Symbol', 'Arial', 'sans-serif'],
+  fontFamilyFallback: const ['Segoe UI', 'Segoe UI Symbol', 'Arial'],
   scaffoldBackgroundColor: PmsStyle.canvas,
   colorScheme: ColorScheme.fromSeed(
     seedColor: PmsStyle.yellow,
@@ -82,7 +98,7 @@ ThemeData pmsTheme() => ThemeData(
     surface: Colors.white,
   ),
   textTheme: const TextTheme(
-    bodyMedium: TextStyle(fontSize: 16, color: Colors.black, height: 1.4),
+    bodyMedium: TextStyle(fontSize: 14, color: PmsStyle.ink, height: 1.4),
   ),
   listTileTheme: const ListTileThemeData(
     dense: true,
@@ -315,8 +331,8 @@ class PmsPageHeader extends StatelessWidget {
     this.description = '',
     this.actions = const [],
     this.titleSize,
-    this.descriptionSize = 16,
-    this.titleLineHeight = 1.04,
+    this.descriptionSize = 14,
+    this.titleLineHeight = 1.16,
   });
   final String eyebrow, title, description;
   final List<Widget> actions;
@@ -330,15 +346,13 @@ class PmsPageHeader extends StatelessWidget {
     final copy = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        PmsEyebrow(eyebrow),
+        if (eyebrow.isNotEmpty) PmsEyebrow(eyebrow),
         Text(
           title,
-          style: TextStyle(
-            fontSize: titleSize ?? (mobile ? 38.4 : 57.6),
+          style: PmsStyle.pageTitle(
+            context,
+            size: titleSize,
             height: titleLineHeight,
-            letterSpacing: -2,
-            fontWeight: FontWeight.w700,
-            color: Colors.black,
           ),
         ),
         if (description.isNotEmpty)
@@ -349,29 +363,41 @@ class PmsPageHeader extends StatelessWidget {
       ],
     );
     return Padding(
-      padding: const EdgeInsets.only(bottom: 28),
-      child: mobile
-          ? Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                copy,
-                if (actions.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Wrap(spacing: 8, runSpacing: 8, children: actions),
-                  ),
-              ],
-            )
-          : Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Expanded(child: copy),
-                if (actions.isNotEmpty) ...[
-                  const SizedBox(width: 20),
-                  Wrap(spacing: 8, children: actions),
-                ],
-              ],
-            ),
+      padding: const EdgeInsets.only(bottom: 20),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final stackActions =
+              mobile ||
+              constraints.maxWidth < 660 ||
+              MediaQuery.textScalerOf(context).scale(1) > 1.2;
+          return stackActions
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    copy,
+                    if (actions.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: actions,
+                        ),
+                      ),
+                  ],
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(child: copy),
+                    if (actions.isNotEmpty) ...[
+                      const SizedBox(width: 20),
+                      Wrap(spacing: 8, children: actions),
+                    ],
+                  ],
+                );
+        },
+      ),
     );
   }
 }
@@ -380,16 +406,8 @@ class PmsPageTitle extends StatelessWidget {
   const PmsPageTitle(this.title, {super.key});
   final String title;
   @override
-  Widget build(BuildContext context) => Text(
-    title,
-    style: TextStyle(
-      fontSize: MediaQuery.sizeOf(context).width <= 760 ? 38.4 : 57.6,
-      height: 1.04,
-      letterSpacing: -2,
-      fontWeight: FontWeight.w700,
-      color: Colors.black,
-    ),
-  );
+  Widget build(BuildContext context) =>
+      Text(title, style: PmsStyle.pageTitle(context));
 }
 
 class PmsSideSheet extends StatelessWidget {
@@ -506,6 +524,7 @@ class PmsCard extends StatelessWidget {
     this.padding = const EdgeInsets.all(20),
     this.radius = 24,
     this.color = const Color(0x6BFFFFFF),
+    this.borderColor = PmsStyle.line,
     this.shadow = true,
     this.gradient,
     this.backdropBlur = 0,
@@ -514,7 +533,7 @@ class PmsCard extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
   final double radius;
-  final Color color;
+  final Color color, borderColor;
   final bool shadow;
   final Gradient? gradient;
   final double backdropBlur, saturation;
@@ -526,7 +545,7 @@ class PmsCard extends StatelessWidget {
         color: color,
         gradient: gradient,
         borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: PmsStyle.line),
+        border: Border.all(color: borderColor),
         boxShadow: shadow ? const [PmsStyle.shadow] : null,
       ),
       child: Material(type: MaterialType.transparency, child: child),
@@ -546,6 +565,57 @@ class PmsCard extends StatelessWidget {
   }
 }
 
+class PmsExpandablePanel extends StatelessWidget {
+  const PmsExpandablePanel({
+    super.key,
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.onExpansionChanged,
+    required this.children,
+  });
+
+  final String title, subtitle;
+  final IconData icon;
+  final ValueChanged<bool> onExpansionChanged;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) => PmsCard(
+    radius: 12,
+    color: Colors.white,
+    borderColor: PmsStyle.panelLine,
+    shadow: false,
+    padding: EdgeInsets.zero,
+    child: ExpansionTile(
+      tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+      childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+      shape: const Border(),
+      collapsedShape: const Border(),
+      leading: Container(
+        width: 36,
+        height: 36,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF4BC),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(icon, size: 20, color: PmsStyle.ink),
+      ),
+      title: Text(
+        title,
+        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: const TextStyle(color: PmsStyle.muted, fontSize: 13),
+      ),
+      onExpansionChanged: onExpansionChanged,
+      children: children,
+    ),
+  );
+}
+
 class PmsEyebrow extends StatelessWidget {
   const PmsEyebrow(this.text, {super.key});
   final String text;
@@ -553,9 +623,9 @@ class PmsEyebrow extends StatelessWidget {
   Widget build(BuildContext context) => Text(
     text,
     style: const TextStyle(
-      fontSize: 11.52,
+      fontSize: 12,
       height: 1.3,
-      letterSpacing: 1.38,
+      letterSpacing: .6,
       fontWeight: FontWeight.w700,
       color: Colors.black,
     ),
@@ -611,7 +681,7 @@ class PmsBadge extends StatelessWidget {
       child: Text(
         localizeLabel ? ui(label) : label,
         style: TextStyle(
-          fontSize: compact ? 10 : 11,
+          fontSize: compact ? 11 : 12,
           fontWeight: FontWeight.w800,
           color: colors.$2,
         ),

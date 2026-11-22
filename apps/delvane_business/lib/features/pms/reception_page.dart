@@ -8,6 +8,7 @@ import 'pms_dialogs.dart';
 import 'pms_style.dart';
 import 'pms_workflows.dart';
 import 'guest_history_dialog.dart';
+import 'guest_link_picker.dart';
 import 'actual_stay_controls.dart';
 
 class ReceptionPage extends StatefulWidget {
@@ -185,7 +186,6 @@ class _ReceptionPageState extends State<ReceptionPage>
                           ? t('OFF')
                           : '${entry.value ?? 0}',
                       style: const TextStyle(
-                        fontFamily: 'Georgia',
                         fontSize: 28,
                         fontWeight: FontWeight.w700,
                       ),
@@ -381,10 +381,7 @@ class _ReceptionPageState extends State<ReceptionPage>
                               alignment: Alignment.topCenter,
                               child: Text(
                                 ui('Select a message to review it.'),
-                                style: TextStyle(
-                                  fontFamily: 'Georgia',
-                                  fontSize: 22,
-                                ),
+                                style: TextStyle(fontSize: 22),
                               ),
                             ),
                           ),
@@ -613,14 +610,16 @@ class _ReceptionPageState extends State<ReceptionPage>
 
   Widget scheduledCard(Json x) {
     final key = 'outbox:${text(x, 'id')}', id = idPath(text(x, 'id'));
-    final editor = draft(key, text(x, 'body'));
+    final invitation = x['message_type'] == 'guest_checkin_invitation';
+    final editor = invitation ? null : draft(key, text(x, 'body'));
+    final current = text(x, 'status');
     return PmsCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           PmsEyebrow(
             x['rule_label'] == null
-                ? text(x, 'subject', t('Guest message'))
+                ? t(text(x, 'subject', 'Guest message'))
                 : automationText(x, 'rule_label'),
           ),
           Text(
@@ -632,12 +631,16 @@ class _ReceptionPageState extends State<ReceptionPage>
             alignment: Alignment.centerLeft,
             child: PmsBadge(status(text(x, 'status')), tone: text(x, 'status')),
           ),
-          TextField(
-            onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
-            controller: editor,
-            maxLines: 4,
-            onChanged: (v) => widget.controller.receptionDrafts[key] = v,
-          ),
+          if (invitation)
+            Text(t(text(x, 'body')))
+          else
+            TextField(
+              onTapOutside: (_) =>
+                  FocusManager.instance.primaryFocus?.unfocus(),
+              controller: editor,
+              maxLines: 4,
+              onChanged: (v) => widget.controller.receptionDrafts[key] = v,
+            ),
           Text(ui('No live external send'), style: TextStyle(fontSize: 12)),
           if (widget.controller.receptionDrafts.containsKey(key))
             Text(
@@ -649,19 +652,20 @@ class _ReceptionPageState extends State<ReceptionPage>
             spacing: 8,
             runSpacing: 8,
             children: [
-              PmsButton(
-                t('Save'),
-                onPressed: locked
-                    ? null
-                    : () => action(() async {
-                        await api.change(
-                          'PATCH',
-                          '/api/communications/outbox/$id',
-                          {'body': editor.text},
-                        );
-                        widget.controller.receptionDrafts.remove(key);
-                      }),
-              ),
+              if (editor != null)
+                PmsButton(
+                  t('Save'),
+                  onPressed: locked
+                      ? null
+                      : () => action(() async {
+                          await api.change(
+                            'PATCH',
+                            '/api/communications/outbox/$id',
+                            {'body': editor.text},
+                          );
+                          widget.controller.receptionDrafts.remove(key);
+                        }),
+                ),
               if (![
                 'ready',
                 'simulated_sent',
@@ -678,19 +682,16 @@ class _ReceptionPageState extends State<ReceptionPage>
                           );
                         }),
                 ),
-              if (x['status'] != 'cancelled') ...[
+              if (invitation ? current == 'ready' : current != 'cancelled')
                 PmsButton(
                   t('Simulate send'),
                   primary: true,
                   onPressed: locked
                       ? null
-                      : () => action(() async {
-                          await api.change(
-                            'POST',
-                            '/api/communications/outbox/$id/simulate-send',
-                          );
-                        }),
+                      : () => simulate(id, invitation: invitation),
                 ),
+              if (current != 'cancelled' &&
+                  (!invitation || current != 'simulated_sent'))
                 PmsButton(
                   t('Cancel'),
                   onPressed: locked
@@ -703,12 +704,25 @@ class _ReceptionPageState extends State<ReceptionPage>
                           );
                         }),
                 ),
-              ],
             ],
           ),
         ],
       ),
     );
+  }
+
+  Future<void> simulate(String id, {required bool invitation}) async {
+    List<Json> links = [];
+    await action(() async {
+      final response = await api.change(
+        'POST',
+        '/api/communications/outbox/$id/simulate-send',
+      );
+      if (invitation) links = optionalRows(jsonObject(response)['links']);
+    });
+    if (mounted && links.isNotEmpty) {
+      await showGuestCheckinLinks(context, links, simulated: true);
+    }
   }
 
   Widget automations() => Column(

@@ -1,12 +1,12 @@
 # NTAK UAT preparation
 
-Baseline `ntak-offline-rehearsal-checkpoint` → `290b361d3027a457604abbdc0c5e1f35d78e9df2`, migration **3090**. The [27-case matrix](TASK20_READINESS.md#validation-matrix) records 22 offline passes, three partial and two externally blocked. There are zero official results. VIZA V01–V08 and both transmission gates are preserved. This plan authorizes no server action or transmission.
+Baseline `ntak-offline-rehearsal-checkpoint` → `290b361d3027a457604abbdc0c5e1f35d78e9df2`, migration **3090**. The [27-case matrix](TASK20_READINESS.md#validation-matrix) records 22 offline passes, three partial and two externally blocked. There are zero official results. VIZA V01–V08 and both transmission gates are preserved. The owner has authorized the isolated synthetic Hetzner preflight. [Current execution status and artifacts](UAT_EXTENDED_EXECUTION_REPORT.md)
 
 ## First three actions
 
 1. **Request the authoritative v9 packet under support ticket 150337.** Ask for a working signed request and its receipt and verification exchange, the complete profile and trust materials, the AD_01 result schema, and confirmation that the proposed first booking test is eligible against the assigned test property. Use the questions below. Send public support information only.
 2. **Finish local release checks.** The image and disposable PostgreSQL verification are complete. Use the verified archive and dependency manifest below. Finish the listed Windows release UI and Xiaomi checks on approved test environments. Keep both reporting transports disabled.
-3. **Approve a separately scoped Hetzner preflight.** Specify the host, operator, inspection window and permitted read-only metadata checks. Verify isolation, the exact assigned property and public certificate metadata with egress blocked. Installation, local key-match preflight and a later official test each require explicit authorization. A successful server preflight does not authorize a request.
+3. **Complete the authorized Hetzner preflight.** Have the administrator verify the host and apply the dedicated bridge policy below. Transfer the pinned images after isolation is verified, then run the synthetic rehearsal. An official test and any government credential access require separate authorization.
 
 ## Work and approvals
 
@@ -14,7 +14,7 @@ Baseline `ntak-offline-rehearsal-checkpoint` → `290b361d3027a457604abbdc0c5e1f
 | --- | --- |
 | **Ready now** | Tagged baseline, reviewed local package and digest, embedded WSDL/XSD validation, PostgreSQL migration 3090 and restart check, disabled adapters, encrypted evidence and redacted exports, Windows launch smoke and unsigned Android release package. |
 | **Can be prepared locally** | Review deployment and backup/restore procedures. Finish the Windows release UI and Xiaomi checks. After authoritative answers arrive, implement and verify only the approved signer, response security and onboarding contract offline. |
-| **Requires explicit server access approval** | Inspect host and isolated runtime metadata. Separately approve deployment, migration of the dedicated UAT database and credential provisioning or key-match checks performed entirely by the service account. Server access approval alone does not authorize government network access. |
+| **Requires administrator execution** | Inspect Docker and nftables, provision and verify the bridge, and run the already-authorized synthetic lab. The SSH user's existing access is sufficient for the subsequent verified file transfer. |
 | **Requires official clarification or materials** | Signing references/digests/namespaces and time rules, inbound response security, current certificate profile and trust material, portal identity binding, authoritative start-date payload or approved provisioning basis, and first-test eligibility. Separate full-suite blockers are listed below. |
 | **Requires an official interoperability test** | A separately approved one-booking submit and correlated verification on the designated test endpoint. Record mTLS and response validation results. Leave all other government traffic denied. |
 
@@ -88,86 +88,204 @@ Both the reloaded archive and the rebuild passed the fresh PostgreSQL 17.12 smok
 
 ## Hetzner preflight execution gate
 
-**Approval boundary.** Obtain the exact Hetzner project and server identity, verified SSH host-key fingerprint, approved management source and SSH account, test window and scope. Read-only host inspection is the first approval. File transfer, Docker image import and temporary lab execution require separate explicit authorization unless expressly included in that approval. A preflight never authorizes an application rollout, access to an existing database or key, a firewall rule change, an official test or outbound government traffic.
+**Approval boundary.** The isolated synthetic preflight is approved, including inspection, scoped bridge controls, archive transfer and disposable execution. Use the established host pin and SSH agent. Administrator execution uses the existing root console. Keep official adapters disabled and omit government keys and credentials.
 
-### 1. Read-only host inspection after approval
+### 1. Verified SSH and private staging from Windows
 
-Use a trusted Hetzner console or administrator record to verify the server identity and obtain the SSH host-key fingerprint out of band. Prepare a dedicated known-hosts file for that verified host. Run the following from a trusted POSIX workstation only after setting the variables to the approved values. The host commands display operational metadata only.
+The initial SSH inspection can run without Docker privileges. The PowerShell block re-verifies the existing host-key pin, checks the unlocked identity and prepares a private staging directory. Run it with the control archive first. Set the input file to an approved image archive only after the administrator verifies isolation.
+
+```powershell
+$uatHost = '2.29.168.55'
+$uatRemote = "delvane-uat@$uatHost"
+$uatGit = 'C:\Program Files\Git\usr\bin'
+$uatSshDirectory = Join-Path $env:USERPROFILE '.ssh'
+$env:SSH_AUTH_SOCK = (Get-Content -LiteralPath (Join-Path $uatSshDirectory 'delvane-uat-agent-socket') -Raw).Trim()
+$uatKey = Join-Path $uatSshDirectory 'id_ed25519'
+& "$uatGit\ssh-add.exe" -l
+if ($LASTEXITCODE -ne 0) { throw 'The Git for Windows SSH agent has no unlocked key.' }
+$uatEntry = @(& "$uatGit\ssh-keygen.exe" -F $uatHost -f (Join-Path $uatSshDirectory 'known_hosts') |
+    Where-Object { $_ -match '^[^#]+\s+ssh-ed25519\s+' })
+if ($uatEntry.Count -ne 1) { throw 'Expected one locally pinned ED25519 host key.' }
+$uatPin = [IO.Path]::GetTempFileName()
+try {
+    Set-Content -LiteralPath $uatPin -Value $uatEntry[0] -Encoding ascii
+    $uatFingerprint = (& "$uatGit\ssh-keygen.exe" -lf $uatPin -E sha256) -split '\s+'
+    if ($LASTEXITCODE -ne 0 -or $uatFingerprint[1] -cne 'SHA256:H+UWQhcjqvjgZuv9U+24xKnSy6K254h9zDm6TKh9rCo') {
+        throw 'The saved host key does not match the verified fingerprint.'
+    }
+    $uatOptions = @('-F', 'none', '-i', $uatKey, '-o', 'Port=22', '-o', 'BatchMode=yes',
+        '-o', 'IdentitiesOnly=yes', '-o', 'StrictHostKeyChecking=yes', '-o', 'HostKeyAlgorithms=ssh-ed25519',
+        '-o', "UserKnownHostsFile=$uatPin", '-o', 'GlobalKnownHostsFile=none')
+    & "$uatGit\ssh.exe" @uatOptions $uatRemote 'test "$(hostname -s)" = delvane-test-01 && umask 077 && install -d -m 0700 "$HOME/delvane-uat-preflight"'
+    if ($LASTEXITCODE -ne 0) { throw 'Verified SSH staging failed.' }
+    $uatFile = 'build/ntak-uat/preflight-control-1fc6512-v2.tar.gz'
+    & "$uatGit\scp.exe" @uatOptions $uatFile "$($uatRemote):delvane-uat-preflight/"
+    if ($LASTEXITCODE -ne 0) { throw 'Verified SSH file transfer failed.' }
+} finally {
+    Remove-Item -LiteralPath $uatPin
+}
+```
+
+### 2. Isolated network and application execution
+
+The [extended execution report](UAT_EXTENDED_EXECUTION_REPORT.md) identifies the reviewed control bundle, both image archives and their SHA-256 digests. Keep the software checkpoint separate from the control bundle, which contains the working-tree harness changes. Complete the root-console inspection first. The current SSH account cannot perform the Docker or nftables steps. Use the pinned Git for Windows SSH channel to place the control bundle in the operator's private staging directory. Wait for independent network verification before transferring the images.
+
+#### Administrator setup on delvane-test-01
+
+Verify the Hetzner Cloud firewall attachment and approved IPv4/IPv6 SSH sources in the console. Run the following as the existing administrator from the root console. Review the daemon, existing workload and firewall output before changing anything.
 
 ```sh
-: "${APPROVED_UAT_HOST:?}" "${APPROVED_UAT_SSH_USER:?}" "${VERIFIED_UAT_KNOWN_HOSTS:?}"
-test -s "$VERIFIED_UAT_KNOWN_HOSTS"
-ssh -o BatchMode=yes -o StrictHostKeyChecking=yes \
-    -o "UserKnownHostsFile=$VERIFIED_UAT_KNOWN_HOSTS" \
-    "$APPROVED_UAT_SSH_USER@$APPROVED_UAT_HOST" 'sh -s' <<'PREFLIGHT'
-set -eu
-hostname
-uname -m
-grep -E '^(ID|VERSION_ID|PRETTY_NAME)=' /etc/os-release
-date -u
-df -h /
+test "$(hostname -s)" = delvane-test-01
+docker --host unix:///var/run/docker.sock version
+docker compose version
+docker ps -a --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
+docker network ls
+iptables --version
+ip6tables --version
+sshd -T | grep -E '^(permitrootlogin|passwordauthentication|kbdinteractiveauthentication|pubkeyauthentication|allowusers|allowgroups) '
+nft list ruleset
+ss -lntup
 free -m
-docker --host unix:///var/run/docker.sock version --format '{{.Server.Version}} {{.Server.Os}}/{{.Server.Arch}}'
-docker --host unix:///var/run/docker.sock info --format '{{.DockerRootDir}}'
-docker_root=$(docker --host unix:///var/run/docker.sock info --format '{{.DockerRootDir}}')
-df -h "$docker_root"
-docker --host unix:///var/run/docker.sock ps --format '{{.Names}} {{.Image}} {{.Ports}}'
-docker --host unix:///var/run/docker.sock network ls
-ss -H -ltn
-sudo -n sshd -T | grep -E '^(permitrootlogin|passwordauthentication|kbdinteractiveauthentication|pubkeyauthentication|allowusers|allowgroups) '
-PREFLIGHT
+df -h /var/lib/docker
 ```
 
-Accept only a Linux amd64 host with sufficient reviewed headroom for both image imports, two temporary databases and a dump, and a working local Docker socket. Match the host against the approved Hetzner record and verify that its Docker daemon, deployment namespace and data stores are dedicated to UAT. Stop on an identity mismatch, shared production dependencies or an unapproved listener. If SSH uses `Match` rules, have the approved network operator run `sudo -n sshd -T -C user=<approved-user>,addr=<management-source-IP>,host=<source-host>` with real approved values to verify the effective rule. Validate the Hetzner firewall attachment independently in the authorized console. SSH should be restricted to the approved VPN or source allowlist using key authentication, with direct root and password logins disabled. The lab needs **no public listener**, including port 5432. Confirm effective inbound and forwarded rules and no public IPv4 or IPv6 publication for PostgreSQL. Inspect the active rules on the authorized host with `sudo -n nft list ruleset`, or with `sudo -n iptables-save` and `sudo -n ip6tables-save` on installations using those tools. A missing permission or unclear rule is a stop condition.
-
-Before granting write approval, have the firewall operator verify default-deny routed egress for the lab and no reachable host gateway service or proxy that could forward its traffic. Allow only the internal test application to reach its disposable PostgreSQL at TCP 5432. Do not add a route, another network, a published port or a host bind mount for the lab. Review both Docker forwarding and host firewall policy. The lab additionally enforces an IPv4-only internal bridge and zero published ports independently of reporting configuration. This proof requires no DNS or connection attempt to a government host.
-
-### 2. Disposable execution after approval to transfer, import and run
-
-Use a private remote work directory on the verified test host. After write approval, run the following at the trusted workstation from the repository root. `REVIEWED_STAGING_DIR` must name a fresh, private local directory. Transfer only these four files.
-
-```sh
-: "${REVIEWED_STAGING_DIR:?}"
-remote="$APPROVED_UAT_SSH_USER@$APPROVED_UAT_HOST"
-git archive --format=tar ntak-uat-package-checkpoint tests/run_uat_postgres_smoke.sh tests/uat_postgres_smoke.py |
-    tar -xf - -C "$REVIEWED_STAGING_DIR"
-ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$VERIFIED_UAT_KNOWN_HOSTS" \
-    "$remote" 'install -d -m 0700 "$HOME/delvane-uat-preflight" "$HOME/delvane-uat-preflight/tests"'
-scp -o BatchMode=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$VERIFIED_UAT_KNOWN_HOSTS" \
-    build/ntak-uat/delvane-uat-290b361-local.tar.gz build/ntak-uat/SHA256SUMS "$remote:delvane-uat-preflight/"
-scp -o BatchMode=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$VERIFIED_UAT_KNOWN_HOSTS" \
-    "$REVIEWED_STAGING_DIR/tests/run_uat_postgres_smoke.sh" "$REVIEWED_STAGING_DIR/tests/uat_postgres_smoke.py" \
-    "$remote:delvane-uat-preflight/tests/"
-```
-
-The host must already have the verified Linux amd64 PostgreSQL 17.12 image, or an independently checksum-verified copy approved for local import. The PostgreSQL manifest used locally was `postgres:17-bookworm@sha256:837bed18782820fe967067cb5328b02b0d9992c1be9a37ee0c9c492cfc03af3b`. The tested platform image ID is in the command below. No registry pull is needed within this approved lab window.
+Verify the dedicated host has no conflicting workloads or listeners. Confirm the effective filter and forwarding rules in both address families. UFW service state alone does not show these rules. Staging paths below assume the previously verified SSH account. The commands reject a network, interface or table that already occupies the reserved names. Review any collision before reuse.
 
 ```sh
 set -eu
 umask 077
-cd "$HOME/delvane-uat-preflight"
+test "$(hostname -s)" = delvane-test-01
+stage=/home/delvane-uat/delvane-uat-preflight
+lab=/root/delvane-uat-preflight
+install -d -m 0700 "$lab"
+install -m 0600 "$stage/preflight-control-1fc6512-v2.tar.gz" "$lab/"
+cd "$lab"
+printf '%s  %s\n' \
+  26d835571136275d0d2a6b3e76c4c6505cd34984416b6c58c3fc602a64bfeec1 \
+  preflight-control-1fc6512-v2.tar.gz | sha256sum -c -
+tar -xzf preflight-control-1fc6512-v2.tar.gz
+sha256sum -c CONTROL-SHA256SUMS
 docker_local() { docker --host unix:///var/run/docker.sock "$@"; }
-uat_tag=delvane-uat:290b361-local
-uat_id=sha256:08b340b1e459d2a8ecedbaa06c1317ef22c9cb2f87412dee0bfe7db07182fe35
-pg_id=sha256:39d36505873241b90584a61078c0a3af0a226a363854fcc2d722a72ce7a00500
-expected_sum=d991b2e6ea3cd35a181971c80cf1132f7f82aea656a31db6745dba79d84ea732
-printf '%s  %s\n' "$expected_sum" delvane-uat-290b361-local.tar.gz | cmp -s - SHA256SUMS
-sha256sum -c SHA256SUMS
-test "$(docker_local image inspect -f '{{.Id}}' "$pg_id")" = "$pg_id"
-if existing=$(docker_local image inspect -f '{{.Id}}' "$uat_tag" 2>/dev/null); then
-    test "$existing" = "$uat_id"
-else
-    docker_local image load -i delvane-uat-290b361-local.tar.gz
+network=delvane-ntak-preflight
+if docker_local network inspect "$network" >/dev/null 2>&1 ||
+   ip link show dev br-delvane-uat >/dev/null 2>&1 ||
+   nft list table inet delvane_uat_preflight >/dev/null 2>&1; then
+    echo 'A reserved UAT network, bridge or table name already exists.' >&2
+    exit 1
 fi
-test "$(docker_local image inspect -f '{{.Id}}' "$uat_tag")" = "$uat_id"
-sh tests/run_uat_postgres_smoke.sh "$uat_id" "$pg_id"
+nft -c -f tests/uat_preflight_egress.nft
+nft -f tests/uat_preflight_egress.nft
+docker_local network create --driver bridge --internal --ipv6=false \
+    --opt com.docker.network.bridge.gateway_mode_ipv4=isolated \
+    --opt com.docker.network.bridge.name=br-delvane-uat "$network"
+settings=$(docker_local network inspect -f '{{.Driver}}|{{.Internal}}|{{.EnableIPv6}}|{{index .Options "com.docker.network.bridge.gateway_mode_ipv4"}}|{{range .IPAM.Config}}{{if not (eq (printf "%v" .Gateway) "" "invalid IP")}}present{{end}}{{end}}|{{len .Containers}}' "$network")
+test "$settings" = 'bridge|true|false|isolated||0'
+test -z "$(ip -4 -o addr show dev br-delvane-uat)"
+rules=$(nft -s -y -n list table inet delvane_uat_preflight)
+test "$(printf '%s\n' "$rules" | tr -d '[:space:]')" = "$(tr -d '[:space:]' <tests/uat_preflight_egress.nft)"
+printf '%s\n' "$settings" "$rules"
 ```
 
-The harness uses a fresh Docker CLI config and a local Unix socket. It starts each container on the approved type of internal network, verifies placement and privilege settings, checks the staging metadata and migration 3090, exercises scoped synthetic booking and evidence flows, and proves restart and restore with decryptable blocked evidence. It generates only disposable DB and data-encryption values in memory and never mounts an existing key or adds a credential binding to a real file. The test dump stays in the disposable PostgreSQL container's tmpfs. Record only the package IDs, checklist outcomes, readiness version, local status codes and times. Keep any host logs and review data local and access-controlled. Never dump container environments, request bodies, signed wire content, passwords or tokens. Redacted operator export is the approved general diagnostic surface.
+The dedicated nftables table drops host and routed traffic for this bridge in both address families. It leaves the host and Docker-managed policy in place. The two workloads share only this bridge. PostgreSQL listens on TCP 5432, and the application listens on its own loopback. Neither publishes a port. The harness verifies the live rules and bridge again before using them. It disables container IPv6, overrides upstream DNS to container loopback, checks for proxy variables and verifies external and host route denial inside the application namespace before launching the server. It resolves and connects to the disposable PostgreSQL peer, then verifies that a harmless public DNS name fails resolution. No government URL is required.
 
-**TLS boundary.** This lab uses loopback HTTP exclusively inside the application container and does not test HTTPS ingress or mTLS. Before any later HTTPS operator check, approve a separate UAT ingress hostname and trusted full chain with hostname verification and TLS 1.2 or later. Use the ingress certificate for that hostname only and keep the app port private. After authorization, check only the approved PMS UAT origin with `openssl s_client -connect "$APPROVED_UAT_DNS:443" -servername "$APPROVED_UAT_DNS" -verify_hostname "$APPROVED_UAT_DNS" -verify_return_error -min_protocol TLSv1.2 </dev/null` and `curl --fail --silent --show-error --proto '=https' --tlsv1.2 --max-time 5 "https://$APPROVED_UAT_DNS/api/client/environment"`. Require the expected staging deployment ID and secure cookies. Do not substitute the government hostname or a production ingress. No government client certificate is required for this preflight.
+#### Verify images and run the lab
 
-**Rollback.** The first lab has its own names, tmpfs database and backup, and no shared volumes or routes. Its exit cleanup removes only objects it created by ID. The archived candidate may remain after approved import without running services. No pre-existing application or database state is replaced. For a separately approved persistent UAT rollout later, record the previous image ID and private service manifest first, pause its writer and take a verified synthetic DB snapshot with its encryption key available from the approved secret store. On failure, keep egress closed, stop only the candidate, restore the snapshot into a new isolated database under the UAT role, and restart the previous pinned image/config against that restored copy. Require the prior schema/readiness, sample records, readable evidence and disabled gates before resuming use. Preserve the failed candidate database for review. Never restore over the active service or replay unresolved queue entries. The disposable restore drill checks the mechanics and does not certify an existing server's rollback.
+Both original archives are staged and SHA-256 verified. The first Phase C attempt imported the images and stopped at image ID verification. The build records pinned the classic Docker config digests. Docker's containerd image store reports the target manifest digest as the image ID. Both reported Hetzner prefixes match the OCI manifest digests independently recalculated from the pinned archives. Full installed image ID and platform checks run at the root console before startup. [Docker storage documentation](https://docs.docker.com/engine/storage/containerd/), [Moby image inspection implementation](https://github.com/moby/moby/blob/master/daemon/containerd/image_inspect.go)
+
+| Archive | Config digest | OCI manifest digest |
+| --- | --- | --- |
+| Delvane | `sha256:08b340b1e459d2a8ecedbaa06c1317ef22c9cb2f87412dee0bfe7db07182fe35` | `sha256:59220537262a50c84cc66be88890a5485d9a7da2f2b5fa91a10e90b8f5171720` |
+| PostgreSQL 17.12 | `sha256:39d36505873241b90584a61078c0a3af0a226a363854fcc2d722a72ce7a00500` | `sha256:ab4586ee3c07b4f65cf3daaf55ed008ff619b496bff60e361c30d664bca78401` |
+
+The corrected block reuses images already installed by either full archive-derived ID. It verifies the live, scoped firewall policy and dedicated bridge. An unset gateway can render as an empty field or `invalid IP`. A real configured gateway still fails. The harness separately checks bridge addresses, network attachments and routes. [Go address formatting](https://pkg.go.dev/net/netip#Addr.String)
+
+```sh
+(
+set -eu
+umask 077
+test "$(id -u)" -eq 0
+test "$(hostname -s)" = delvane-test-01
+unset DOCKER_CONTEXT DOCKER_HOST
+docker_local() { docker --host unix:///var/run/docker.sock "$@"; }
+verify() { printf '%s  %s\n' "$1" "$2" | sha256sum -c -; }
+image_format='{{.Id}}|{{.Os}}|{{.Architecture}}'
+
+verified_id() {
+    case "$1" in
+        "$2|linux|amd64"|"$3|linux|amd64") printf '%s\n' "${1%%|*}" ;;
+        *) printf 'Unexpected installed image or platform for %s: %s\n' "$4" "$1" >&2; return 1 ;;
+    esac
+}
+
+resolve_image() {
+    for reference in "$1" "$3" "$2"; do
+        if info=$(docker_local image inspect -f "$image_format" "$reference" 2>&1); then
+            verified_id "$info" "$2" "$3" "$1"
+            return $?
+        fi
+        case "$info" in
+            *'No such image:'*|*'No such object:'*) ;;
+            *) printf '%s\n' "$info" >&2; return 1 ;;
+        esac
+    done
+    docker_local image load -i "$4" >&2 || return 1
+    info=$(docker_local image inspect -f "$image_format" "$1") || return 1
+    verified_id "$info" "$2" "$3" "$1"
+}
+
+home_dir=/home/delvane-uat
+stage="$home_dir/delvane-uat-preflight"
+install -d -m 0700 /root/delvane-uat-preflight
+cd /root/delvane-uat-preflight
+control=preflight-control-1fc6512-v2.tar.gz
+install -m 0600 "$stage/$control" .
+verify 26d835571136275d0d2a6b3e76c4c6505cd34984416b6c58c3fc602a64bfeec1 "$control"
+tar -xzf "$control"
+sha256sum -c CONTROL-SHA256SUMS
+
+uat_archive=delvane-uat-290b361-local.tar.gz
+pg_archive=postgres-17.12-linux-amd64-local.tar.gz
+install -m 0600 "$home_dir/$uat_archive" .
+verify d991b2e6ea3cd35a181971c80cf1132f7f82aea656a31db6745dba79d84ea732 "$uat_archive"
+install -m 0600 "$stage/$pg_archive" .
+verify c790ed591c8913ca82e11bffb265ba43efe8a9a80ce365bf40f68892128ab994 "$pg_archive"
+
+network=delvane-ntak-preflight
+settings=$(docker_local network inspect -f '{{.Driver}}|{{.Internal}}|{{.EnableIPv6}}|{{index .Options "com.docker.network.bridge.gateway_mode_ipv4"}}|{{index .Options "com.docker.network.bridge.name"}}|{{range .IPAM.Config}}{{if not (eq (printf "%v" .Gateway) "" "invalid IP")}}present{{end}}{{end}}|{{len .Containers}}' "$network")
+test "$settings" = 'bridge|true|false|isolated|br-delvane-uat||0'
+addresses=$(ip -4 -o addr show dev br-delvane-uat)
+test -z "$addresses"
+if ! nft list table inet delvane_uat_preflight >/dev/null 2>&1; then
+    nft -c -f tests/uat_preflight_egress.nft
+    nft -f tests/uat_preflight_egress.nft
+fi
+rules=$(nft -s -y -n list table inet delvane_uat_preflight)
+test "$(printf '%s\n' "$rules" | tr -d '[:space:]')" = "$(tr -d '[:space:]' <tests/uat_preflight_egress.nft)"
+
+uat_id=$(resolve_image delvane-uat:290b361-local \
+    sha256:08b340b1e459d2a8ecedbaa06c1317ef22c9cb2f87412dee0bfe7db07182fe35 \
+    sha256:59220537262a50c84cc66be88890a5485d9a7da2f2b5fa91a10e90b8f5171720 "$uat_archive")
+pg_id=$(resolve_image postgres:17-bookworm \
+    sha256:39d36505873241b90584a61078c0a3af0a226a363854fcc2d722a72ce7a00500 \
+    sha256:ab4586ee3c07b4f65cf3daaf55ed008ff619b496bff60e361c30d664bca78401 "$pg_archive")
+printf 'Verified installed Delvane image %s\nVerified installed PostgreSQL image %s\n' "$uat_id" "$pg_id"
+DELVANE_UAT_KEEP_RUNNING=1 sh tests/run_uat_postgres_smoke.sh "$uat_id" "$pg_id" "$network"
+)
+```
+
+The harness enforces a read-only application root under UID/GID 10001, a 320 MiB application limit and a 768 MiB PostgreSQL limit. It records live and peak memory, verifies migrations and runtime assets, exercises blocked reporting and authorized redacted evidence, and checks application restart, application crash recovery and restoration into a new database. The retained instance uses restored synthetic data. Its readiness is accessible inside the application container. PostgreSQL's data and backup are in memory, so this is a disposable lab. A host reboot or PostgreSQL container stop ends that run.
+
+**Rollback.** Before removing the isolation policy, remove only the two container IDs printed by the successful run. After confirming the dedicated network is empty, remove that network and its nftables table.
+
+```sh
+docker --host unix:///var/run/docker.sock rm -fv <printed-app-id> <printed-postgres-id>
+docker --host unix:///var/run/docker.sock network rm delvane-ntak-preflight
+nft delete table inet delvane_uat_preflight
+```
+
+On harness failure its trap removes the containers it created. If administrator setup failed after applying the rules, keep the scoped table in place while checking no container is attached, then remove any lab bridge created by that attempt and delete only the dedicated table. Do not flush a ruleset. The locally verified archives can be reapplied if another disposable run is needed.
+
+**TLS boundary.** This preflight uses loopback HTTP inside the application container. The Windows operator can use the temporary SSH relay with loopback HTTPS and explicit certificate trust. A remote Xiaomi release would require separate restricted HTTPS access. Live NTAK signing and response security remain gated. No government certificate or private key is required for this preflight. [Windows UAT access procedure](NTAK_UAT_WINDOWS_ACCESS.md)
 
 ## First official interoperability test after approval
 

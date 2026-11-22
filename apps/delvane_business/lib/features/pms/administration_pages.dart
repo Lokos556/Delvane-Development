@@ -572,7 +572,7 @@ class _OperatingModePageState extends State<OperatingModePage>
                   Text(ui(entry.value)),
                   Text(
                     '${c.rows('actions').where((a) => a['status'] == entry.key).length}',
-                    style: const TextStyle(fontFamily: 'Georgia', fontSize: 28),
+                    style: const TextStyle(fontSize: 28),
                   ),
                 ],
               ),

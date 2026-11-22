@@ -7,9 +7,15 @@ import 'pms_style.dart';
 import 'operations_workflows.dart';
 
 class WorkAssignmentDialog extends StatefulWidget {
-  const WorkAssignmentDialog({super.key, required this.c, this.work});
+  const WorkAssignmentDialog({
+    super.key,
+    required this.c,
+    this.work,
+    this.initialProperty,
+  });
   final PmsController c;
   final Json? work;
+  final String? initialProperty;
   @override
   State<WorkAssignmentDialog> createState() => _WorkAssignmentDialogState();
 }
@@ -22,9 +28,9 @@ class _WorkAssignmentDialogState extends State<WorkAssignmentDialog>
     text: DateTime.now().toIso8601String().substring(0, 10),
   );
   late String assignee = text(widget.work ?? {}, 'assigned_to');
-  late String property = widget.c.rows('properties').isEmpty
-      ? ''
-      : text(widget.c.rows('properties').first, 'id');
+  late String property =
+      widget.initialProperty ??
+      text(widget.c.rows('properties').firstOrNull ?? {}, 'id');
   @override
   void dispose() {
     title.dispose();

@@ -16,6 +16,7 @@ Future<void> openOperationalDesk(
   BuildContext context,
   PmsController c, {
   int tab = 0,
+  String property = '',
 }) async {
   if (!c.user.isOperator) return;
   await showGeneralDialog<void>(
@@ -26,7 +27,7 @@ Future<void> openOperationalDesk(
     barrierColor: Colors.transparent,
     transitionDuration: const Duration(milliseconds: 180),
     pageBuilder: (_, animation, secondaryAnimation) =>
-        OperationalDesk(c: c, tab: tab),
+        OperationalDesk(c: c, tab: tab, property: property),
     transitionBuilder: (_, animation, secondaryAnimation, child) =>
         SlideTransition(
           position: Tween(
@@ -39,9 +40,15 @@ Future<void> openOperationalDesk(
 }
 
 class OperationalDesk extends StatefulWidget {
-  const OperationalDesk({super.key, required this.c, this.tab = 0});
+  const OperationalDesk({
+    super.key,
+    required this.c,
+    this.tab = 0,
+    this.property = '',
+  });
   final PmsController c;
   final int tab;
+  final String property;
   @override
   State<OperationalDesk> createState() => _OperationalDeskState();
 }
@@ -75,12 +82,26 @@ class _OperationalDeskState extends State<OperationalDesk>
   @override
   Widget build(BuildContext context) {
     final d = snapshot;
-    final approvals = optionalRows(d['approvals']);
-    final exceptions = optionalRows(d['exceptions']);
-    final arrivals = optionalRows(d['arrivals']);
-    final tasks = optionalRows(d['tasks'])
-        .where((t) => t['status'] != 'complete')
-        .take(8);
+    List<Json> scoped(String key) => optionalRows(d[key])
+        .where(
+          (row) =>
+              widget.property.isEmpty || row['property_id'] == widget.property,
+        )
+        .toList();
+    final approvals = scoped('approvals');
+    final exceptions = scoped('exceptions');
+    final arrivals = scoped('arrivals');
+    final allTasks = scoped('tasks');
+    final handled = widget.property.isEmpty
+        ? d['handled'] ?? 0
+        : math.max(
+            0,
+            allTasks.length +
+                arrivals.length +
+                scoped('departures').length -
+                approvals.length,
+          );
+    final tasks = allTasks.where((t) => t['status'] != 'complete').take(8);
     final viewport = MediaQuery.sizeOf(context);
     final mobile = viewport.width <= 850;
     final workspace = math.max(
@@ -144,7 +165,6 @@ class _OperationalDeskState extends State<OperationalDesk>
                                       Text(
                                         widget.c.t(labels[0]),
                                         style: const TextStyle(
-                                          fontFamily: 'Georgia',
                                           fontSize: 26.4,
                                           fontWeight: FontWeight.w700,
                                         ),
@@ -191,9 +211,8 @@ class _OperationalDeskState extends State<OperationalDesk>
                                     card([
                                       PmsEyebrow(ui('LIVE BRIEFING')),
                                       Text(
-                                        text(d, 'brief'),
+                                        intelligenceBrief(d),
                                         style: const TextStyle(
-                                          fontFamily: 'Georgia',
                                           fontSize: 19.52,
                                           height: 1.48,
                                         ),
@@ -203,7 +222,7 @@ class _OperationalDeskState extends State<OperationalDesk>
                                     PmsColumns([
                                       for (final metric in [
                                         ('Needs you', approvals.length),
-                                        ('Delvane handling', d['handled'] ?? 0),
+                                        ('Delvane handling', handled),
                                         ('Exceptions', exceptions.length),
                                         ('Next 48h', arrivals.length),
                                       ])
@@ -217,7 +236,6 @@ class _OperationalDeskState extends State<OperationalDesk>
                                           Text(
                                             '${metric.$2}',
                                             style: const TextStyle(
-                                              fontFamily: 'Georgia',
                                               fontSize: 27.2,
                                             ),
                                           ),
@@ -427,11 +445,7 @@ class _OperationalDeskState extends State<OperationalDesk>
         PmsEyebrow(ui('ROSA AI')),
         Text(
           widget.c.t(label),
-          style: const TextStyle(
-            fontFamily: 'Georgia',
-            fontSize: 23.2,
-            fontWeight: FontWeight.w700,
-          ),
+          style: const TextStyle(fontSize: 23.2, fontWeight: FontWeight.w700),
         ),
       ],
     ),

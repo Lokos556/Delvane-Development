@@ -81,6 +81,52 @@ void main() {
     expect(config.origin.origin, Uri.parse(origin).origin);
   });
 
+  test('the UAT tunnel trust is limited to HTTPS staging on IPv4 loopback', () {
+    final tunnelOrigin = Uri.parse('https://127.0.0.1:18443');
+    final configuration = ApiConfiguration(
+      environment: ApiEnvironment.staging,
+      origin: tunnelOrigin,
+      uatTunnelCertificate: [1],
+    );
+    expect(configuration.origin, tunnelOrigin);
+    for (final origin in [
+      'http://127.0.0.1:18443',
+      'https://pms.example.invalid',
+      'https://[::1]:18443',
+    ]) {
+      expect(
+        () => ApiConfiguration(
+          environment: ApiEnvironment.staging,
+          origin: Uri.parse(origin),
+          uatTunnelCertificate: [1],
+        ),
+        throwsArgumentError,
+      );
+    }
+    for (final environment in [
+      ApiEnvironment.local,
+      ApiEnvironment.production,
+    ]) {
+      expect(
+        () => ApiConfiguration(
+          environment: environment,
+          origin: tunnelOrigin,
+          uatTunnelCertificate: [1],
+        ),
+        throwsArgumentError,
+      );
+    }
+    expect(
+      () => AuthController(
+        origin: tunnelOrigin,
+        environment: ApiEnvironment.staging,
+        store: MemorySessionStore(),
+        uatTunnelCertificate: [1],
+      ),
+      throwsArgumentError,
+    );
+  });
+
   test(
     'remote environments require explicit HTTPS origins and have no fallback',
     () {

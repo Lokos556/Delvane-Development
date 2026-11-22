@@ -57,7 +57,7 @@ class _PropertyWorkspaceState extends State<PropertyWorkspace>
       d['arriving_today'] ?? d['current'] ?? d['next'],
     );
     return PmsModal(
-      title: text(p, 'name', 'Property'),
+      title: widget.c.propertyLabel(text(p, 'name', ui('Property'))),
       eyebrow: ui('PROPERTY'),
       width: 760,
       canClose: !busy,
@@ -188,7 +188,7 @@ class _PropertyWorkspaceState extends State<PropertyWorkspace>
                     Text(
                       cleaning.isEmpty
                           ? ui('Nothing currently scheduled.')
-                          : '${text(cleaning, 'scheduled_date')} · ${text(cleaning, 'earliest_time', 'Flexible')} → ${text(cleaning, 'deadline_time')} · ${text(cleaning, 'assigned_name', 'Unassigned')}',
+                          : '${text(cleaning, 'scheduled_date')} · ${text(cleaning, 'earliest_time', ui('Flexible'))} → ${text(cleaning, 'deadline_time')} · ${text(cleaning, 'assigned_name', ui('Unassigned'))}',
                     ),
                   ],
                 ),
@@ -209,7 +209,7 @@ class _PropertyWorkspaceState extends State<PropertyWorkspace>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         PmsEyebrow(
-                          '${text(primary, 'source')} · ${text(primary, 'external_ref')}',
+                          '${ui(text(primary, 'source'))} · ${text(primary, 'external_ref')}',
                         ),
                         ListTile(
                           contentPadding: EdgeInsets.zero,
@@ -261,7 +261,7 @@ class _PropertyWorkspaceState extends State<PropertyWorkspace>
                       ),
                       Text(
                         ui(
-                          '${room['inventory_count']} units · up to ${room['max_guests']} guests · ${room['active'] == 1 ? 'Active' : 'Inactive'}',
+                          '${room['inventory_count']} units · up to ${room['max_guests']} guests · ${ui(room['active'] == 1 ? 'Active' : 'Inactive')}',
                         ),
                       ),
                       Text(text(room, 'code')),

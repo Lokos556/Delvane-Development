@@ -93,7 +93,6 @@ class _TeamPageState extends State<TeamPage> {
                   Text(
                     '${stats[e.key] ?? 0}',
                     style: const TextStyle(
-                      fontFamily: 'Georgia',
                       fontSize: 22,
                       fontWeight: FontWeight.w700,
                     ),
@@ -247,7 +246,6 @@ class _TeamPageState extends State<TeamPage> {
                       .join()
                       .toUpperCase(),
                   style: const TextStyle(
-                    fontFamily: 'Georgia',
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
                     color: Colors.black,
