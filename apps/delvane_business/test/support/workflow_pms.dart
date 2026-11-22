@@ -255,6 +255,15 @@ class WorkflowPms extends FakePms {
         'ok': true,
         'status': entry['status'],
         'external_send': false,
+        if (path.endsWith('/simulate-send') &&
+            entry['message_type'] == 'guest_checkin_invitation')
+          'links': [
+            {
+              'guest_name': 'Synthetic Guest',
+              'completeness': 'incomplete',
+              'url': 'https://example.invalid/guest/checkin/synthetic-only',
+            },
+          ],
       });
     }
     if (path == '/api/automation/run') return json({'created': 1});

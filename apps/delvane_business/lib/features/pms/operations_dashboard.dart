@@ -92,7 +92,11 @@ class OperationsDashboard extends StatelessWidget {
               title: text(row, 'guest_name'),
               detail:
                   '${propertyName(row)} · ${uiDate(text(row, 'arrival_date'))}',
-              status: ui(text(row, 'current_stage')),
+              status: ui(switch (row['actual_stay_state']) {
+                'arrived' => 'Actually arrived',
+                'departed' => 'Actually departed',
+                _ => text(row, 'current_stage'),
+              }),
               onTap: () => openReservation(text(row, 'id')),
             ),
         ],

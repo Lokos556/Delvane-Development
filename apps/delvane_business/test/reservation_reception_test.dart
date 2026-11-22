@@ -25,6 +25,59 @@ Future<void> enter(WidgetTester tester, String label, String value) async {
 }
 
 void main() {
+  testWidgets(
+    'prepared invitations only expose a link after local simulation',
+    (tester) async {
+      final pms = WorkflowPms();
+      pms.outbox.first
+        ..['message_type'] = 'guest_checkin_invitation'
+        ..['subject'] = 'Guest pre-check-in invitation';
+      final auth = await signedIn(pms);
+      final c = PmsController(auth, initialPage: PmsPage.inbox);
+      await c.load();
+      c.receptionTab = 1;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: pmsTheme(),
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: ReceptionPage(controller: c, openStay: (_) {}),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Simulate send'), findsNothing);
+      expect(find.byType(SelectableText), findsNothing);
+      final approve = find.text('Approve');
+      await tester.ensureVisible(approve);
+      await tester.tap(approve);
+      await tester.pumpAndSettle();
+      final simulate = find.text('Simulate send');
+      await tester.ensureVisible(simulate);
+      await tester.tap(simulate);
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Simulation only. Nothing was sent to a guest.'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('https://example.invalid/guest/checkin/synthetic-only'),
+        findsOneWidget,
+      );
+      await tester.tap(find.byTooltip('Close dialog'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('https://example.invalid/guest/checkin/synthetic-only'),
+        findsNothing,
+      );
+      expect(find.text('Simulate send'), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+      c.dispose();
+      auth.dispose();
+    },
+  );
+
   testWidgets('scheduled approval cannot be repeated when its refresh fails', (
     tester,
   ) async {

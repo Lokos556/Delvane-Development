@@ -159,6 +159,10 @@ def test_channel_bridge_receives_customer_booking_and_queues_government_reports(
     assert item['guest_name']=='Anna Nagy' and item['guest_count']==3
     applied=client.post(f"/api/integrations/{integration['id']}/sync/apply")
     assert applied.status_code==200,applied.text
+    invitations = [row for row in client.get('/api/communications/outbox').json()
+                   if row['message_type'] == 'guest_checkin_invitation'
+                   and row['reservation_id'] == item['reservation_id']]
+    assert len(invitations) == 1 and invitations[0]['status'] == 'awaiting_approval'
     government=client.get('/api/government/status').json()
     queued={(x['system'],x['status']):x['count'] for x in government['queue']}
     assert queued[('NTAK','waiting_for_certification')]==1

@@ -139,7 +139,11 @@ void main() {
         ],
       });
       pms.overrides['/api/guest-journeys'] = pms.json([
-        {...pms.stay, 'current_stage': 'registration'},
+        {
+          ...pms.stay,
+          'current_stage': 'registration',
+          'actual_stay_state': 'departed',
+        },
       ]);
       pms.overrides['/api/operations/timeline'] = pms.json([]);
       final auth = await signedIn(pms);
@@ -150,6 +154,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      expect(find.textContaining('Actually departed'), findsOneWidget);
       final filter = find.byKey(const ValueKey('operations-property'));
       await tester.tap(filter);
       await tester.pumpAndSettle();
