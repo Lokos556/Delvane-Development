@@ -53,6 +53,7 @@ class _PropertyWorkspaceState extends State<PropertyWorkspace>
   Widget build(BuildContext context) {
     final d = data ?? <String, dynamic>{}, p = optionalObject(d['property']);
     final cleaning = optionalObject(d['cleaning']);
+    final rooms = optionalRows(d['unit_readiness']);
     final primary = optionalObject(
       d['arriving_today'] ?? d['current'] ?? d['next'],
     );
@@ -62,6 +63,8 @@ class _PropertyWorkspaceState extends State<PropertyWorkspace>
       width: 760,
       canClose: !busy,
       actions: [
+        if (rooms.isNotEmpty)
+          PmsButton(ui('Refresh'), onPressed: busy ? null : load),
         PmsButton(
           ui('Apartments and rooms'),
           onPressed: busy
@@ -195,6 +198,25 @@ class _PropertyWorkspaceState extends State<PropertyWorkspace>
               ),
             ], columns: 2),
             const SizedBox(height: 24),
+            if (rooms.isNotEmpty) ...[
+              PmsEyebrow(ui('Room readiness')),
+              for (final room in rooms)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(text(room, 'label')),
+                  trailing: PmsBadge(
+                    ui(switch (room['state']) {
+                      'ready' => 'Ready',
+                      'occupied' => 'Occupied',
+                      'cleaning' => 'Cleaning pending',
+                      'waiting_for_checkout' => 'Waiting for actual checkout',
+                      _ => 'Room unavailable',
+                    }),
+                    tone: text(room, 'state'),
+                  ),
+                ),
+              const SizedBox(height: 16),
+            ],
             PmsEyebrow(
               d['arriving_today'] != null
                   ? ui('ARRIVING RESERVATION')

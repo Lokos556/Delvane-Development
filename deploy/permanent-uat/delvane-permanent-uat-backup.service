@@ -1,0 +1,11 @@
+[Unit]
+Description=Verify and retain a permanent Delvane UAT database backup
+Requires=docker.service
+After=docker.service delvane-permanent-uat.service
+
+[Service]
+Type=oneshot
+UMask=0077
+Nice=10
+TimeoutStartSec=15min
+ExecStart=/usr/bin/python3 -I /opt/delvane-permanent-uat/permanent.py backup

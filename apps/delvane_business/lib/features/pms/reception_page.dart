@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:material_ui/material_ui.dart';
 
 import '../../core/localization/system_labels.dart';
@@ -9,6 +11,7 @@ import 'pms_style.dart';
 import 'pms_workflows.dart';
 import 'guest_history_dialog.dart';
 import 'guest_link_picker.dart';
+import 'guest_delivery_status.dart';
 import 'actual_stay_controls.dart';
 
 class ReceptionPage extends StatefulWidget {
@@ -31,6 +34,7 @@ class _ReceptionPageState extends State<ReceptionPage>
   Json summary = {};
   List<Json> inbox = [], outbox = [], rules = [];
   String? selected;
+  Timer? deliveryRefresh;
   bool stale = false;
   bool get locked => busy || stale;
   int get tab => widget.controller.receptionTab;
@@ -57,6 +61,28 @@ class _ReceptionPageState extends State<ReceptionPage>
     outbox = c.rows('outbox');
     rules = c.rows('rules');
     selected = c.receptionSelected;
+    deliveryRefresh = Timer.periodic(const Duration(seconds: 15), (_) {
+      final pending = outbox.any(
+        (row) => const {
+          'queued',
+          'sending',
+          'retry_scheduled',
+          'provider_accepted',
+          'provider_delayed',
+        }.contains(optionalObject(row['delivery'])['state']),
+      );
+      if (tab == 1 &&
+          pending &&
+          !locked &&
+          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+        unawaited(
+          perform(() async {
+            final rows = await api.rows('/api/communications/outbox');
+            if (mounted) setState(() => outbox = rows);
+          }),
+        );
+      }
+    });
   }
 
   TextEditingController draft(String key, String initial) => drafts.putIfAbsent(
@@ -146,6 +172,7 @@ class _ReceptionPageState extends State<ReceptionPage>
 
   @override
   void dispose() {
+    deliveryRefresh?.cancel();
     for (final d in drafts.values) {
       d.dispose();
     }
@@ -576,7 +603,12 @@ class _ReceptionPageState extends State<ReceptionPage>
     ],
   );
   Widget scheduled() {
-    final active = outbox.where((x) => x['status'] != 'cancelled').toList();
+    final active = outbox
+        .where((x) => x['status'] != 'cancelled' || x['delivery'] is Map)
+        .toList();
+    final configured =
+        summary['guest_email_available'] == true ||
+        active.any((x) => x['delivery'] is Map);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -586,14 +618,25 @@ class _ReceptionPageState extends State<ReceptionPage>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                t('Communication sandbox'),
+                t(
+                  configured
+                      ? 'Guest invitation email'
+                      : 'Communication sandbox',
+                ),
                 style: const TextStyle(fontWeight: FontWeight.w700),
               ),
               Text(
                 ui(
-                  'Delvane is not connected to a live guest-messaging channel yet. Sending remains manual or simulated.',
+                  configured
+                      ? 'Approval queues an invitation. Only a delivery receipt confirms delivery.'
+                      : 'Delvane is not connected to a live guest-messaging channel yet. Sending remains manual or simulated.',
                 ),
               ),
+              if (configured)
+                PmsButton(
+                  ui('Refresh deliveries'),
+                  onPressed: busy ? null : () => perform(() => refresh()),
+                ),
             ],
           ),
         ),
@@ -611,6 +654,8 @@ class _ReceptionPageState extends State<ReceptionPage>
   Widget scheduledCard(Json x) {
     final key = 'outbox:${text(x, 'id')}', id = idPath(text(x, 'id'));
     final invitation = x['message_type'] == 'guest_checkin_invitation';
+    final delivery = optionalObject(x['delivery']);
+    final canQueue = invitation && summary['guest_email_available'] == true;
     final editor = invitation ? null : draft(key, text(x, 'body'));
     final current = text(x, 'status');
     return PmsCard(
@@ -627,10 +672,14 @@ class _ReceptionPageState extends State<ReceptionPage>
             style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
           ),
           Text(uiDateTime(text(x, 'scheduled_for', t('Unscheduled')))),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: PmsBadge(status(text(x, 'status')), tone: text(x, 'status')),
-          ),
+          if (delivery.isEmpty)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: PmsBadge(
+                status(text(x, 'status')),
+                tone: text(x, 'status'),
+              ),
+            ),
           if (invitation)
             Text(t(text(x, 'body')))
           else
@@ -641,7 +690,21 @@ class _ReceptionPageState extends State<ReceptionPage>
               maxLines: 4,
               onChanged: (v) => widget.controller.receptionDrafts[key] = v,
             ),
-          Text(ui('No live external send'), style: TextStyle(fontSize: 12)),
+          if (invitation)
+            GuestDeliveryStatus(
+              delivery: delivery,
+              invitationStatus: current,
+              onRetry: locked
+                  ? null
+                  : () => action(() async {
+                      await api.change(
+                        'POST',
+                        '/api/communications/outbox/$id/retry',
+                      );
+                    }),
+            ),
+          if (delivery.isEmpty && !canQueue)
+            Text(ui('No live external send'), style: TextStyle(fontSize: 12)),
           if (widget.controller.receptionDrafts.containsKey(key))
             Text(
               ui(
@@ -666,13 +729,14 @@ class _ReceptionPageState extends State<ReceptionPage>
                           widget.controller.receptionDrafts.remove(key);
                         }),
                 ),
-              if (![
-                'ready',
-                'simulated_sent',
-                'cancelled',
-              ].contains(x['status']))
+              if ((canQueue && current == 'ready' && delivery.isEmpty) ||
+                  ![
+                    'ready',
+                    'simulated_sent',
+                    'cancelled',
+                  ].contains(x['status']))
                 PmsButton(
-                  t('Approve'),
+                  t(canQueue ? 'Approve and queue email' : 'Approve'),
                   onPressed: locked
                       ? null
                       : () => action(() async {
@@ -682,7 +746,9 @@ class _ReceptionPageState extends State<ReceptionPage>
                           );
                         }),
                 ),
-              if (invitation ? current == 'ready' : current != 'cancelled')
+              if (invitation
+                  ? current == 'ready' && delivery.isEmpty && !canQueue
+                  : current != 'cancelled')
                 PmsButton(
                   t('Simulate send'),
                   primary: true,

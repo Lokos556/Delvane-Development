@@ -43,7 +43,7 @@ class IsolatedEnvironment:
         token = _ACTIVE_ROOT.set(self.root)
         self.stack.callback(_ACTIVE_ROOT.reset, token)
         env = {k: v for k, v in os.environ.items()
-               if not k.startswith("ROSA_") and k != "OPENAI_API_KEY"}
+               if not k.startswith(("ROSA_", "RESEND_", "DELVANE_GUEST_")) and k != "OPENAI_API_KEY"}
         env.update({
             "ROSA_APP_ENV": "test", "ROSA_DEMO_MODE": self.demo_mode,
             "ROSA_DATA_DIR": str(self.root),

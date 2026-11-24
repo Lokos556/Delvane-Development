@@ -9,6 +9,8 @@ postgres=${2:-postgres:17-bookworm}
 network=${3:-}
 keep=${DELVANE_UAT_KEEP_RUNNING:-0}
 created_network=
+created_volume=
+backup_dir=
 unset DOCKER_CONTEXT DOCKER_HOST
 docker_config=$(mktemp -d)
 containers=
@@ -22,6 +24,13 @@ cleanup() {
     for container in $containers; do
         docker_local container rm --force --volumes "$container" >/dev/null || status=1
     done
+    if [ -n "$created_volume" ]; then
+        docker_local volume rm "$created_volume" >/dev/null || status=1
+    fi
+    if [ -n "$backup_dir" ]; then
+        rm -f -- "$backup_dir/synthetic.dump" "$backup_dir/SHA256SUMS"
+        rmdir "$backup_dir" || status=1
+    fi
     if [ -n "$created_network" ]; then
         docker_local network rm "$created_network" >/dev/null || status=1
     fi
@@ -89,10 +98,19 @@ app=$run_name-app
 restored_app=$run_name-restored
 db=delvane_uat_$suffix
 restore_db=${db}_restored
+volume=$pg-data
+for filesystem in "$(docker_local info -f '{{.DockerRootDir}}')" /var/tmp; do
+    case $(stat -f -c '%T' "$filesystem") in tmpfs|ramfs) echo 'UAT storage must be disk-backed.' >&2; exit 1 ;; esac
+    available=$(df -kP "$filesystem" | awk 'NR==2 {print $4}')
+    [ "$available" -ge 4194304 ] || { echo 'UAT storage needs at least 4 GiB free.' >&2; exit 1; }
+done
+docker_local volume create --driver local "$volume" >/dev/null
+created_volume=$volume
+backup_dir=$(mktemp -d /var/tmp/delvane-uat-backup.XXXXXX)
 
 check_container() {
-    settings=$(docker_local inspect -f '{{.HostConfig.NetworkMode}}|{{len .HostConfig.PortBindings}}|{{.HostConfig.PublishAllPorts}}|{{.HostConfig.Privileged}}|{{range .Mounts}}{{if ne .Type "tmpfs"}}{{.Type}}{{end}}{{end}}|{{range .HostConfig.Dns}}{{.}}{{end}}|{{index .HostConfig.Sysctls "net.ipv6.conf.all.disable_ipv6"}}|{{index .HostConfig.Sysctls "net.ipv6.conf.default.disable_ipv6"}}|{{.HostConfig.Memory}}|{{.HostConfig.MemorySwap}}' "$1")
-    expected="$network|0|false|false||127.0.0.1|1|1|$2"
+    settings=$(docker_local inspect -f '{{.HostConfig.NetworkMode}}|{{len .HostConfig.PortBindings}}|{{.HostConfig.PublishAllPorts}}|{{.HostConfig.Privileged}}|{{range .Mounts}}{{if ne .Type "tmpfs"}}{{.Type}}:{{.Name}}:{{.Destination}}{{end}}{{end}}|{{range .HostConfig.Dns}}{{.}}{{end}}|{{index .HostConfig.Sysctls "net.ipv6.conf.all.disable_ipv6"}}|{{index .HostConfig.Sysctls "net.ipv6.conf.default.disable_ipv6"}}|{{.HostConfig.Memory}}|{{.HostConfig.MemorySwap}}' "$1")
+    expected="$network|0|false|false|${4-}|127.0.0.1|1|1|$2"
     case $settings in
         "$expected|$2") ;;
         "$expected|-1")
@@ -121,14 +139,15 @@ POSTGRES_PASSWORD=$(random_hex)
 UAT_ROLE_PASSWORD=$(random_hex)
 export POSTGRES_PASSWORD UAT_ROLE_PASSWORD
 pg_id=$(create_isolated 768m --name "$pg" --network-alias isolated-pg \
-    --tmpfs /var/lib/postgresql/data:rw,noexec,nosuid,size=256m \
+    --mount "type=volume,src=$volume,dst=/var/lib/postgresql/data,volume-nocopy" \
     --tmpfs /tmp:rw,noexec,nosuid,size=64m -e POSTGRES_PASSWORD "$postgres" \
     -c max_connections=20 -c shared_buffers=64MB)
 containers="$containers $pg_id"
-check_container "$pg_id" 805306368 created
+pg_mount="volume:$volume:/var/lib/postgresql/data"
+check_container "$pg_id" 805306368 created "$pg_mount"
 check_network
 docker_local start "$pg_id" >/dev/null
-check_container "$pg_id" 805306368 running
+check_container "$pg_id" 805306368 running "$pg_mount"
 check_network "$pg_id "
 pg_address=$(docker_local inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$pg_id")
 for attempt in $(seq 1 45); do
@@ -245,21 +264,24 @@ wait_for_app "$app"
 docker_local exec -i "$app" python - --verify-crash <uat_postgres_smoke.py
 
 # Freeze the writer, then restore a synthetic dump into a separate database.
-# PostgreSQL data and the dump are both held in the disposable container's tmpfs.
+# PostgreSQL is disk-backed and the checksummed dump stays in private host storage.
 docker_local stop "$app" >/dev/null
-docker_local exec "$pg" sh -c 'umask 077; exec pg_dump -U postgres -Fc -f /tmp/delvane-uat.dump "$1"' sh "$db"
+docker_local exec "$pg" pg_dump -U postgres -Fc -d "$db" >"$backup_dir/synthetic.dump"
+(cd "$backup_dir" && sha256sum synthetic.dump >SHA256SUMS && sha256sum -c SHA256SUMS)
 docker_local container rm --volumes "$app_id" >/dev/null
 containers=$pg_id
 docker_local exec "$pg" createdb -U postgres -O delvane_uat "$restore_db"
-docker_local exec "$pg" pg_restore -U postgres --exit-on-error --no-owner --role=delvane_uat \
-    -d "$restore_db" /tmp/delvane-uat.dump
+docker_local exec -i "$pg" pg_restore -U postgres --exit-on-error --no-owner --role=delvane_uat \
+    -d "$restore_db" <"$backup_dir/synthetic.dump"
 start_app "$restored_app" "$restore_db"
 wait_for_app "$restored_app"
 docker_local exec -i "$restored_app" python - --verify-restore <uat_postgres_smoke.py
 docker_local stats --no-stream --format '{{.Name}} {{.MemUsage}}' "$restored_app" "$pg"
 docker_local exec "$pg" sh -c 'if [ -r /sys/fs/cgroup/memory.peak ]; then printf "PostgreSQL run peak bytes: "; cat /sys/fs/cgroup/memory.peak; fi'
 if [ "$keep" = 1 ]; then
-    printf 'Running synthetic UAT app: %s\nRunning disposable PostgreSQL: %s\n' "$app_id" "$pg_id"
-    printf 'Stop and remove this run with: docker --host unix:///var/run/docker.sock rm -fv %s %s\n' "$app_id" "$pg_id"
+    printf 'Running synthetic UAT app: %s\nRunning PostgreSQL: %s\nData volume: %s\nPrivate snapshot: %s\n' "$app_id" "$pg_id" "$volume" "$backup_dir"
+    printf 'Stop and remove the containers while keeping the storage with: docker --host unix:///var/run/docker.sock rm -f %s %s\n' "$app_id" "$pg_id"
     containers=
+    created_volume=
+    backup_dir=
 fi

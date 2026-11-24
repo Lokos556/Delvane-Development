@@ -1,6 +1,7 @@
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'guest_link_picker.dart';
+import 'guest_delivery_status.dart';
 import 'cancellation_dialog.dart';
 
 import 'package:intl/intl.dart';
@@ -65,6 +66,7 @@ class _ReservationEditorState extends State<ReservationEditor>
       'planned_arrival_time',
       'planned_departure_time',
       'guest_name',
+      'invitation_email',
       'arrival_date',
       'departure_date',
       'guest_count',
@@ -162,6 +164,8 @@ class _ReservationEditorState extends State<ReservationEditor>
       if (bookingDetails.allocationsChanged)
         'allocations': bookingDetails.allocations,
       'guest_name': fields['guest_name']!.text.trim(),
+      if (fields['invitation_email']!.text.trim().isNotEmpty)
+        'invitation_email': fields['invitation_email']!.text.trim(),
       'arrival_date': fields['arrival_date']!.text,
       'departure_date': fields['departure_date']!.text,
       'guest_count': int.parse(fields['guest_count']!.text),
@@ -386,6 +390,17 @@ class _ReservationEditorState extends State<ReservationEditor>
                         controller: fields['guest_name']!,
                         status: failureField == 'guest_name' ? failure : null,
                         required: true,
+                      ),
+                      PmsField(
+                        editing
+                            ? 'New invitation email (optional)'
+                            : 'Invitation email (optional)',
+                        controller: fields['invitation_email']!,
+                        keyboard: TextInputType.emailAddress,
+                        maxLength: 254,
+                        status: failureField == 'invitation_email'
+                            ? failure
+                            : null,
                       ),
                       PmsColumns([
                         PmsDateField(
@@ -723,7 +738,7 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
                   stat(
                     'Registration',
                     registration,
-                    '${reg.isEmpty && registration == 'complete' ? r['guest_count'] : reg.where((g) => g['completeness'] == 'complete').length}/${reg.length > (r['guest_count'] as int? ?? 0) ? reg.length : r['guest_count']}',
+                    '${reg.isEmpty && registration == 'complete' ? r['guest_count'] : reg.where(guestDetailsReceived).length}/${reg.length > (r['guest_count'] as int? ?? 0) ? reg.length : r['guest_count']}',
                   ),
                   stat(
                     'Arrival time',
@@ -919,107 +934,113 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
     );
   }
 
-  Widget preparation(Json r, List<Json> reg) => PmsColumns([
-    PmsCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          PmsEyebrow(ui('GUEST REGISTRATION')),
-          PmsBadge(
-            registration == 'complete'
-                ? ui('Registration ready')
-                : ui('Registration waiting'),
-            tone: registration == 'complete' ? 'ready' : 'attention',
-          ),
-          for (final g in reg)
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(text(g, 'full_name')),
-              subtitle: Text(
-                '${text(g, 'nationality', '—')} · ${t(text(g, 'completeness'))} · ${t(text(g, 'verification_status', 'not_submitted'))}',
+  Widget preparation(Json r, List<Json> reg) {
+    final invitation = optionalObject(data?['precheckin_invitation']);
+    final delivery = optionalObject(invitation['delivery']);
+    final needsPrecheckin =
+        registration != 'complete' && r['status'] == 'confirmed';
+    return PmsColumns([
+      PmsCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            PmsEyebrow(ui('GUEST REGISTRATION')),
+            for (final g in reg)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(text(g, 'full_name')),
+                subtitle: Align(
+                  alignment: Alignment.centerLeft,
+                  child: GuestRegistrationBadge(g),
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: busy || r['status'] != 'confirmed'
+                    ? null
+                    : () => guestProfiles(guestId: text(g, 'id')),
               ),
-            ),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              if (data?['precheckin_invitation'] case final Map invitation)
-                Text(
-                  ui(switch (invitation['status']) {
-                    'awaiting_approval' =>
-                      'Pre-check-in invitation awaits approval in Reception.',
-                    'ready' =>
-                      'Pre-check-in invitation is ready for local simulation.',
-                    'simulated_sent' =>
-                      'Pre-check-in invitation simulated locally.',
-                    _ => 'Guest pre-check-in invitation',
-                  }),
-                ),
-              if (registration != 'complete' && r['status'] == 'confirmed') ...[
+            if (invitation.isNotEmpty)
+              GuestDeliveryStatus(
+                delivery: delivery,
+                invitationStatus: text(invitation, 'status'),
+              ),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                if (needsPrecheckin) ...[
+                  if (delivery.isEmpty || delivery['state'] == 'cancelled')
+                    PmsButton(
+                      ui('Send guest check-in link'),
+                      onPressed: busy ? null : links,
+                    ),
+                  PmsButton(
+                    t('Prepare reminder'),
+                    onPressed: busy
+                        ? null
+                        : () => mutate(() async {
+                            await widget.api.change(
+                              'POST',
+                              '$path/registration-reminder',
+                            );
+                          }),
+                  ),
+                ],
+                if (needsPrecheckin || delivery.isNotEmpty)
+                  PmsButton(
+                    t('Open reception'),
+                    onPressed: busy
+                        ? null
+                        : () {
+                            Navigator.pop(context, changed);
+                            widget.openReception();
+                          },
+                  ),
                 PmsButton(
-                  ui('Send guest check-in link'),
-                  onPressed: busy ? null : links,
-                ),
-                PmsButton(
-                  t('Prepare reminder'),
-                  onPressed: busy
+                  ui('Open guest profiles'),
+                  onPressed: busy || r['status'] != 'confirmed'
                       ? null
-                      : () => mutate(() async {
-                          await widget.api.change(
-                            'POST',
-                            '$path/registration-reminder',
-                          );
-                        }),
-                ),
-                PmsButton(
-                  t('Open reception'),
-                  onPressed: busy
-                      ? null
-                      : () {
-                          Navigator.pop(context, changed);
-                          widget.openReception();
-                        },
+                      : guestProfiles,
                 ),
               ],
-              PmsButton(
-                ui('Review identity verification'),
-                onPressed: busy || r['status'] != 'confirmed' ? null : verify,
-              ),
-            ],
-          ),
-        ],
-      ),
-    ),
-    PmsCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          PmsEyebrow(t('Cleaning checklist')),
-          for (final task in optionalRows(data?['cleaning']))
-            ListTile(
-              onTap: widget.openTask == null
-                  ? null
-                  : () => widget.openTask!(text(task, 'id')),
-              contentPadding: EdgeInsets.zero,
-              title: Text(text(task, 'title', 'Cleaning')),
-              subtitle: Text(
-                '${text(task, 'scheduled_date')} · ${text(task, 'assigned_name', 'Unassigned')}',
-              ),
-              trailing: PmsBadge(
-                text(task, 'status'),
-                tone: text(task, 'status'),
-              ),
             ),
-          if (optionalRows(data?['cleaning']).isEmpty) const PmsEmpty('\u2014'),
-          if (optionalRows(data?['maintenance']).isNotEmpty) ...[
-            Text(t('Open maintenance')),
-            for (final m in optionalRows(data?['maintenance']))
-              Text(text(m, 'title')),
           ],
-        ],
+        ),
       ),
-    ),
-  ], columns: 2);
+      PmsCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            PmsEyebrow(t('Cleaning checklist')),
+            for (final task in optionalRows(data?['cleaning']))
+              ListTile(
+                onTap: widget.openTask == null
+                    ? null
+                    : () => widget.openTask!(text(task, 'id')),
+                contentPadding: EdgeInsets.zero,
+                title: Text(
+                  text(task, 'unit_label', text(task, 'title', 'Cleaning')),
+                ),
+                subtitle: Text(
+                  '${text(task, 'scheduled_date')} · ${text(task, 'assigned_name', 'Unassigned')}',
+                ),
+                trailing: PmsBadge(
+                  text(task, 'status'),
+                  tone: text(task, 'status'),
+                ),
+              ),
+            if (optionalRows(data?['cleaning']).isEmpty)
+              const PmsEmpty('\u2014'),
+            if (optionalRows(data?['maintenance']).isNotEmpty) ...[
+              Text(t('Open maintenance')),
+              for (final m in optionalRows(data?['maintenance']))
+                Text(text(m, 'title')),
+            ],
+          ],
+        ),
+      ),
+    ], columns: 2);
+  }
+
   Future<void> links() async {
     Json? response;
     if (!await perform(() async {
@@ -1031,17 +1052,14 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
     await showGuestCheckinLinks(context, optionalRows(response?['links']));
   }
 
-  Future<void> verify() async {
-    await showDialog<void>(
-      useRootNavigator: false,
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => IdentityReview(api: widget.api, id: widget.id),
+  Future<void> guestProfiles({String? guestId}) async {
+    await openGuestRegistration(
+      context,
+      widget.api,
+      reservationId: widget.id,
+      guestId: guestId,
     );
-    if (mounted) {
-      changed = true;
-      await load();
-    }
+    if (mounted) await load();
   }
 
   Widget communications() => PmsColumns([
@@ -1115,211 +1133,6 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
         if (optionalRows(data?['events']).isEmpty)
           PmsEmpty(t('No reservation activity yet.')),
       ],
-    ),
-  );
-}
-
-class IdentityReview extends StatefulWidget {
-  const IdentityReview({super.key, required this.api, required this.id});
-  final PmsWorkflows api;
-  final String id;
-  @override
-  State<IdentityReview> createState() => _IdentityReviewState();
-}
-
-class _IdentityReviewState extends State<IdentityReview>
-    with PmsActions<IdentityReview> {
-  List<Json>? guests;
-  bool confirmed = false;
-  final notes = <String, TextEditingController>{};
-  final methods = <String, String>{};
-  @override
-  void initState() {
-    super.initState();
-    load();
-  }
-
-  Future<void> load() async {
-    await perform(() async {
-      final data = await widget.api.object(
-        '/api/reservations/${idPath(widget.id)}/guest-checkin-status',
-      );
-      guests = optionalRows(data['guests']);
-      confirmed = data['reservation_status'] == 'confirmed';
-    });
-  }
-
-  Future<void> decide(Json guest, String decision) async {
-    final id = text(guest, 'id');
-    final ok = await perform(() async {
-      await widget.api.change(
-        'POST',
-        '/api/reservations/${idPath(widget.id)}/guests/${idPath(id)}/verify',
-        {
-          'decision': decision,
-          'verification_method': methods[id] ?? 'in_person',
-          'review_note': notes[id]?.text ?? '',
-        },
-      );
-    });
-    if (ok) await load();
-  }
-
-  @override
-  void dispose() {
-    for (final note in notes.values) {
-      note.dispose();
-    }
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => PopScope(
-    canPop: !busy,
-    child: PmsModal(
-      title: ui('Identity verification'),
-      eyebrow: ui('GUEST PRE-CHECK-IN'),
-      width: 650,
-      canClose: !busy,
-      actions: [
-        PmsButton(
-          ui('Actual guest stays'),
-          onPressed: busy
-              ? null
-              : () => showDialog(
-                  context: context,
-                  useRootNavigator: false,
-                  builder: (_) => ActualStayDialog(
-                    api: widget.api,
-                    reservationId: widget.id,
-                  ),
-                ),
-        ),
-        PmsButton(
-          ui('Done'),
-          onPressed: busy ? null : () => Navigator.pop(context),
-        ),
-      ],
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            ui(
-              "Guest-submitted details are not verified automatically. Check the guest's identity and data before approving registration for VIZA. Delvane does not store document images.",
-            ),
-          ),
-          if (confirmed &&
-              (guests ?? <Json>[]).any(
-                (g) =>
-                    g['completeness'] == 'complete' &&
-                    g['verification_status'] != 'verified',
-              ))
-            const PmsRequiredNote(),
-          errors(),
-          if (guests == null && !busy) PmsButton(ui('Retry'), onPressed: load),
-          if (guests == null && busy) const LinearProgressIndicator(),
-          if (guests != null && guests!.isEmpty)
-            PmsEmpty(ui('No guest registration records.')),
-          for (final guest in guests ?? <Json>[])
-            PmsCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(text(guest, 'full_name')),
-                  PmsButton(
-                    ui('VIZA identity review'),
-                    onPressed: busy
-                        ? null
-                        : () async {
-                            await perform(
-                              () => editVizaIdentity(
-                                context,
-                                widget.api,
-                                text(guest, 'id'),
-                              ),
-                            );
-                            if (mounted) await load();
-                          },
-                  ),
-                  PmsButton(
-                    ui('Residence and tourism tax'),
-                    onPressed: busy
-                        ? null
-                        : () async {
-                            await perform(
-                              () => editGuestReporting(
-                                context,
-                                widget.api,
-                                text(guest, 'id'),
-                              ),
-                            );
-                            if (mounted) await load();
-                          },
-                  ),
-                  PmsBadge(
-                    text(guest, 'verification_status', 'not_submitted'),
-                    tone: text(guest, 'verification_status'),
-                  ),
-                  Text(
-                    ui('Registration data: ${ui(text(guest, 'completeness'))}'),
-                  ),
-                  if (guest['verified_at'] != null)
-                    Text(
-                      ui('Verified ${uiDateTime(text(guest, 'verified_at'))}'),
-                    ),
-                  if (text(guest, 'review_note').isNotEmpty)
-                    Text(text(guest, 'review_note')),
-                  if (confirmed &&
-                      guest['completeness'] == 'complete' &&
-                      guest['verification_status'] != 'verified') ...[
-                    PmsSelect(
-                      ui('Verification method'),
-                      required: true,
-                      value: methods[text(guest, 'id')] ?? 'in_person',
-                      items: {
-                        'in_person': ui('Checked in person'),
-                        'video_call': ui('Verified by video call'),
-                        'identity_image': ui('Reviewed identity image'),
-                        'manual_review': ui('Manual review'),
-                      },
-                      onChanged: busy
-                          ? null
-                          : (v) =>
-                                setState(() => methods[text(guest, 'id')] = v),
-                    ),
-                    PmsField(
-                      ui('Review note'),
-                      maxLength: 1000,
-                      controller: notes.putIfAbsent(
-                        text(guest, 'id'),
-                        () => TextEditingController(),
-                      ),
-                      hint: ui('Optional note'),
-                    ),
-                    Wrap(
-                      spacing: 8,
-                      children: [
-                        PmsButton(
-                          ui('Verify identity'),
-                          primary: true,
-                          onPressed: busy
-                              ? null
-                              : () => decide(guest, 'verify'),
-                        ),
-                        PmsButton(
-                          ui('Needs correction'),
-                          onPressed: busy
-                              ? null
-                              : () => decide(guest, 'reject'),
-                        ),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
-            ),
-        ],
-      ),
     ),
   );
 }

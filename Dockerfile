@@ -1,9 +1,13 @@
-FROM python:3.12-slim
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 ROSA_DATA_DIR=/var/lib/delvane
+ARG DELVANE_RUNTIME=dependencies
+FROM python:3.12-slim AS dependencies
 WORKDIR /app
 COPY requirements.txt requirements-production.txt ./
 RUN pip install --no-cache-dir -r requirements-production.txt
 
+FROM ${DELVANE_RUNTIME}
+USER root
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 ROSA_DATA_DIR=/var/lib/delvane
+WORKDIR /app
 # .dockerignore is a positive allowlist for the inputs below.
 COPY *.py start_production.sh ./
 COPY static/ static/

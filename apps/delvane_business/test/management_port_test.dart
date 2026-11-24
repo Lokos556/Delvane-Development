@@ -357,6 +357,53 @@ void main() {
       }
     },
   );
+  testWidgets('property room readiness labels update independently', (
+    tester,
+  ) async {
+    final pms = FakePms();
+    final auth = await signedIn(pms);
+    final c = PmsController(auth);
+    const path = '/api/properties/p1/overview';
+    void rooms(String first) {
+      pms.overrides[path] = pms.json({
+        'property': pms.property,
+        'unit_readiness': [
+          {'unit_id': 'unit-101', 'label': 'Room 101', 'state': first},
+          {'unit_id': 'unit-102', 'label': 'Room 102', 'state': 'occupied'},
+        ],
+      });
+    }
+
+    rooms('cleaning');
+    try {
+      await tester.pumpWidget(
+        host(
+          PropertyWorkspace(
+            c: c,
+            id: 'p1',
+            openReservation: (_) {},
+            openCalendar: () {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      Finder room(String name) => find.widgetWithText(ListTile, name);
+      Finder status(String name, String state) =>
+          find.descendant(of: room(name), matching: find.text(state));
+      expect(status('Room 101', 'Cleaning pending'), findsOneWidget);
+      expect(status('Room 102', 'Occupied'), findsOneWidget);
+      rooms('ready');
+      await tester.tap(find.text('Refresh'));
+      await tester.pumpAndSettle();
+      expect(status('Room 101', 'Ready'), findsOneWidget);
+      expect(status('Room 102', 'Occupied'), findsOneWidget);
+    } finally {
+      await tester.pumpWidget(const SizedBox());
+      c.dispose();
+      auth.dispose();
+    }
+  });
+
   testWidgets(
     'room creation keeps exact whole inventory and empty property is supported',
     (tester) async {

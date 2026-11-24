@@ -839,6 +839,12 @@ function retainReaderFields(p){
 }
 function identitySubmission(form){
   const manual=readerFields(form);
+  if(!manual.allampolgarsagKod&&!readerOriginal.allampolgarsagKod){
+    // A chosen label can carry its catalog code only when the option is unique.
+    // Legacy free text and ambiguous labels still require a person's review.
+    const codes=Object.keys(NATIONALITY_BY_CODE).filter(code=>NATIONALITY_BY_CODE[code]===form.nationality);
+    if(codes.length===1)manual.allampolgarsagKod=codes[0];
+  }
   for(const key of Object.keys(manual))if(manual[key]===readerOriginal[key])delete manual[key];
   for(const [a,b] of [['csaladnev','utonev'],['szuletesiCsaladnev','szuletesiUtonev'],['anyjaCsaladnev','anyjaUtonev']]){
     if(a in manual||b in manual){manual[a]=manual[a]??readerOriginal[a]??null;manual[b]=manual[b]??readerOriginal[b]??null;}

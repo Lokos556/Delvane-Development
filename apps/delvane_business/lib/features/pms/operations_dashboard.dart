@@ -109,7 +109,10 @@ class OperationsDashboard extends StatelessWidget {
         items: [
           for (final row in cleaning)
             _OperationRow(
-              title: propertyName(row),
+              title: [
+                propertyName(row),
+                text(row, 'unit_label'),
+              ].where((value) => value.isNotEmpty).join(' · '),
               detail:
                   '${uiDate(text(row, 'scheduled_date'))} · ${row['assigned_name'] ?? ui('Unassigned')}',
               status: ui(text(row, 'status')),

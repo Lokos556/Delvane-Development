@@ -1,0 +1,18 @@
+[Unit]
+Description=Delvane permanent isolated UAT stack
+Requires=docker.service
+PartOf=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=exec
+ExecStart=/usr/bin/python3 -I /opt/delvane-permanent-uat/permanent.py supervise
+Restart=on-failure
+RestartSec=30s
+TimeoutStopSec=15s
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target docker.service

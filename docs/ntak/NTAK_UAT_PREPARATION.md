@@ -273,7 +273,7 @@ DELVANE_UAT_KEEP_RUNNING=1 sh tests/run_uat_postgres_smoke.sh "$uat_id" "$pg_id"
 )
 ```
 
-The harness enforces a read-only application root under UID/GID 10001, a 320 MiB application limit and a 768 MiB PostgreSQL limit. It records live and peak memory, verifies migrations and runtime assets, exercises blocked reporting and authorized redacted evidence, and checks application restart, application crash recovery and restoration into a new database. The retained instance uses restored synthetic data. Its readiness is accessible inside the application container. PostgreSQL's data and backup are in memory, so this is a disposable lab. A host reboot or PostgreSQL container stop ends that run.
+The harness enforces a read-only application root under UID/GID 10001, a 320 MiB application limit and a 768 MiB PostgreSQL limit. It records live and peak memory, verifies migrations and runtime assets, exercises blocked reporting and authorized redacted evidence, and checks application restart, application crash recovery and restoration into a new database. The original Phase C instance was created with an in-memory data mount. The current harness creates new PostgreSQL instances on named disk-backed volumes and stores checked snapshots on private host disk. For preservation of the original Phase C instance and migration 3091, follow the [guest UAT storage procedure](../pilot/GUEST_UAT_STORAGE.md).
 
 **Rollback.** Before removing the isolation policy, remove only the two container IDs printed by the successful run. After confirming the dedicated network is empty, remove that network and its nftables table.
 

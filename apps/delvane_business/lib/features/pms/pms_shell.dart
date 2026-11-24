@@ -1250,6 +1250,16 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
                           ],
                         ),
                         const SizedBox(height: 8),
+                        if (optionalRows(p['unit_readiness']).length > 1)
+                          Text(
+                            ui(
+                              '${optionalRows(p['unit_readiness']).where((room) => room['state'] == 'ready').length} of ${optionalRows(p['unit_readiness']).length} rooms ready',
+                            ),
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         Text(
                           (p['reasons'] as List? ?? []).isEmpty
                               ? c.t('No blockers detected.')
@@ -1418,6 +1428,8 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
           (r) =>
               (schedule ||
                   r['scheduled_date'] == d['date'] ||
+                  (r['checkout_observed'] == true &&
+                      r['status'] != 'complete') ||
                   (r['status'] != 'complete' &&
                       text(r, 'scheduled_date').compareTo(text(d, 'date')) <
                           0) ||
@@ -1451,6 +1463,11 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
                         fontWeight: FontWeight.w700,
                       ),
                     ),
+                    if (text(t, 'unit_label').isNotEmpty)
+                      Text(
+                        text(t, 'unit_label'),
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
                     Text(
                       ui(
                         'Checkout ${text(t, 'earliest_time', '—')} · Check-in ${text(t, 'deadline_time', '—')} · ${t['next_guest_count'] ?? '—'} guests',

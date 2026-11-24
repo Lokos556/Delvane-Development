@@ -1,0 +1,23 @@
+table inet delvane_guest_connector {
+    set cloudflare_edges {
+        type ipv4_addr
+        elements = {
+            198.41.192.7, 198.41.192.27, 198.41.192.37, 198.41.192.47, 198.41.192.57,
+            198.41.192.67, 198.41.192.77, 198.41.192.107, 198.41.192.167, 198.41.192.227,
+            198.41.200.13, 198.41.200.23, 198.41.200.33, 198.41.200.43, 198.41.200.53,
+            198.41.200.63, 198.41.200.73, 198.41.200.113, 198.41.200.193, 198.41.200.233
+        }
+    }
+
+    chain output {
+        type filter hook output priority -155; policy accept;
+        meta skuid "delvane-guest-tunnel" jump connector_only
+    }
+
+    chain connector_only {
+        oifname "lo" ip daddr 127.0.0.53 udp dport 53 accept
+        oifname "lo" ip daddr 127.0.0.53 tcp dport 53 accept
+        ip daddr @cloudflare_edges tcp dport 7844 accept
+        counter reject
+    }
+}

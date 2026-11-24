@@ -59,7 +59,7 @@ class PmsWorkflows {
 String workflowError(Object error) {
   if (error is ApiException) {
     const messages = {
-      'stay_group_unit_context':'Select guests occupying the same unit, or perform separate operations.',
+      'stay_group_unit_context': 'Select guests occupying the same unit, or perform separate operations.',
       'invalid_stay_window': 'Check the stay dates and planned time window.',
       'stay_unit_unavailable':
           'This unit is inactive or unavailable on the selected date.',
@@ -85,6 +85,7 @@ String workflowError(Object error) {
       'invalid_dates': 'Enter valid arrival and departure dates.',
       'departure_not_after_arrival': 'Departure must be later than arrival.',
       'guest_name_required': 'Enter the guest name.',
+      'invalid_invitation_email': 'Enter a valid invitation email address.',
       'invalid_guest_count': 'Enter a positive whole guest count.',
       'capacity_exceeded': 'The guest count exceeds this room’s capacity. Choose a larger room or reduce the guest count.',
       'property_unavailable':

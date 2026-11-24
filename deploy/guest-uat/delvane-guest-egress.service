@@ -1,0 +1,10 @@
+[Unit]
+Description=Delvane guest Cloudflare connector egress
+Before=delvane-guest-tunnel.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStartPre=/usr/sbin/nft -c -f /etc/delvane-guest-uat/connector-egress.nft
+ExecStart=/usr/sbin/nft -f /etc/delvane-guest-uat/connector-egress.nft
+ExecStop=/usr/sbin/nft delete table inet delvane_guest_connector

@@ -354,10 +354,10 @@ class _VizaReportingState extends State<VizaReportingDialog>
                 ? null
                 : () async {
                     await perform(
-                      () => editVizaIdentity(
+                      () => openGuestRegistration(
                         context,
                         api,
-                        '${guest['guest_id']}',
+                        guestId: '${guest['guest_id']}',
                       ),
                     );
                     if (mounted) await load();

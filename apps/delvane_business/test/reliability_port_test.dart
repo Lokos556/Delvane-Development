@@ -129,7 +129,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Send guest check-in link'), findsNothing);
       final review = tester.widget<PmsButton>(
-        find.widgetWithText(PmsButton, 'Review identity verification'),
+        find.widgetWithText(PmsButton, 'Open guest profiles'),
       );
       expect(review.onPressed, isNull);
     },

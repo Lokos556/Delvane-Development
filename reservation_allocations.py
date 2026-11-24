@@ -178,6 +178,8 @@ def install(backend):
             if changed:
                 import ntak_reporting
                 ntak_reporting.capture_reservation(con,user['organization_id'],reservation_id)
+                if r['stay_type']=='overnight':
+                    backend._refresh_overnight_cleaning(con, user['organization_id'], r['property_id'])
         return {'ok':True,'changed':changed}
     backend.app.include_router(router)
 

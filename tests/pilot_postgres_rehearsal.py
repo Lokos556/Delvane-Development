@@ -167,9 +167,10 @@ def run(app):
 def main():
     database = verify_isolation()
     import app
-    verify_migrations(app, database)
+    latest = app.guest_delivery.VERSION
+    verify_migrations(app, database, latest=latest)
     assert LocalAPI().request('GET', '/health/ready')[0] == {
-        'status': 'ready', 'database': 'postgresql', 'schema_version': 3090,
+        'status': 'ready', 'database': 'postgresql', 'schema_version': latest,
     }
     if sys.argv[1:] == ['--restart']:
         with app.db() as con:

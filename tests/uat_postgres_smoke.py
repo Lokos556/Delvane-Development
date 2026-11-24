@@ -82,7 +82,7 @@ def seed(app, con, password):
                 (app.now_iso(), app.now_iso()))
 
 
-def verify_migrations(app, database):
+def verify_migrations(app, database, latest=3090):
     assert app.DB_BACKEND == 'postgresql'
     with app.db() as con:
         db = con.execute('''SELECT current_database() db, rolsuper, rolcreatedb, rolcreaterole,
@@ -90,7 +90,7 @@ def verify_migrations(app, database):
             WHERE rolname=current_user''').fetchone()
         assert db == {'db': database, 'rolsuper': False, 'rolcreatedb': False, 'rolcreaterole': False, 'other_db': False}
         versions = [row['version'] for row in con.execute('SELECT version FROM schema_migrations ORDER BY version')]
-        assert versions[-1] == 3090 and set(range(3074, 3091)) <= set(versions)
+        assert versions[-1] == latest and set(range(3074, latest + 1)) <= set(versions)
         assert con.execute("SELECT ? LIKE 'Synt%' AS matches", ('Synthetic',)).fetchone()['matches']
 
 

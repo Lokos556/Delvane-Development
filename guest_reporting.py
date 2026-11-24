@@ -98,25 +98,30 @@ def install(backend):
                     'defaults':{k:row[k] for k in ('full_name','date_of_birth','nationality')},'reporting_id':frozen['reporting_id'] if frozen else None}
     @router.put('')
     def put(guest_id:str,body:Profile,request:Request,rosa_session:str|None=Cookie(default=None)):
-        if body.country_of_residence not in COUNTRIES:raise HTTPException(422,'Unsupported residence country')
-        if body.nationality_country is not None and body.nationality_country not in COUNTRIES:raise HTTPException(422,'Unsupported nationality country')
-        if body.source not in ('manual','correction'):raise HTTPException(422,'Scanned provenance can only be recorded by the scanner integration')
-        if body.ifa_status not in IFA_REASONS:raise HTTPException(422,'Unsupported official IFA exemption reason')
-        if body.sex not in ('NO','FERFI','EGYEB_VAGY_NEM_ISMERT'):raise HTTPException(422,'Invalid sex classification')
-        if not date(1920,1,1)<=body.date_of_birth<=date.today():raise HTTPException(422,'Invalid birth date')
         with backend.db() as con:
             user,row=access(con,guest_id,rosa_session)
-            payload=body.model_dump(mode='json')
-            previous=con.execute('SELECT encrypted_payload FROM guest_reporting_profiles WHERE guest_record_id=? ORDER BY revision DESC LIMIT 1',(guest_id,)).fetchone()
-            if previous and backend.decrypt_json(previous['encrypted_payload'])==payload:return {'ok':True,'duplicate':True}
-            con.execute('INSERT INTO guest_reporting_profiles(id,guest_record_id,organization_id,property_id,effective_from,encrypted_payload,source,reason,actor_id,created_at,revision) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
-                (str(uuid.uuid4()),guest_id,user['organization_id'],row['property_id'],str(body.effective_from),backend.encrypt_json(payload),body.source,body.reason,user['id'],backend.now_iso(),con.execute('SELECT COALESCE(MAX(revision),0)+1 n FROM guest_reporting_profiles WHERE guest_record_id=?',(guest_id,)).fetchone()['n']))
-            import business_days
-            business_days.dirty_range(con,user['organization_id'],row['property_id'],body.effective_from,user['id'],body.reason)
-            # Preserve scanned fields; a correction is a separate encrypted source,
-            # never falsely labelled as a fresh scan or automatic verification.
-            con.execute("UPDATE guest_identity_verifications SET status='needs_review',verified_by=NULL,verified_at=NULL,updated_at=? WHERE guest_record_id=?",(backend.now_iso(),guest_id))
-            backend._sync_registration(con,row['reservation_id'],user['organization_id'])
-            backend.audit_event(con,user['organization_id'],'guest.reporting_profile_updated','Guest reporting profile updated.',actor_user_id=user['id'],entity_type='guest_record',entity_id=guest_id,metadata={'source':body.source,'effective_from':str(body.effective_from)},request=request)
-        return {'ok':True,'identity_preserved':True}
+            return apply_profile(backend,con,user,row,body,request)
     backend.app.include_router(router)
+
+
+def apply_profile(backend,con,user,row,body,request):
+    guest_id=row['id']
+    if body.country_of_residence not in COUNTRIES:raise HTTPException(422,'Unsupported residence country')
+    if body.nationality_country is not None and body.nationality_country not in COUNTRIES:raise HTTPException(422,'Unsupported nationality country')
+    if body.source not in ('manual','correction'):raise HTTPException(422,'Scanned provenance can only be recorded by the scanner integration')
+    if body.ifa_status not in IFA_REASONS:raise HTTPException(422,'Unsupported official IFA exemption reason')
+    if body.sex not in ('NO','FERFI','EGYEB_VAGY_NEM_ISMERT'):raise HTTPException(422,'Invalid sex classification')
+    if not date(1920,1,1)<=body.date_of_birth<=date.today():raise HTTPException(422,'Invalid birth date')
+    payload=body.model_dump(mode='json')
+    previous=con.execute('SELECT encrypted_payload FROM guest_reporting_profiles WHERE guest_record_id=? ORDER BY revision DESC LIMIT 1',(guest_id,)).fetchone()
+    if previous and backend.decrypt_json(previous['encrypted_payload'])==payload:return {'ok':True,'duplicate':True}
+    con.execute('INSERT INTO guest_reporting_profiles(id,guest_record_id,organization_id,property_id,effective_from,encrypted_payload,source,reason,actor_id,created_at,revision) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+        (str(uuid.uuid4()),guest_id,user['organization_id'],row['property_id'],str(body.effective_from),backend.encrypt_json(payload),body.source,body.reason,user['id'],backend.now_iso(),con.execute('SELECT COALESCE(MAX(revision),0)+1 n FROM guest_reporting_profiles WHERE guest_record_id=?',(guest_id,)).fetchone()['n']))
+    import business_days
+    business_days.dirty_range(con,user['organization_id'],row['property_id'],body.effective_from,user['id'],body.reason)
+    # Preserve scanned fields; a correction is a separate encrypted source,
+    # never falsely labelled as a fresh scan or automatic verification.
+    con.execute("UPDATE guest_identity_verifications SET status='needs_review',verified_by=NULL,verified_at=NULL,updated_at=? WHERE guest_record_id=?",(backend.now_iso(),guest_id))
+    backend._sync_registration(con,row['reservation_id'],user['organization_id'])
+    backend.audit_event(con,user['organization_id'],'guest.reporting_profile_updated','Guest reporting profile updated.',actor_user_id=user['id'],entity_type='guest_record',entity_id=guest_id,metadata={'source':body.source,'effective_from':str(body.effective_from)},request=request)
+    return {'ok':True,'identity_preserved':True}

@@ -45,7 +45,27 @@ sh tests/run_pilot_postgres_rehearsal.sh
 ## Boundaries and Pilot 02
 
 - No live guest delivery, remote invoice issuance or payment collection was exercised. The current SSH-only UAT origin serves the operator, so a guest on another network still needs an approved, reachable HTTPS guest origin.
-- For this pilot, the single apartment and its property share one overnight turnover. The existing property/day grouping remains for overnight operations. Independent cleaning per unit on multi-unit properties and reinspection after a retrospective correction to a completed turnover remain manual. A no-show or late guest still requires an explicit operator decision, with no inferred arrival or departure.
+- The original rehearsal used one rentable apartment. The follow-up below adds independent overnight turnover to bookings with physical room allocations. A no-show or late guest still requires an explicit operator decision.
 - Camera/OCR quality, guest-browser behavior on a real Xiaomi and the new Windows UI against a backend running these changes remain manual acceptance checks. The backend changes were exercised locally. Hetzner still runs the previously deployed image.
 - Both official transmission gates stayed disabled. Existing NTAK signing and normalization blockers and VIZA external interoperability requirements remain open.
 - **Pilot 02** should validate one approved guest communication channel and reachable HTTPS guest origin. Redact bearer paths from application and ingress access logs before exposing the guest form. Rehearse delivery receipts, rejected and delayed delivery, link recovery, and physical-device scanning with synthetic data before any real guest rollout.
+
+## Follow-up · Overnight turnover by physical room
+
+Pilot 01 already covered confirmation, durable invitation preparation, simulated sending, public identity submission, explicit review, audited actual stay events, permission-scoped cleaning and property readiness. The remaining local connection was letting each room progress independently when a booking spans multiple rooms.
+
+The existing planner now creates one overnight cleaning task for each allocated room. A planned task becomes actionable after the room's last actual guest leaves, even while guests from the same booking remain in another room. Checkout replay retains the existing task. Booking date changes retain the task ID, and cancellation retires unfinished planned room work. A departure reversal blocks the room again. Recording a new departure after completed cleaning creates a fresh checklist and preserves the original completion.
+
+Ma shows how many rooms are ready. The property detail shows each room's state, and Operations, reservation preparation and the worker schedule identify the physical room on its task. The existing property-level workflow remains available for unallocated bookings. Planned room tasks wait for observed checkout. Automated no-show decisions and live guest delivery remain open.
+
+| Changed area | Files |
+| --- | --- |
+| Turnover and readiness | [overnight_turnover.py](../../overnight_turnover.py), [app.py](../../app.py), [guest_stays.py](../../guest_stays.py), [reservation_allocations.py](../../reservation_allocations.py) |
+| Flutter surfaces | [Today and worker view](../../apps/delvane_business/lib/features/pms/pms_shell.dart), [property detail](../../apps/delvane_business/lib/features/pms/property_dialog.dart), [Operations](../../apps/delvane_business/lib/features/pms/operations_dashboard.dart), [reservation preparation](../../apps/delvane_business/lib/features/pms/reservation_dialogs.dart), [Hungarian labels](../../apps/delvane_business/assets/native-hu.json) |
+| Tests and packaging | [Backend workflow test](../../tests/test_unit_turnover.py), [Flutter property test](../../apps/delvane_business/test/management_port_test.dart), [PostgreSQL runner](../../tests/run_pilot_postgres_rehearsal.sh), [Docker allowlist](../../.dockerignore) |
+
+The connected two-room synthetic API test starts with booking and approved invitation simulation. Both guests submit their details and an owner verifies them and checks them in. Room 101 goes from occupied to cleaning to ready while Room 102 stays occupied. The test also covers duplicate checkout, correction after cleaning, both checklists, owner and worker permissions, and dashboard consistency. The booking-change test covers date modification and cancellation. Both tests passed. The 32 selected earlier PMS regressions passed, and the existing single-apartment PostgreSQL 17.12 rehearsal passed through restart on schema 3090.
+
+The overlapping Channex, NTAK evidence, VIZA identity and room turnover group passed 41 tests. The final targeted backend run passed 6 tests, including a check that cancelled work cannot retain cleaner property access. Flutter analysis was clean, and 60 focused Flutter tests passed. The separate Windows UAT release is in `apps/delvane_business/build/windows-uat-unit-turnover/x64/runner/Release`. The new backend was exercised locally. Live UAT and device acceptance are pending.
+
+The [Guest Communication 01 follow-up](GUEST_COMMUNICATION_01.md) adds and rehearses the durable guest email pipeline. An approved delivery adapter, verified sender and reachable HTTPS guest origin are required for a genuine send. Both government transmissions remain disabled.

@@ -9,7 +9,8 @@ docker_local() { docker --host unix:///var/run/docker.sock "$@"; }
 network=delvane-ntak-preflight
 settings=$(docker_local network inspect -f '{{.Id}}|{{.Driver}}|{{.Internal}}|{{.EnableIPv6}}|{{index .Options "com.docker.network.bridge.gateway_mode_ipv4"}}|{{index .Options "com.docker.network.bridge.name"}}|{{range .IPAM.Config}}{{if not (eq (printf "%v" .Gateway) "" "invalid IP")}}present{{end}}{{end}}|{{len .Containers}}' "$network")
 network_id=${settings%%|*}
-[[ $settings == "$network_id|bridge|true|false|isolated|br-delvane-uat||2" ]]
+[[ $settings == "$network_id|bridge|true|false|isolated|br-delvane-uat||2" ||
+   $settings == "$network_id|bridge|true|false|isolated|br-delvane-uat||3" ]]
 [[ -z $(ip -4 -o addr show dev br-delvane-uat) ]]
 policy=/root/delvane-uat-preflight/tests/uat_preflight_egress.nft
 rules=$(nft -s -y -n list table inet delvane_uat_preflight)
@@ -17,13 +18,34 @@ rules=$(nft -s -y -n list table inet delvane_uat_preflight)
 
 peers=$(docker_local network inspect -f '{{range $id, $peer := .Containers}}{{printf "%s %s\n" $id $peer.Name}}{{end}}' "$network")
 app=$(awk '$2 ~ /^delvane-uat-[a-f0-9]{12}-restored$/ {print $1}' <<<"$peers")
-pg=$(awk '$2 ~ /^delvane-uat-[a-f0-9]{12}-pg$/ {print $1}' <<<"$peers")
-[[ $app =~ ^[a-f0-9]{64}$ && $pg =~ ^[a-f0-9]{64}$ ]]
-case $(docker_local inspect -f '{{.Image}}' "$app") in
-    sha256:08b340b1e459d2a8ecedbaa06c1317ef22c9cb2f87412dee0bfe7db07182fe35|sha256:59220537262a50c84cc66be88890a5485d9a7da2f2b5fa91a10e90b8f5171720) ;;
-    *) echo 'Unexpected Delvane image.' >&2; exit 1 ;;
-esac
-for container in "$app" "$pg"; do
+name=$(awk -v id="$app" '$1 == id {print $2}' <<<"$peers")
+pg_name=${name%-restored}-pg
+pg=$(awk -v name="$pg_name" '$2 == name {print $1}' <<<"$peers")
+[[ $app =~ ^[a-f0-9]{64}$ ]]
+installed_image=$(docker_local inspect -f '{{.Image}}' "$app")
+if [[ -n ${1-} ]]; then
+    [[ $1 =~ ^sha256:[a-f0-9]{64}$ && $installed_image == "$1" ]]
+else
+    case $installed_image in
+        sha256:08b340b1e459d2a8ecedbaa06c1317ef22c9cb2f87412dee0bfe7db07182fe35|sha256:59220537262a50c84cc66be88890a5485d9a7da2f2b5fa91a10e90b8f5171720) ;;
+        *) echo 'Unexpected Delvane image.' >&2; exit 1 ;;
+    esac
+fi
+containers=("$app")
+if [[ -n $pg ]]; then
+    [[ $pg =~ ^[a-f0-9]{64}$ ]]
+    containers+=("$pg")
+fi
+db_host=isolated-pg
+durable=$(awk -v name="$pg_name-durable" '$2 == name {print $1}' <<<"$peers")
+if [[ -n $durable ]]; then
+    [[ -n ${1-} && $durable =~ ^[a-f0-9]{64}$ ]]
+    [[ $(docker_local inspect -f '{{range .Mounts}}{{if eq .Destination "/var/lib/postgresql/data"}}{{.Type}}{{end}}{{end}}' "$durable") == volume ]]
+    containers+=("$durable")
+    db_host=guest-pg
+fi
+[[ $settings == "$network_id|bridge|true|false|isolated|br-delvane-uat||${#containers[@]}" ]]
+for container in "${containers[@]}"; do
     info=$(docker_local inspect -f '{{.State.Running}}|{{len .HostConfig.PortBindings}}|{{.HostConfig.PublishAllPorts}}|{{.HostConfig.Privileged}}|{{range .NetworkSettings.Networks}}{{.NetworkID}}|{{end}}' "$container")
     [[ $info == "true|0|false|false|$network_id|" ]]
 done
@@ -48,7 +70,7 @@ require(environment["environment"] == "staging" and environment["secure_cookies"
 require(environment["deployment_id"].startswith("delvane-uat-"))
 require(app.APP_ENV == "production" and app.DB_BACKEND == "postgresql")
 url = urlsplit(os.environ["ROSA_DATABASE_URL"])
-require(url.hostname == "isolated-pg" and url.username == "delvane_uat"
+require(url.hostname == sys.argv[2] and url.username == "delvane_uat"
         and url.path.startswith("/delvane_uat_") and url.path.endswith("_restored"))
 user = "owner_uat_windows"
 email = "owner-windows@uat.invalid"
@@ -91,7 +113,7 @@ cleanup() {
     rm -f -- "$access/https.sock" "$access/cert.pem" "$access/key.pem"
     rmdir -- "$access"
     if [[ -n $account_enabled ]]; then
-        docker_local exec "$app" python -c "$account_code" disable ||
+        docker_local exec "$app" python -c "$account_code" disable "$db_host" ||
             echo 'The synthetic account could not be disabled. Review before opening a new relay.' >&2
     fi
 }
@@ -102,7 +124,7 @@ trap 'exit 143' TERM
 read -rs -p 'Choose a disposable password for owner-windows@uat.invalid (12–128 characters): ' password
 printf '\n'
 [[ ${#password} -ge 12 && ${#password} -le 128 ]]
-printf '%s\n' "$password" | docker_local exec -i "$app" python -c "$account_code" enable
+printf '%s\n' "$password" | docker_local exec -i "$app" python -c "$account_code" enable "$db_host"
 unset password
 account_enabled=1
 

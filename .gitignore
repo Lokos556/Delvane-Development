@@ -15,6 +15,7 @@
 !.env.example
 *.env
 .env.local
+deploy/guest-uat/tunnel.token
 
 # Python environments and generated output
 .venv/

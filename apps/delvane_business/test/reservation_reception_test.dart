@@ -26,6 +26,77 @@ Future<void> enter(WidgetTester tester, String label, String value) async {
 
 void main() {
   testWidgets(
+    'Reception distinguishes acceptance, retry and confirmed delivery',
+    (tester) async {
+      final pms = WorkflowPms();
+      final entry = pms.outbox.first
+        ..['message_type'] = 'guest_checkin_invitation'
+        ..['status'] = 'ready'
+        ..['registration_status'] = 'pending'
+        ..['delivery'] = {
+          'state': 'provider_accepted',
+          'test_mode': true,
+          'last_attempt_at': '2026-11-20T08:00:00+00:00',
+        };
+      final auth = await signedIn(pms);
+      final c = PmsController(auth, initialPage: PmsPage.inbox);
+      await c.load();
+      c.receptionTab = 1;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: pmsTheme(),
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: ReceptionPage(controller: c, openStay: (_) {}),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Test provider accepted'), findsNothing);
+      await tester.ensureVisible(find.text('Invitation details'));
+      await tester.tap(find.text('Invitation details'));
+      await tester.pumpAndSettle();
+      expect(find.text('Test provider accepted'), findsOneWidget);
+      expect(find.text('Test delivery confirmed'), findsNothing);
+      expect(
+        find.text('Guest details received · review pending'),
+        findsNothing,
+      );
+      expect(find.text('Simulate send'), findsNothing);
+      entry['delivery'] = {'state': 'provider_delayed', 'test_mode': true};
+      await tester.tap(find.text('Refresh deliveries'));
+      await tester.pumpAndSettle();
+      expect(find.text('Delivery delayed at recipient server'), findsOneWidget);
+      expect(find.text('Test delivery confirmed'), findsNothing);
+      expect(find.text('Retry delivery now'), findsNothing);
+      entry['delivery'] = {
+        'state': 'retry_scheduled',
+        'test_mode': true,
+        'can_retry': true,
+        'failure_code': 'provider_unavailable',
+        'next_attempt_at': '2026-11-20T08:01:00+00:00',
+      };
+      await tester.tap(find.text('Refresh deliveries'));
+      await tester.pumpAndSettle();
+      expect(find.text('Delivery retry scheduled'), findsOneWidget);
+      expect(find.text('Email provider unavailable'), findsOneWidget);
+      final retry = find.text('Retry delivery now');
+      await tester.ensureVisible(retry);
+      entry['delivery'] = {'state': 'delivered', 'test_mode': true};
+      entry['registration_status'] = 'complete';
+      await tester.tap(retry);
+      await tester.pumpAndSettle();
+      expect(find.text('Test delivery confirmed'), findsOneWidget);
+      expect(find.text('Pre-check-in verified'), findsNothing);
+      expect(find.text('Retry delivery now'), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+      c.dispose();
+      auth.dispose();
+    },
+  );
+
+  testWidgets(
     'prepared invitations only expose a link after local simulation',
     (tester) async {
       final pms = WorkflowPms();
@@ -367,8 +438,8 @@ void main() {
       );
       await tester.tap(find.byTooltip('Close dialog').last);
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Review identity verification'));
-      await tester.tap(find.text('Review identity verification'));
+      await tester.ensureVisible(find.text('Open guest profiles'));
+      await tester.tap(find.text('Open guest profiles'));
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('Verify identity'));
       await tester.tap(find.text('Verify identity'));

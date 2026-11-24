@@ -9,10 +9,15 @@
 !app.py
 !business_days.py
 !client_environment.py
+!uat_access.py
 !day_use.py
 !financial_ledger.py
+!guest_registration.py
 !guest_reporting.py
 !guest_stays.py
+!guest_delivery.py
+!resend_guest_email.py
+!overnight_turnover.py
 !owner_assistant.py
 !physical_units.py
 !reservation_allocations.py

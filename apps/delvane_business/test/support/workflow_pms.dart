@@ -64,6 +64,7 @@ class WorkflowPms extends FakePms {
         path.startsWith('/api/reception') ||
         path.startsWith('/api/communications') ||
         path.startsWith('/api/automation') ||
+        path.startsWith('/api/registration/records/') ||
         path.startsWith('/api/guests') ||
         path == '/api/organization';
     if (!custom) return super.request(method, uri, headers, body);
@@ -146,6 +147,24 @@ class WorkflowPms extends FakePms {
               'verification_status': verification,
             },
           ],
+        });
+      }
+      if (path == '/api/registration/records/guest1/workspace') {
+        return json({
+          'id': 'guest1',
+          'reservation_id': 'r1',
+          'full_name': 'Synthetic Guest',
+          'registration_stage': verification == 'verified'
+              ? 'verified'
+              : 'submitted',
+          'can_verify': booking['status'] == 'confirmed',
+          'verification': {'status': verification},
+          'business_date': '2026-11-20',
+          'revision': [1, 0],
+          'readiness': {
+            'viza_blockers': [],
+            'ntak_blockers': ['missing_guest_reporting_profile'],
+          },
         });
       }
       if (path == '/api/inbox') return json(messages);

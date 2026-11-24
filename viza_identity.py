@@ -41,9 +41,10 @@ def scope(con,org,gid):
 
 
 def project(backend,con,gid):
-    original={};manual={};provenance={};ambiguities=[];applicable=None;history=[];contexts=[]
+    original={};manual={};provenance={};ambiguities=[];applicable=None;history=[];contexts=[];submission=None
     for row in con.execute('SELECT * FROM guest_identity_sources WHERE guest_record_id=? ORDER BY revision',(gid,)):
         data=backend.decrypt_json(row['encrypted_payload'])
+        if 'guest_submission' in data:submission=data['guest_submission']
         history.append({'id':row['id'],'kind':row['kind'],'revision':row['revision'],'created_at':row['created_at'],'actor_id':row['actor_id']})
         assigned=set()
         if row['kind']=='scan':
@@ -63,10 +64,11 @@ def project(backend,con,gid):
             provenance[k]={'source':row['kind'],'actor_id':row['actor_id'],'timestamp':row['created_at'],'reason':data.get('reason',''),'revision':row['revision']}
     return {'reader_contexts':contexts,'original':original,'manual':manual,'effective':{**original,**manual},'provenance':provenance,'history':history,
             'third_country_applicable':applicable,'ambiguities':sorted(set(ambiguities)),
+            'guest_submission':submission,
             'original_state':'retained' if original else 'unknown_not_reconstructed'}
 
 
-def append(backend,con,row,fields,actor,kind,*,reason='',third_country_applicable=None,ambiguities=None,confirm_ambiguities=False,reader_context=None):
+def append(backend,con,row,fields,actor,kind,*,reason='',third_country_applicable=None,ambiguities=None,confirm_ambiguities=False,reader_context=None,guest_submission=None):
     context=reader_context or {}
     if set(context)-{'mrz_birth_raw','mrz_format','scan_side'} or any(not isinstance(v,str) or len(v)>30 for v in context.values()):raise HTTPException(422,'Invalid reader context')
     if set(fields)-ALLOWED:raise HTTPException(422,'Unsupported identity field')
@@ -86,6 +88,7 @@ def append(backend,con,row,fields,actor,kind,*,reason='',third_country_applicabl
     # Keep raw scanner country; only convert in readiness/serialization, never in history.
     rev=con.execute('SELECT COALESCE(MAX(revision),0)+1 n FROM guest_identity_sources WHERE guest_record_id=?',(row['id'],)).fetchone()['n']
     data={'fields':fields,'reason':reason,'third_country_applicable':third_country_applicable,'ambiguities':ambiguities or [],'confirm_ambiguities':confirm_ambiguities,'reader_context':context}
+    if guest_submission is not None:data['guest_submission']=guest_submission
     con.execute('INSERT INTO guest_identity_sources VALUES (?,?,?,?,?,?,?,?,?)',(str(uuid.uuid4()),row['id'],row['organization_id'],row['property_id'],kind,backend.encrypt_json(data),actor,backend.now_iso(),rev))
     if kind!='scan':
         con.execute("UPDATE guest_identity_verifications SET status='needs_review',verified_by=NULL,verified_at=NULL WHERE guest_record_id=?",(row['id'],))
@@ -122,9 +125,10 @@ def readiness(backend,con,gid,arrival_day):
             'third_country_applicable':p['third_country_applicable']}
 
 
-def ingest(backend,con,row,scanned,manual,actor,*,ambiguities=None,reader_context=None):
+def ingest(backend,con,row,scanned,manual,actor,*,ambiguities=None,reader_context=None,guest_submission=None):
     if scanned:append(backend,con,row,scanned,actor,'scan',ambiguities=ambiguities,reader_context=reader_context)
-    if manual:append(backend,con,row,manual,actor,'manual',reason='Guest reviewed registration fields')
+    if manual or guest_submission is not None:
+        append(backend,con,row,manual,actor,'manual',reason='Guest reviewed registration fields',guest_submission=guest_submission)
 
 
 def install(backend):
@@ -138,7 +142,9 @@ def install(backend):
     def get(guest_id:str,arrival_date:date|None=None,rosa_session:str|None=Cookie(default=None)):
         with backend.db() as con:
             user,row=access(con,guest_id,rosa_session)
-            return {**project(backend,con,guest_id),'readiness':readiness(backend,con,guest_id,arrival_date or date.fromisoformat(row['arrival_date'])),
+            projected=project(backend,con,guest_id)
+            projected.pop('guest_submission')
+            return {**projected,'readiness':readiness(backend,con,guest_id,arrival_date or date.fromisoformat(row['arrival_date'])),
                     'assessment_date_source':'explicit_actual_arrival' if arrival_date else 'planned_preview_only'}
     @router.get('/sources')
     def sources(guest_id:str,rosa_session:str|None=Cookie(default=None)):
@@ -150,38 +156,42 @@ def install(backend):
     def put(guest_id:str,body:IdentityEdit,request:Request,rosa_session:str|None=Cookie(default=None)):
         with backend.db() as con:
             user,row=access(con,guest_id,rosa_session)
-            effective={**project(backend,con,guest_id)['effective'],**body.manual}
-            if effective.get('allampolgarsagKod'):
-                try:contract.country(effective['allampolgarsagKod'])
-                except contract.ContractError:raise HTTPException(422,'Country mapping requires an explicit accepted two-letter code')
-            try:contract.Person.model_validate({k:v for k,v in effective.items() if k in contract.FIELDS})
-            except ValueError:raise HTTPException(422,'Invalid structured identity fields') from None
-            errors=contract.identity_errors(effective,backend.date.today())
-            if any(e.startswith('length:') for e in errors):raise HTTPException(422,'Identity field length exceeded')
-            if effective.get('szuletesiDatum') and 'birth_date' in errors:raise HTTPException(422,'Birth date outside rolling 110-year range')
-            revision=append(backend,con,row,body.manual,user['id'],'manual',reason=body.reason,
-                 third_country_applicable=body.third_country_applicable,confirm_ambiguities=body.confirm_ambiguities)
-            values=project(backend,con,guest_id)['effective']
-            vault_merge(backend,con,guest_id,user['organization_id'],{target:values[source] for source,target in (('szuletesiDatum','date_of_birth'),('okmanyAzonositoSzam','document_number')) if source in values})
-            reference=date.fromisoformat(row['arrival_date'])
-            # Use the same normalized, source-aware assessment as VIZA readiness.
-            # Reader alpha3 codes remain immutable originals; only the operational
-            # projection uses the unambiguous accepted alpha2 code.
-            assessment=readiness(backend,con,guest_id,reference)
-            required=set(assessment['blockers'])-{'owner_verification_required'}
-            complete=not required
-            con.execute('UPDATE guest_records SET completeness=?,nationality=COALESCE(?,nationality),document_type=COALESCE(?,document_type) WHERE id=?',('complete' if complete else 'incomplete',assessment['effective'].get('allampolgarsagKod'),values.get('okmanyTipus'),guest_id))
-            con.execute('''INSERT INTO guest_identity_verifications(guest_record_id,organization_id,reservation_id,status,updated_at)
-              VALUES (?,?,?,'needs_review',?) ON CONFLICT(guest_record_id) DO UPDATE SET status='needs_review',verified_by=NULL,verified_at=NULL,updated_at=excluded.updated_at''',(guest_id,user['organization_id'],row['reservation_id'],backend.now_iso()))
-            backend._sync_registration(con,row['reservation_id'],user['organization_id'])
-            # Audit contains identifiers only, never identity values or correction reasons.
-            backend.audit_event(con,user['organization_id'],'guest.identity.reviewed','Identity fields reviewed.',actor_user_id=user['id'],entity_type='guest_record',entity_id=guest_id,metadata={'revision':revision,'fields':sorted(body.manual)})
-            return {'ok':True,'revision':revision,'verification_status':'needs_review'}
+            return apply_edit(backend,con,user,row,body)
     backend.app.include_router(router)
 
+def apply_edit(backend,con,user,row,body):
+    guest_id=row['id']
+    effective={**project(backend,con,guest_id)['effective'],**body.manual}
+    if effective.get('allampolgarsagKod'):
+        try:contract.country(effective['allampolgarsagKod'])
+        except contract.ContractError:raise HTTPException(422,'Country mapping requires an explicit accepted two-letter code')
+    try:contract.Person.model_validate({k:v for k,v in effective.items() if k in contract.FIELDS})
+    except ValueError:raise HTTPException(422,'Invalid structured identity fields') from None
+    errors=contract.identity_errors(effective,backend.date.today())
+    if any(e.startswith('length:') for e in errors):raise HTTPException(422,'Identity field length exceeded')
+    if effective.get('szuletesiDatum') and 'birth_date' in errors:raise HTTPException(422,'Birth date outside rolling 110-year range')
+    revision=append(backend,con,row,body.manual,user['id'],'manual',reason=body.reason,
+         third_country_applicable=body.third_country_applicable,confirm_ambiguities=body.confirm_ambiguities)
+    values=project(backend,con,guest_id)['effective']
+    vault_merge(backend,con,guest_id,user['organization_id'],{target:values[source] for source,target in (('szuletesiDatum','date_of_birth'),('okmanyAzonositoSzam','document_number')) if source in values})
+    reference=date.fromisoformat(row['arrival_date'])
+    # Use the same normalized, source-aware assessment as VIZA readiness.
+    # Reader alpha3 codes remain immutable originals; only the operational
+    # projection uses the unambiguous accepted alpha2 code.
+    assessment=readiness(backend,con,guest_id,reference)
+    required=set(assessment['blockers'])-{'owner_verification_required'}
+    complete=not required
+    con.execute('UPDATE guest_records SET completeness=?,nationality=COALESCE(?,nationality),document_type=COALESCE(?,document_type) WHERE id=?',('complete' if complete else 'incomplete',assessment['effective'].get('allampolgarsagKod'),values.get('okmanyTipus'),guest_id))
+    con.execute('''INSERT INTO guest_identity_verifications(guest_record_id,organization_id,reservation_id,status,updated_at)
+      VALUES (?,?,?,'needs_review',?) ON CONFLICT(guest_record_id) DO UPDATE SET status='needs_review',verified_by=NULL,verified_at=NULL,updated_at=excluded.updated_at''',(guest_id,user['organization_id'],row['reservation_id'],backend.now_iso()))
+    backend._sync_registration(con,row['reservation_id'],user['organization_id'])
+    # Audit contains identifiers only, never identity values or correction reasons.
+    backend.audit_event(con,user['organization_id'],'guest.identity.reviewed','Identity fields reviewed.',actor_user_id=user['id'],entity_type='guest_record',entity_id=guest_id,metadata={'revision':revision,'fields':sorted(body.manual)})
+    return {'ok':True,'revision':revision,'verification_status':'needs_review'}
+
+
 def vault_merge(backend,con,gid,org,values):
-    row=con.execute('SELECT encrypted_payload FROM sensitive_guest_data WHERE guest_record_id=? AND organization_id=?',(gid,org)).fetchone()
-    previous=backend.decrypt_json(row['encrypted_payload']) if row else {}
+    previous=vault_data(backend,con,gid,org)
     payload={**previous,**values}
     con.execute('''INSERT INTO sensitive_guest_data(guest_record_id,organization_id,encrypted_payload,updated_at) VALUES (?,?,?,?)
       ON CONFLICT(guest_record_id) DO UPDATE SET encrypted_payload=excluded.encrypted_payload,updated_at=excluded.updated_at''',(gid,org,backend.encrypt_json(payload),backend.now_iso()))
@@ -189,12 +199,15 @@ def vault_merge(backend,con,gid,org,values):
 
 def compatibility(backend,con,row):
     data=dict(row)
-    v=con.execute('SELECT encrypted_payload FROM sensitive_guest_data WHERE guest_record_id=? AND organization_id=?',(data['id'],data['organization_id'])).fetchone()
-    if v:
-        protected=backend.decrypt_json(v['encrypted_payload'])
-        for k in ('date_of_birth','document_number'):
-            if k in protected:data[k]=protected[k]
+    protected=vault_data(backend,con,data['id'],data['organization_id'])
+    for k in ('date_of_birth','document_number'):
+        if k in protected:data[k]=protected[k]
     return data
+
+
+def vault_data(backend,con,gid,org):
+    row=con.execute('SELECT encrypted_payload FROM sensitive_guest_data WHERE guest_record_id=? AND organization_id=?',(gid,org)).fetchone()
+    return backend.decrypt_json(row['encrypted_payload']) if row else {}
 
 
 def protect_legacy(backend,con):

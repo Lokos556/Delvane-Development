@@ -2,8 +2,12 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const src=fs.readFileSync('static/guest-checkin.js','utf8');
 const c={state:{reservation:{arrival_date:'2026-11-20'}},Date};vm.createContext(c);
+vm.runInContext(src.slice(src.indexOf('const NATIONALITY_BY_CODE='),src.indexOf('const NATIONALITY_OPTIONS=')),c);
 vm.runInContext(src.slice(src.indexOf('const readerOriginal='),src.indexOf('function applyParsed('))+src.slice(src.indexOf('function localToday()'),src.indexOf('function renderFields()'))+'\nthis.api={retainReaderFields,identitySubmission,mrzBirthCandidates,registrationDocumentRequired};',c);
 const a=c.api;
+assert.equal(a.identitySubmission({nationality:'Hungarian'}).manual_fields.allampolgarsagKod,'HUN');
+assert.equal(a.identitySubmission({nationality:'British'}).manual_fields.allampolgarsagKod,undefined);
+assert.equal(a.identitySubmission({nationality:'Unreviewed text'}).manual_fields.allampolgarsagKod,undefined);
 a.retainReaderFields({family_name:'Fictional',given_names:'\u00c1rv\u00edzt\u0171r\u0151',nationality_code:'HUN',document_type:'passport',date_of_birth:'1990-01-02'});
 a.retainReaderFields({family_name:'Wrong reverse side',given_names:'\u00c1rv\u00edzt\u0171r\u0151'});
 let submitted=a.identitySubmission({family_name:'Reviewed',given_names:'\u00c1rv\u00edzt\u0171r\u0151',nationality_code:'HU'});

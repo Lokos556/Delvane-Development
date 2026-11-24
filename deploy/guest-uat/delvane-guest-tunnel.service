@@ -1,0 +1,24 @@
+[Unit]
+Description=Delvane guest-only UAT Cloudflare connector
+BindsTo=delvane-guest-egress.service
+After=network-online.target delvane-guest-egress.service
+
+[Service]
+User=delvane-guest-tunnel
+Group=delvane-guest-tunnel
+Type=simple
+LoadCredential=token:/etc/delvane-guest-uat/tunnel.token
+ExecStartPre=/usr/bin/test -S /run/delvane-guest-uat/origin.sock
+ExecStart=/usr/bin/cloudflared tunnel --no-autoupdate --protocol http2 --edge-ip-version 4 --metrics 127.0.0.1:19764 run --token-file ${CREDENTIALS_DIRECTORY}/token
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+RestrictAddressFamilies=AF_UNIX AF_INET
+IPAddressDeny=any
+IPAddressAllow=127.0.0.53/32 198.41.192.0/24 198.41.200.0/24
+MemoryMax=192M
+TasksMax=32
+StandardOutput=null
+StandardError=null
