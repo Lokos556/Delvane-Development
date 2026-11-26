@@ -47,4 +47,8 @@ The installer checks the current application, workers, disk-backed database and 
 3. Open Reception, switch among the three visible folders, and verify the list, unread filter, conversation and draft controls. Verify the existing guest website and approved-account restriction.
 4. Use a confirmed synthetic stay with an allocated unit. Record observed arrival and departure from Ma or booking details. Verify the resulting cleaning task, finish its checklist with an authorized worker, and verify readiness. Keep NTAK and VIZA transmission disabled.
 
-Server activation and physical-device retesting remain pending.
+## Hetzner activation
+
+On 26 November 2026, the activation verifier reported that backend 2.10.60 replaced 2.10.59. PostgreSQL schema 3091, database connectivity, workers, Cloudflare, the supervisor and daily backups passed their checks. The previous application container was retained for rollback. The fresh backup passed checksum verification at `/var/lib/delvane-uat-backups/delvane_uat_ed88fcdce45e_restored-20261126T172208Z-bf5d302e`.
+
+Authenticated reservation, Reception, actual-stay review, reporting details and booking-contact checks passed. Tenant denial was verified against the foreign test property, which had no booking to use for a booking-contact probe. The public API returned HTTP 401 for anonymous calls to protected routes, and the guest domain returned HTTP 404 for the PMS reservation API. The physical-device retest and live check-in and checkout with a synthetic stay remain pending.

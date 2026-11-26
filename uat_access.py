@@ -17,7 +17,7 @@ ROUTES = {
         r'notifications(?:/preferences)?|team/overview|automation/rules|communications/outbox',
         r'security|audit|retention|search|knowledge|intelligence|memory',
         r'integrations|integration-events|integration-sync/summary|rosa/(?:conversation|provider|actions)',
-        rf'properties/{ID}/(?:overview|room-types|rate-plans|physical-units(?:/capacity|/{ID}/history)?)',
+        rf'properties/{ID}/(?:overview|room-types|rate-plans|physical-units(?:/capacity|/assignment-options|/{ID}/history)?)',
         rf'reservations/{ID}/(?:detail|booking-contact|reporting-details|guest-checkin-status|guest-checkin-links|allocations|actual-stay|channex-availability-delivery)',
         rf'guests/{ID}|work-tasks/{ID}(?:/checklist)?|registration/{ID}/sensitive',
         rf'registration/records/{ID}/(?:workspace|reporting-profile|viza-identity(?:/sources)?)',

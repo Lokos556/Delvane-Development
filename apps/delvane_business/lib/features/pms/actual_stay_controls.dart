@@ -9,6 +9,7 @@ import 'pms_controller.dart';
 import 'pms_dialogs.dart';
 import 'pms_style.dart';
 import 'pms_workflows.dart';
+import 'unit_assignment.dart';
 
 enum StayOperation { checkIn, checkOut }
 
@@ -274,6 +275,15 @@ class _ActualStayDialogState extends State<ActualStayDialog>
     }
   }
 
+  Future<void> assignRoom() async {
+    if (await reviewUnitAssignment(context, widget.api, widget.reservationId) ==
+            true &&
+        mounted) {
+      widget.onChanged?.call();
+      await load();
+    }
+  }
+
   Future<void> correction(String kind, Map? event) async {
     final ids = event == null
         ? selected.toList()
@@ -432,6 +442,15 @@ class _ActualStayDialogState extends State<ActualStayDialog>
           Wrap(
             spacing: 8,
             children: [
+              if (checkingIn &&
+                  plan.isEmpty &&
+                  data!['reservation_status'] == 'confirmed' &&
+                  data!['stay_type'] == 'overnight')
+                PmsButton(
+                  ui('Assign a room'),
+                  primary: true,
+                  onPressed: busy ? null : assignRoom,
+                ),
               if (widget.reviewBooking != null && blocker != null)
                 TextButton(
                   onPressed: busy

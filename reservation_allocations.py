@@ -1,8 +1,9 @@
 """Physical assignments replace a booking's one-unit aggregate demand, never add to it."""
-from datetime import date,timedelta
+from datetime import date,datetime,timedelta
+from typing import Literal
 import json
 import uuid
-from fastapi import APIRouter,Cookie,HTTPException,Request
+from fastapi import APIRouter,Cookie,HTTPException,Query,Request
 from pydantic import BaseModel,ConfigDict,Field
 import physical_units
 
@@ -33,8 +34,95 @@ class Replace(BaseModel):
     reason:str=Field(min_length=3,max_length=500)
 
 
+class SelectUnit(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    mode: Literal['automatic', 'specific']
+    unit_id: str | None = None
+    expected_active_ids: list[str] = Field(max_length=100)
+
+
 def active(con,rid):
     return [dict(x) for table in ('reservation_unit_allocations','day_use_allocations') for x in con.execute("SELECT * FROM "+table+" WHERE reservation_id=? AND state='active' ORDER BY date_from,unit_id",(rid,))]
+
+
+def label(unit):
+    return ' · '.join(part for part in (unit['building'], unit['unit_number']) if part)
+
+
+def display_allocations(con, reservation, assignments=None):
+    result = []
+    for item in active(con, reservation['id']) if assignments is None else assignments:
+        unit = next((unit for unit in physical_units.units_on(
+            con, reservation['organization_id'], item['property_id'], item['date_from'])
+            if unit['id'] == item['unit_id']), None)
+        result.append({**item, 'label': label(unit) if unit else None})
+    return result
+
+
+def full_stay(reservation, unit_id):
+    return {'unit_id': unit_id, 'date_from': reservation['arrival_date'],
+            'date_to': reservation['departure_date']}
+
+
+def single_unit_candidates(con, reservation):
+    """Stable ordering reserves larger units for parties that need them."""
+    if reservation['stay_type'] != 'overnight' or not reservation['room_type_id']:
+        return []
+    return sorted(
+        (unit for unit in physical_units.units_on(
+            con, reservation['organization_id'], reservation['property_id'], reservation['arrival_date'])
+         if unit['active'] and unit['room_type_id'] == reservation['room_type_id']),
+        key=lambda unit: (
+            unit['single_beds'] + 2 * unit['double_beds'] + unit['extra_beds'],
+            unit['building'], unit['unit_number'], unit['id'],
+        ),
+    )
+
+
+def suitable_units(con, reservation, candidates):
+    for unit in candidates:
+        row = full_stay(reservation, unit['id'])
+        try:
+            check(con, reservation, [row])
+        except HTTPException as exc:
+            if exc.status_code not in (409, 422):
+                raise
+        else:
+            yield unit
+
+
+def options(con, reservation, assignments=()):
+    blocker = None
+    if reservation['status'] != 'confirmed':
+        blocker = 'stay_booking_not_confirmed'
+    elif reservation['stay_type'] != 'overnight' or len(assignments) > 1 or any(
+        (item['date_from'], item['date_to']) != (reservation['arrival_date'], reservation['departure_date'])
+        or item['room_type_id'] != reservation['room_type_id'] for item in assignments
+    ):
+        blocker = 'unit_plan_requires_review'
+    elif con.execute('SELECT 1 FROM guest_occupancy WHERE reservation_id=? AND voided=0 LIMIT 1',
+                     (reservation['id'],)).fetchone():
+        blocker = 'unit_assignment_has_actual_stay'
+    choices = []
+    if blocker is None:
+        candidates = single_unit_candidates(con, reservation)
+        choices = [{'unit_id': unit['id'], 'label': label(unit)}
+                   for unit in suitable_units(con, reservation, candidates)]
+        if not choices:
+            blocker = 'no_eligible_unit' if candidates else 'no_configured_unit'
+    return {'options': choices, 'blocker': blocker,
+            'expected_active_ids': sorted(item['id'] for item in assignments)}
+
+
+def auto_assign(con, reservation, actor, now):
+    if (reservation['status'] != 'confirmed' or reservation['stay_type'] != 'overnight'
+            or active(con, reservation['id'])):
+        return False
+    unit = next(suitable_units(con, reservation, single_unit_candidates(con, reservation)), None)
+    if unit is None:
+        return False
+    return replace(con, reservation, [full_stay(reservation, unit['id'])], actor,
+                   'Automatic full-stay room assignment', now)
 
 
 def demand(con,reservation,day):
@@ -109,7 +197,24 @@ def check(con,r,assignments):
         day_use.aggregate_check(con,r,counts)
 
 
-def replace(con,r,assignments,actor,reason,now,state='superseded'):
+def protect_actual_occupancy(con, reservation, assignments):
+    visits = con.execute('''SELECT unit_id, started_at FROM guest_occupancy
+        WHERE reservation_id=? AND ended_at IS NULL AND voided=0''', (reservation['id'],)).fetchall()
+    if not visits:
+        return
+    from guest_stays import stay_timezone
+    tz = stay_timezone(con, reservation['organization_id'], reservation['property_id'])
+    for visit in visits:
+        day = str(datetime.fromisoformat(visit['started_at']).astimezone(tz).date())
+        if not any(a['unit_id'] == visit['unit_id'] and (
+                a['date_from'] <= day < a['date_to'] or a['date_from'] == a['date_to'] == day
+        ) for a in assignments):
+            raise HTTPException(409, {'code':'unit_assignment_has_actual_stay'})
+
+
+def replace(con,r,assignments,actor,reason,now,state='superseded',*,actual_transfer=False):
+    if not actual_transfer:
+        protect_actual_occupancy(con,r,assignments)
     if r['stay_type']=='day_use':
         import day_use
         return day_use.replace(con,r,assignments,actor,reason,now)
@@ -124,9 +229,14 @@ def replace(con,r,assignments,actor,reason,now,state='superseded'):
     return True
 
 
-def sync_change(con,old,new,now):
+def sync_change(con,old,new,now,*,validate_existing=False):
     rows=active(con,old['id'])
     if not rows:return
+    if not validate_existing and all(old[key] == new[key] for key in (
+        'status','property_id','room_type_id','arrival_date','departure_date','guest_count',
+        'stay_type','planned_arrival_time','planned_departure_time',
+    )):
+        return
     if new['status']!='confirmed' and con.execute('SELECT id FROM guest_occupancy WHERE reservation_id=? AND ended_at IS NULL AND voided=0',(old['id'],)).fetchone():raise HTTPException(409,'Record actual departures before cancelling an occupied booking')
     import day_use
     if old['stay_type']=='day_use':return day_use.reconcile(con,old,new,now)
@@ -147,34 +257,58 @@ def install(backend):
     router=APIRouter(prefix='/api/reservations/{reservation_id}/allocations')
     def load(con,rid,session,write=False):
         user=backend.require_user(session);backend.require_roles(user,'owner','manager')
+        if write:
+            backend._lock_reservation(con, rid, user['organization_id'])
         row=con.execute('SELECT * FROM reservations WHERE id=? AND organization_id=?',(rid,user['organization_id'])).fetchone()
         if not row:raise HTTPException(404,'Reservation not found')
-        if write:
-            con.execute('UPDATE properties SET id=id WHERE id=? AND organization_id=?',(row['property_id'],user['organization_id']))
-            con.execute('UPDATE reservations SET id=id WHERE id=?',(rid,))
-            row=con.execute('SELECT * FROM reservations WHERE id=?',(rid,)).fetchone()
         return user,dict(row)
     @router.get('')
-    def get(reservation_id:str,rosa_session:str|None=Cookie(default=None)):
+    def get(reservation_id:str,include_options:bool=False,rosa_session:str|None=Cookie(default=None)):
         with backend.db() as con:
             user,r=load(con,reservation_id,rosa_session)
-            return {'active':active(con,reservation_id),'history':[dict(x) for table in ('reservation_unit_allocations','day_use_allocations') for x in con.execute('SELECT * FROM '+table+' WHERE reservation_id=? ORDER BY created_at,id',(reservation_id,))]}
+            current = active(con, reservation_id)
+            return {'active':display_allocations(con,r,current),
+                    'history':[dict(x) for table in ('reservation_unit_allocations','day_use_allocations') for x in con.execute('SELECT * FROM '+table+' WHERE reservation_id=? ORDER BY created_at,id',(reservation_id,))],
+                    **(options(con,r,current) if include_options else {})}
     @router.put('')
-    def put(reservation_id:str,body:Replace,request:Request,rosa_session:str|None=Cookie(default=None)):
+    def put(reservation_id:str,body:Replace|SelectUnit,request:Request,rosa_session:str|None=Cookie(default=None)):
         with backend.db() as con:
             user,r=load(con,reservation_id,rosa_session,True)
-            rows=[{**a.model_dump(),'date_from':str(a.date_from),'date_to':str(a.date_to)} for a in body.allocations]
             previous=active(con,reservation_id)
-            changed=replace(con,r,rows,user['id'],body.reason,backend.now_iso())
+            if isinstance(body, SelectUnit):
+                if sorted(body.expected_active_ids) != sorted(a['id'] for a in previous):
+                    raise HTTPException(409, {'code':'unit_assignment_changed'})
+                if (body.mode == 'specific') != bool(body.unit_id):
+                    raise HTTPException(422, {'code':'invalid_unit_selection'})
+                choices = options(con, r, previous)
+                if choices['blocker']:
+                    raise HTTPException(409, {'code':choices['blocker']})
+                unit_id = body.unit_id
+                if body.mode == 'automatic':
+                    # Keep an already suitable assignment when automatic is retried.
+                    unit_id = previous[0]['unit_id'] if previous and any(
+                        unit['unit_id'] == previous[0]['unit_id'] for unit in choices['options']
+                    ) else choices['options'][0]['unit_id']
+                if not any(unit['unit_id'] == unit_id for unit in choices['options']):
+                    raise HTTPException(409, {'code':'no_eligible_unit'})
+                rows = [full_stay(r, unit_id)]
+                reason = 'Automatic full-stay room assignment' if body.mode == 'automatic' else 'Operator selected a full-stay room'
+            else:
+                rows = [a.model_dump(mode='json') for a in body.allocations]
+                reason = body.reason
+            changed=replace(con,r,rows,user['id'],reason,backend.now_iso())
             # Recalculate existing ARI for every affected type, replacing the primary
             # default demand. Same-type reassignments have no inventory change.
-            def profile(items):return sorted((a['room_type_id'],a['date_from'],a['date_to']) for a in items)
+            def profile(items):
+                if not items and r['stay_type']=='overnight':
+                    return [(r['room_type_id'],r['arrival_date'],r['departure_date'])]
+                return sorted((a['room_type_id'],a['date_from'],a['date_to']) for a in items)
             if profile(previous)!=profile(rows):
                 ids=[]
                 for rt in {r['room_type_id']}|{a['room_type_id'] for a in previous+rows}:
                     ids+=backend._queue_reservation_availability(con,user['organization_id'],r['property_id'],r['arrival_date'],r['departure_date'],reason='Reservation unit demand changed',force=True,room_type_id=rt)
                 backend._merge_channex_availability_outboxes(con,ids)
-            if changed:backend.audit_event(con,user['organization_id'],'reservation.allocations_changed','Physical reservation allocations updated.',actor_user_id=user['id'],entity_type='reservation',entity_id=reservation_id,metadata={'reason':body.reason},request=request)
+            if changed:backend.audit_event(con,user['organization_id'],'reservation.allocations_changed','Physical reservation allocations updated.',actor_user_id=user['id'],entity_type='reservation',entity_id=reservation_id,metadata={'reason':reason},request=request)
             if changed:
                 import ntak_reporting
                 ntak_reporting.capture_reservation(con,user['organization_id'],reservation_id)
@@ -182,6 +316,23 @@ def install(backend):
                     backend._refresh_overnight_cleaning(con, user['organization_id'], r['property_id'])
         return {'ok':True,'changed':changed}
     backend.app.include_router(router)
+
+    @backend.app.get('/api/properties/{property_id}/physical-units/assignment-options')
+    def preview(property_id:str,room_type_id:str,arrival_date:date,departure_date:date,
+                guest_count:int=Query(ge=1),rosa_session:str|None=Cookie(default=None)):
+        user=backend.require_user(rosa_session)
+        backend.require_roles(user,'owner','manager')
+        start,end = str(arrival_date), str(departure_date)
+        backend.validate_reservation_dates(start,end)
+        with backend.db() as con:
+            if not con.execute('''SELECT 1 FROM room_types
+                WHERE id=? AND property_id=? AND organization_id=? AND active=1''',
+                (room_type_id,property_id,user['organization_id'])).fetchone():
+                raise HTTPException(404,'Room type unavailable')
+            return options(con, {'id':'', 'organization_id':user['organization_id'],
+                                 'property_id':property_id, 'room_type_id':room_type_id,
+                                 'arrival_date':start, 'departure_date':end, 'guest_count':guest_count,
+                                 'status':'confirmed', 'stay_type':'overnight'})
 
 
 def reconcile_property(con,org,prop,now,*,validate_existing=True):
@@ -192,7 +343,7 @@ def reconcile_property(con,org,prop,now,*,validate_existing=True):
         # stay can temporarily overlap a future allocation before its checkout.
         if not validate_existing and r['status']=='confirmed' and old==r:
             continue
-        sync_change(con,old,r,now)
+        sync_change(con,old,r,now,validate_existing=validate_existing)
 
 
 def validate_unit_change(con,org,prop,now):

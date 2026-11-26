@@ -20,7 +20,7 @@ def setup(client):
 
 
 def booking(client,offset=100):
-    p=body();p['arrival_date']=str(app.date.today()+timedelta(days=offset));p['departure_date']=str(app.date.today()+timedelta(days=offset+2))
+    p={**body(), 'allocations': []};p['arrival_date']=str(app.date.today()+timedelta(days=offset));p['departure_date']=str(app.date.today()+timedelta(days=offset+2))
     res=client.post('/api/reservations',json=p);assert res.status_code==200,res.text
     return res.json()['id'],p
 

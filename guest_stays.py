@@ -291,7 +291,7 @@ def extended(backend,con,r,tz,action,actor,source,at,day,digest,gids):
             else:planned.append(dict(a))
         if not any(a['unit_id']==action.unit_id and (a['date_from']<=str(day)<a['date_to'] or a['date_from']==a['date_to']==str(day)) for a in planned):
             planned.append({'unit_id':action.unit_id,'date_from':str(day),'date_to':r['departure_date']})
-        allocations.replace(con,r,planned,actor,'Actual room transfer: '+action.reason,backend.now_iso())
+        allocations.replace(con,r,planned,actor,'Actual room transfer: '+action.reason,backend.now_iso(),actual_transfer=True)
         facts={'booking_id':r['ntak_booking_id'] or r['id'],'guests':collect_guests(backend,con,r,gids,day),'old_unit':unit_xml(old_unit),'unit':unit_xml(unit),'report_kind':'lakoegysegetCserelt'}
         eid=save_extended_event(backend,con,r,tz,action,actor,source,at,'transfer',facts,digest)
         for v in visits:

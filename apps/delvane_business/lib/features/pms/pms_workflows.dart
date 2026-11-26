@@ -68,6 +68,12 @@ String workflowError(Object error) {
           'Record an actual arrival before checking this guest out.',
       'stay_allocation_required':
           'Assign a planned physical unit before confirming arrival.',
+      'unit_assignment_changed': 'The room assignment changed on another device. Refresh and try again.',
+      'no_eligible_unit': 'No compatible room is free for the whole stay. Check the dates, capacity and unavailable rooms.',
+      'no_configured_unit':
+          'Set up a physical unit for this room type in Apartments and rooms.',
+      'unit_assignment_has_actual_stay': 'This stay has actual occupancy records. Review the stay before changing rooms.',
+      'unit_plan_requires_review': 'Review the planned units in Edit booking for a day-use, split or multi-room stay.',
       'actual_occupancy_conflict': 'Another stay is still occupying this unit.',
       'actual_capacity_exceeded':
           'The unit does not have enough physical places for these guests.',

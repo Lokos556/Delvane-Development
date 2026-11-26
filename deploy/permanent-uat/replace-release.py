@@ -22,6 +22,16 @@ V3_TAG = 'delvane-uat:permanent-v3-3091-local'
 V3_SAVED = SAVED.with_name('release-v3-rollback.json')
 V3_PREVIOUS = 'delvane-uat-ed88fcdce45e-restored-before-v3'
 V3_VERSION = '2.10.60'
+ROOMS_TAG = 'delvane-uat:permanent-v3-rooms-3091-local'
+ROOMS_SAVED = SAVED.with_name('release-v3-rooms-rollback.json')
+ROOMS_PREVIOUS = 'delvane-uat-ed88fcdce45e-restored-before-v3-rooms'
+RELEASES = {
+    'v2': (TAG, SAVED, PREVIOUS, None, None),
+    'v3': (V3_TAG, V3_SAVED, V3_PREVIOUS, V3_VERSION,
+           '/api/reservations/v3-probe/booking-contact'),
+    'v3-rooms': (ROOMS_TAG, ROOMS_SAVED, ROOMS_PREVIOUS, '2.10.61',
+                 '/api/properties/v3-probe/physical-units/assignment-options'),
+}
 
 
 def archive_ids(archive, tag=TAG):
@@ -67,8 +77,8 @@ def stop(op):
     op['resend']['stop_proxy']()
 
 
-def rollback(op, *, v3=False):
-    saved, previous = (V3_SAVED, V3_PREVIOUS) if v3 else (SAVED, PREVIOUS)
+def rollback(op, *, release='v2'):
+    _, saved, previous, _, _ = RELEASES[release]
     op['private_path'](saved)
     record = json.loads(saved.read_text())
     app = op['APP']
@@ -91,14 +101,18 @@ def rollback(op, *, v3=False):
     print('Previous permanent UAT release restored on the existing database.')
 
 
-def apply(op, archive, expected, *, v3=False):
-    tag = V3_TAG if v3 else TAG
-    saved, previous = (V3_SAVED, V3_PREVIOUS) if v3 else (SAVED, PREVIOUS)
+def require_latest(op, release):
+    names = list(RELEASES)
+    for later in names[names.index(release) + 1:]:
+        op['require'](not RELEASES[later][1].exists(), 'Restore the newer release before operating on this one.')
+
+
+def apply(op, archive, expected, *, release='v2'):
+    tag, saved, previous, version, probe = RELEASES[release]
     docker, require = op['docker'], op['require']
     require(re.fullmatch(r'[a-f0-9]{64}',expected), 'Supply the verified archive SHA-256.')
     require(not saved.exists() and not op['optional_container'](previous), 'A rollback for this release is still retained.')
-    if not v3:
-        require(not V3_SAVED.exists(), 'Restore the previous V3 release before applying V2.')
+    require_latest(op, release)
     require(op['is_active'](op['SERVICE']), 'Activate permanent UAT before applying this release.')
     op['private_path'](op['STATE'])
     old = json.loads(op['STATE'].read_text())
@@ -137,21 +151,25 @@ def apply(op, archive, expected, *, v3=False):
             op['shared']['create_app'](op['APP'],image,settings)
             op['resend']['private_write'](op['STATE'],json.dumps(config).encode())
             switch(op,config)
-            if v3:
+            if version:
                 code = ('import urllib.request; '
                         'print(urllib.request.urlopen("http://127.0.0.1:8080/health/live", timeout=3).read().decode())')
                 health = json.loads(docker('exec',op['APP'],'python','-I','-c',code))
-                require(health.get('version') == V3_VERSION, 'The active backend version is not UAT V3.')
-                op['origin_status']('api.delvane.app','GET','/api/reservations/v3-probe/booking-contact',401)
+                require(health.get('version') == version, 'The active backend version does not match the release.')
+                op['origin_status']('api.delvane.app','GET',probe,401)
         except Exception:
-            rollback(op, v3=v3)
+            rollback(op, release=release)
             raise
-    print(f'Verified UAT V{3 if v3 else 2} is active. Previous application retained for rollback.')
+    print(f'Verified UAT {release} is active. Previous application retained for rollback.')
 
 
 def main(argv):
-    if len(argv) == 2 and argv[0] in ('inspect','inspect-v3'):
-        print(*archive_ids(argv[1], V3_TAG if argv[0] == 'inspect-v3' else TAG),sep='\n')
+    action, _, release = argv[0].partition('-') if argv else ('', '', '')
+    release = release or 'v2'
+    if release not in RELEASES:
+        raise ValueError('Unknown UAT release.')
+    if action == 'inspect' and len(argv) == 2:
+        print(*archive_ids(argv[1], RELEASES[release][0]),sep='\n')
         return
     if os.geteuid() != 0 or socket.gethostname().split('.')[0] != 'delvane-test-01':
         raise ValueError('Run as root on the reviewed UAT host.')
@@ -160,14 +178,13 @@ def main(argv):
     op['private_path'](op['ETC'], directory=True)
     with (op['ETC'] / 'maintenance.lock').open('a') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX | fcntl.LOCK_NB)
-        if len(argv) == 3 and argv[0] in ('apply','apply-v3'):
-            apply(op,Path(argv[1]),argv[2],v3=argv[0] == 'apply-v3')
-        elif argv in (['rollback'],['rollback-v3']):
-            if argv == ['rollback']:
-                op['require'](not V3_SAVED.exists(), 'Restore the previous V3 release before rolling back V2.')
-            rollback(op,v3=argv[0] == 'rollback-v3')
+        if action == 'apply' and len(argv) == 3:
+            apply(op,Path(argv[1]),argv[2],release=release)
+        elif action == 'rollback' and len(argv) == 1:
+            require_latest(op, release)
+            rollback(op,release=release)
         else:
-            raise ValueError('Use inspect-v3 ARCHIVE, apply-v3 ARCHIVE SHA256, or rollback-v3.')
+            raise ValueError('Use inspect-v3-rooms ARCHIVE, apply-v3-rooms ARCHIVE SHA256, or rollback-v3-rooms.')
 
 
 if __name__ == '__main__':

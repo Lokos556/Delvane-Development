@@ -21,6 +21,7 @@ import 'booking_reporting_controls.dart';
 import 'guest_reporting_controls.dart';
 import 'actual_stay_controls.dart';
 import 'financial_controls.dart';
+import 'unit_assignment.dart';
 
 List<String> reservationRequests(Object? value) {
   final decoded = value is String
@@ -218,7 +219,9 @@ class _ReservationEditorState extends State<ReservationEditor>
     if (selectedGuestId case final id?) body['guest_id'] = id;
     final reporting = bookingDetails.changes;
     if (reporting.isNotEmpty) body['reporting'] = reporting;
-    if (bookingDetails.allocationsChanged) {
+    if (bookingDetails.selectedUnit case final unit?) {
+      body['selected_unit_id'] = unit;
+    } else if (bookingDetails.allocationsChanged) {
       body['allocations'] = bookingDetails.allocations;
     }
     if (body.isEmpty) {
@@ -232,6 +235,41 @@ class _ReservationEditorState extends State<ReservationEditor>
       );
     });
     if (ok && mounted) Navigator.pop(context, true);
+  }
+
+  Future<void> chooseRoom() async {
+    final query = Uri(
+      queryParameters: {
+        'room_type_id': room,
+        'arrival_date': fields['arrival_date']!.text,
+        'departure_date': fields['departure_date']!.text,
+        'guest_count': fields['guest_count']!.text.trim(),
+      },
+    ).query;
+    final result = await showDialog<RoomChoice>(
+      context: context,
+      useRootNavigator: false,
+      builder: (_) => UnitAssignmentDialog(
+        load: () => widget.api.object(
+          '/api/properties/${idPath(property)}/physical-units/assignment-options?$query',
+        ),
+      ),
+    );
+    if (!mounted || result == null) return;
+    setState(() {
+      final unitId = result.unitId;
+      bookingDetails.allocations = [
+        if (unitId != null)
+          {
+            'unit_id': unitId,
+            'date_from': fields['arrival_date']!.text,
+            'date_to': fields['departure_date']!.text,
+          },
+      ];
+      bookingDetails.allocationsChanged = unitId != null;
+      bookingDetails.selectedUnit = unitId;
+      if (unitId != null) bookingDetails.unitLabels[unitId] = result.label;
+    });
   }
 
   Future<void> cancel() async {
@@ -379,6 +417,9 @@ class _ReservationEditorState extends State<ReservationEditor>
                         state: bookingDetails,
                         api: widget.api,
                         propertyId: property,
+                        roomTypeId: room,
+                        editing: editing,
+                        stayType: stayType,
                         arrival: fields['arrival_date']!.text,
                         departure: fields['departure_date']!.text,
                       ),
@@ -481,6 +522,44 @@ class _ReservationEditorState extends State<ReservationEditor>
                         ),
                       ),
                       const SizedBox(height: 12),
+                      if (!editing && stayType == 'overnight')
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.meeting_room_outlined),
+                          title: Text(ui('Accommodation unit')),
+                          subtitle: Text(
+                            bookingDetails.allocations.isEmpty
+                                ? ui(
+                                    bookingDetails.allocationsChanged
+                                        ? 'No room assigned'
+                                        : 'Automatic assignment',
+                                  )
+                                : bookingDetails.allocations
+                                      .map(
+                                        (a) =>
+                                            bookingDetails
+                                                .unitLabels[a['unit_id']] ??
+                                            ui('Planned unit'),
+                                      )
+                                      .join(', '),
+                          ),
+                          trailing: PmsButton(
+                            ui('Choose a room'),
+                            onPressed:
+                                busy ||
+                                    roomLoading ||
+                                    room.isEmpty ||
+                                    nights <= 0 ||
+                                    (int.tryParse(
+                                              fields['guest_count']!.text
+                                                  .trim(),
+                                            ) ??
+                                            0) <=
+                                        0
+                                ? null
+                                : chooseRoom,
+                          ),
+                        ),
                       PmsColumns([
                         PmsField(
                           t('Guests'),
@@ -490,6 +569,7 @@ class _ReservationEditorState extends State<ReservationEditor>
                               ? failure
                               : null,
                           keyboard: TextInputType.number,
+                          onChanged: (_) => setState(() {}),
                           validator: (v) =>
                               int.tryParse(v ?? '') != null &&
                                   int.parse(v!) >= 1
@@ -689,6 +769,14 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
     }
   }
 
+  Future<void> changeRoom() async {
+    if (await reviewUnitAssignment(context, widget.api, widget.id) == true &&
+        mounted) {
+      changed = true;
+      await load();
+    }
+  }
+
   @override
   void dispose() {
     arrival.dispose();
@@ -783,6 +871,28 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
                     const SizedBox(height: 8),
                     Text(text(r, 'property_name')),
                     PmsBadge(text(r, 'status')),
+                    if (data!.containsKey('planned_allocations'))
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.meeting_room_outlined),
+                        title: Text(ui('Accommodation unit')),
+                        subtitle: Text(
+                          [
+                            for (final plan in optionalRows(
+                              data!['planned_allocations'],
+                            ))
+                              '${text(plan, 'label', ui('Planned unit'))} · '
+                                  '${uiDate(text(plan, 'date_from'))} – ${uiDate(text(plan, 'date_to'))}',
+                            if (optionalRows(data!['planned_allocations'])
+                                .isEmpty)
+                              ui('No room assigned'),
+                          ].join('\n'),
+                        ),
+                        trailing: PmsButton(
+                          ui('Review room assignment'),
+                          onPressed: busy ? null : changeRoom,
+                        ),
+                      ),
                     const SizedBox(height: 12),
                     Wrap(
                       spacing: 8,

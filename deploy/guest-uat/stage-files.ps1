@@ -1,6 +1,6 @@
 # Transfer the previously built controls over pinned Git for Windows SSH.
 [CmdletBinding()]
-param([switch]$ResumeStorage, [switch]$RecoverSnapshot, [switch]$ResendTrial, [switch]$ResendDiagnostic, [switch]$Permanent, [switch]$PermanentV2, [switch]$PermanentV3)
+param([switch]$ResumeStorage, [switch]$RecoverSnapshot, [switch]$ResendTrial, [switch]$ResendDiagnostic, [switch]$Permanent, [switch]$PermanentV2, [switch]$PermanentV3, [switch]$PermanentV3Rooms)
 $ErrorActionPreference = 'Stop'
 $git = 'C:/Program Files/Git/usr/bin'
 $sshHome = Join-Path $env:USERPROFILE '.ssh'
@@ -10,7 +10,12 @@ $stage = '/home/delvane-uat/delvane-guest-storage-3091'
 $manifest = 'STORAGE-STAGE-SHA256SUMS-v2'
 $payload = @('delvane-guest-3091-local.tar.gz', 'delvane-guest-uat-storage-controls-v2.tar.gz',
     'cloudflared-2026.11.1-linux-amd64.tar.gz', 'deploy-private-storage-v2.sh', 'start-docker-connector.sh')
-if ($PermanentV3) {
+if ($PermanentV3Rooms) {
+    $bundle = Join-Path $PSScriptRoot '../../build/uat-v3-rooms'
+    $stage = '/home/delvane-uat/delvane-uat-v3-rooms'
+    $manifest = 'SHA256SUMS'
+    $payload = @('delvane-permanent-v3-rooms-3091-local.tar.gz', 'replace-release.py')
+} elseif ($PermanentV3) {
     $bundle = Join-Path $PSScriptRoot '../../build/uat-v3'
     $stage = '/home/delvane-uat/delvane-uat-v3'
     $manifest = 'SHA256SUMS'

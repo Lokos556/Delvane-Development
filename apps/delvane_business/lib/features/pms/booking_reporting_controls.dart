@@ -13,6 +13,8 @@ class BookingReportingState {
   };
   List<String> missingFields = [];
   List<Json> allocations = [];
+  final unitLabels = <String, String>{};
+  String? selectedUnit;
   bool allocationsChanged = false;
   final country = TextEditingController(), expected = TextEditingController();
   Future<void> load(PmsWorkflows api, String id) async {
@@ -25,6 +27,11 @@ class BookingReportingState {
     country.text = '${reporting['vendegKuldoOrszaga'] ?? ''}';
     expected.text = '${reporting['expected_guest_count'] ?? ''}';
     final a = await api.object('/api/reservations/$id/allocations');
+    for (final allocation in optionalRows(a['active'])) {
+      if (allocation['label'] case final String label) {
+        unitLabels[allocation['unit_id'] as String] = label;
+      }
+    }
     allocations = (a['active'] as List? ?? [])
         .map<Json>(
           (v) => {
@@ -48,12 +55,16 @@ class BookingReportingControls extends StatefulWidget {
     required this.state,
     required this.api,
     required this.propertyId,
+    required this.roomTypeId,
+    required this.stayType,
+    required this.editing,
     required this.arrival,
     required this.departure,
   });
   final BookingReportingState state;
   final PmsWorkflows api;
-  final String propertyId, arrival, departure;
+  final String propertyId, roomTypeId, stayType, arrival, departure;
+  final bool editing;
   @override
   State<BookingReportingControls> createState() =>
       _BookingReportingControlsState();
@@ -65,10 +76,27 @@ class _BookingReportingControlsState extends State<BookingReportingControls> {
   @override
   void didUpdateWidget(covariant BookingReportingControls old) {
     super.didUpdateWidget(old);
-    if (old.propertyId != widget.propertyId) {
+    final s = widget.state;
+    if (old.propertyId != widget.propertyId ||
+        old.roomTypeId != widget.roomTypeId ||
+        old.stayType != widget.stayType) {
       units = null;
-      widget.state.allocations = [];
-      widget.state.allocationsChanged = true;
+      s.allocationsChanged =
+          widget.editing && (s.allocations.isNotEmpty || s.allocationsChanged);
+      s.allocations = [];
+      s.selectedUnit = null;
+    } else if (old.arrival != widget.arrival ||
+        old.departure != widget.departure) {
+      units = null;
+      if (s.allocationsChanged) {
+        for (final item in s.allocations) {
+          if (item['date_from'] == old.arrival &&
+              item['date_to'] == old.departure) {
+            item['date_from'] = widget.arrival;
+            item['date_to'] = widget.departure;
+          }
+        }
+      }
     }
   }
 
@@ -205,7 +233,7 @@ class _BookingReportingControlsState extends State<BookingReportingControls> {
         Text(ui('Planned allocations are not actual guest arrivals.')),
         for (final a in s.allocations)
           Text(
-            '${ui('Planned unit')}: ${a['unit_id']} · ${a['date_from']} – ${a['date_to']}',
+            '${s.unitLabels[a['unit_id']] ?? ui('Planned unit')} · ${a['date_from']} – ${a['date_to']}',
           ),
         PmsButton(ui('Choose planned units'), onPressed: load),
         if (failure != null) Text(failure!),
@@ -217,6 +245,8 @@ class _BookingReportingControlsState extends State<BookingReportingControls> {
             onChanged: (selected) => setState(() {
               s.allocations.removeWhere((a) => a['unit_id'] == u['id']);
               if (selected == true) {
+                s.unitLabels[u['id'] as String] =
+                    "${u['building']} · ${u['unit_number']}";
                 s.allocations.add({
                   'unit_id': u['id'],
                   'date_from': widget.arrival,
@@ -224,6 +254,7 @@ class _BookingReportingControlsState extends State<BookingReportingControls> {
                 });
               }
               s.allocationsChanged = true;
+              s.selectedUnit = null;
             }),
           ),
         PmsButton(
@@ -231,6 +262,7 @@ class _BookingReportingControlsState extends State<BookingReportingControls> {
           onPressed: () => setState(() {
             s.allocations = [];
             s.allocationsChanged = true;
+            s.selectedUnit = null;
           }),
         ),
       ],
