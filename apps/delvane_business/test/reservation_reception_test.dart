@@ -392,9 +392,13 @@ void main() {
         find.descendant(of: details, matching: find.text(day)),
         findsOneWidget,
       );
-      await tester.tap(
+      expect(
         find.descendant(of: details, matching: find.text('Add a stay')),
+        findsNothing,
       );
+      final create = find.text('+ New reservation');
+      await tester.ensureVisible(create);
+      await tester.tap(create);
       await tester.pumpAndSettle();
       expect(find.byType(ReservationEditor), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
@@ -486,15 +490,28 @@ void main() {
       final editor = find.byType(TextField).last;
       await tester.ensureVisible(editor);
       await tester.enterText(editor, 'Draft retained across tabs');
-      await selectSection(tester, 'Automations 1');
+      if (size.width <= 760) {
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+        expect(find.byType(AppBar), findsNothing);
+        expect(find.byTooltip('Search in mail'), findsOneWidget);
+      }
+      await tester.ensureVisible(find.text('Automations 1'));
+      await tester.tap(find.text('Automations 1'));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       await tester.ensureVisible(find.byType(PmsToggle));
       await tester.tap(find.byType(PmsToggle));
       await tester.pumpAndSettle();
       expect(pms.rules.first['enabled'], false);
-      await selectSection(tester, 'Inbox 0');
+      await tester.ensureVisible(find.text('Inbox 0'));
+      await tester.tap(find.text('Inbox 0'));
       await tester.pumpAndSettle();
+      if (size.width <= 760) {
+        await tester.ensureVisible(find.text('Synthetic Guest'));
+        await tester.tap(find.text('Synthetic Guest'));
+        await tester.pumpAndSettle();
+      }
       expect(find.text('Draft retained across tabs'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
       c.dispose();

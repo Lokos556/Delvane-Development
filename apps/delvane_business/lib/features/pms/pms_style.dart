@@ -2,8 +2,6 @@ import 'section_picker.dart';
 
 import 'package:delvane_business/core/localization/web_strings.dart';
 
-import 'dart:ui' as canvas_ui;
-
 import 'package:flutter/foundation.dart';
 
 import 'package:material_ui/material_ui.dart';
@@ -16,12 +14,17 @@ abstract final class PmsStyle {
   static const ink = Color(0xFF171717);
   static const muted = Color(0xFF686868);
   static const canvas = Colors.white;
-  static const soft = Color(0xFFFAF7F0);
+  static const soft = Color(0xFFF5F4EF);
   static const line = Color(0x85FFFFFF);
   static const panelLine = Color(0xFFE8E6DF);
   static const font = 'Inter';
   static const sidebarWidth = 235.0;
   static const mobileBreakpoint = 760.0;
+  static const shadow = BoxShadow(
+    color: Color(0x1a191917),
+    blurRadius: 16,
+    offset: Offset(0, 5),
+  );
   static const logo = 'assets/delvane-icon.png';
   static TextStyle pageTitle(
     BuildContext context, {
@@ -37,45 +40,6 @@ abstract final class PmsStyle {
       color: ink,
     );
   }
-
-  // CSS backdrop-filter: blur(...) saturate(...). Applied only to actual glass
-  // layers, not every nested card (which would repeatedly filter the backdrop).
-  static canvas_ui.ImageFilter glassFilter(double blur, double saturation) {
-    final r = .2126 * (1 - saturation),
-        g = .7152 * (1 - saturation),
-        b = .0722 * (1 - saturation);
-    return canvas_ui.ImageFilter.compose(
-      outer: ColorFilter.matrix([
-        r + saturation,
-        g,
-        b,
-        0,
-        0,
-        r,
-        g + saturation,
-        b,
-        0,
-        0,
-        r,
-        g,
-        b + saturation,
-        0,
-        0,
-        0,
-        0,
-        0,
-        1,
-        0,
-      ]),
-      inner: canvas_ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-    );
-  }
-
-  static const shadow = BoxShadow(
-    color: Color(0x172D2719),
-    blurRadius: 36,
-    offset: Offset(0, 12),
-  );
 }
 
 ThemeData pmsTheme() => ThemeData(
@@ -123,15 +87,15 @@ ThemeData pmsTheme() => ThemeData(
     isDense: true,
     contentPadding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
     border: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(10),
       borderSide: const BorderSide(color: Color(0xFFE8E6E1)),
     ),
     enabledBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(10),
       borderSide: const BorderSide(color: Color(0xFFE8E6E1)),
     ),
     focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(10),
       borderSide: const BorderSide(color: PmsStyle.yellow),
     ),
   ),
@@ -161,25 +125,8 @@ class PmsButton extends StatelessWidget {
       opacity: onPressed == null ? .48 : 1,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: primary ? null : const Color(0x6BFFFFFF),
-          gradient: primary
-              ? const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Color(0xFFFFE76A), Color(0xFFFFD000)],
-                )
-              : null,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: const Color(0xBBFFFFFF)),
-          boxShadow: primary
-              ? const [
-                  BoxShadow(
-                    color: Color(0x33BF9B00),
-                    blurRadius: 24,
-                    offset: Offset(0, 8),
-                  ),
-                ]
-              : null,
+          color: primary ? PmsStyle.yellow : PmsStyle.soft,
+          borderRadius: BorderRadius.circular(10),
         ),
         child: Material(
           type: MaterialType.transparency,
@@ -235,24 +182,8 @@ class PmsNavItem extends StatelessWidget {
     child: Container(
       height: mobile ? 60 : 54,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(19),
-        border: Border.all(color: const Color(0xE0FFFFFF)),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: selected
-              ? const [Color(0xFAFFE64B), Color(0xEBFFD500)]
-              : const [Color(0x80FFFFFF), Color(0x40FFFCF3)],
-        ),
-        boxShadow: selected
-            ? const [
-                BoxShadow(
-                  color: Color(0x26C29700),
-                  blurRadius: 24,
-                  offset: Offset(0, 8),
-                ),
-              ]
-            : null,
+        borderRadius: BorderRadius.circular(9),
+        color: selected ? const Color(0xfffdf1b6) : Colors.transparent,
       ),
       child: Material(
         type: MaterialType.transparency,
@@ -358,7 +289,11 @@ class PmsPageHeader extends StatelessWidget {
         if (description.isNotEmpty)
           Text(
             description,
-            style: TextStyle(fontSize: descriptionSize, height: 1.4),
+            style: TextStyle(
+              fontSize: descriptionSize,
+              height: 1.45,
+              color: PmsStyle.muted,
+            ),
           ),
       ],
     );
@@ -411,14 +346,9 @@ class PmsPageTitle extends StatelessWidget {
 }
 
 class PmsSideSheet extends StatelessWidget {
-  const PmsSideSheet({
-    super.key,
-    required this.child,
-    required this.title,
-    this.eyebrow = 'WORKSPACE',
-  });
+  const PmsSideSheet({super.key, required this.child, required this.title});
   final Widget child;
-  final String title, eyebrow;
+  final String title;
   @override
   Widget build(BuildContext context) {
     final mobile = MediaQuery.sizeOf(context).width <= 760;
@@ -430,59 +360,37 @@ class PmsSideSheet extends StatelessWidget {
           child: SizedBox(
             width: mobile ? MediaQuery.sizeOf(context).width - 16 : 490,
             height: MediaQuery.sizeOf(context).height - (mobile ? 16 : 24),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(mobile ? 30 : 32),
-              child: BackdropFilter(
-                enabled:
-                    !MediaQuery.disableAnimationsOf(context) &&
-                    !MediaQuery.accessibleNavigationOf(context),
-                filter: PmsStyle.glassFilter(42, 1.9),
-                child: Material(
-                  color: const Color(0xA8FFFCF3),
-                  child: Container(
-                    padding: mobile
-                        ? const EdgeInsets.symmetric(
-                            horizontal: 18,
-                            vertical: 22,
-                          )
-                        : const EdgeInsets.all(26),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: const Color(0xADFFFFFF)),
-                      borderRadius: BorderRadius.circular(32),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+            child: Material(
+              color: Colors.white,
+              elevation: 8,
+              shadowColor: const Color(0x28181817),
+              borderRadius: BorderRadius.circular(18),
+              clipBehavior: Clip.antiAlias,
+              child: Padding(
+                padding: EdgeInsets.all(mobile ? 18 : 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
                       children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  PmsEyebrow(eyebrow),
-                                  Text(
-                                    title,
-                                    style: const TextStyle(
-                                      fontSize: 28,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            PmsIconButton(
-                              '×',
-                              label: ui('Close settings'),
-                              surface: true,
-                              onPressed: () => Navigator.pop(context),
-                            ),
-                          ],
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: PmsStyle.pageTitle(context, size: 28),
+                          ),
                         ),
-                        const SizedBox(height: 24),
-                        Expanded(child: PmsScrollPane(child: child)),
+                        PmsIconButton(
+                          '×',
+                          label: ui('Close settings'),
+                          surface: true,
+                          onPressed: () => Navigator.pop(context),
+                        ),
                       ],
                     ),
-                  ),
+                    const SizedBox(height: 14),
+                    const Divider(),
+                    Expanded(child: PmsScrollPane(child: child)),
+                  ],
                 ),
               ),
             ),
@@ -522,47 +430,27 @@ class PmsCard extends StatelessWidget {
     super.key,
     required this.child,
     this.padding = const EdgeInsets.all(20),
-    this.radius = 24,
-    this.color = const Color(0x6BFFFFFF),
-    this.borderColor = PmsStyle.line,
-    this.shadow = true,
-    this.gradient,
-    this.backdropBlur = 0,
-    this.saturation = 1,
+    this.radius = 12,
+    this.color = PmsStyle.soft,
+    this.borderColor = Colors.transparent,
+    this.shadow = false,
   });
   final Widget child;
   final EdgeInsetsGeometry padding;
   final double radius;
   final Color color, borderColor;
   final bool shadow;
-  final Gradient? gradient;
-  final double backdropBlur, saturation;
   @override
-  Widget build(BuildContext context) {
-    final surface = Container(
-      padding: padding,
-      decoration: BoxDecoration(
-        color: color,
-        gradient: gradient,
-        borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: borderColor),
-        boxShadow: shadow ? const [PmsStyle.shadow] : null,
-      ),
-      child: Material(type: MaterialType.transparency, child: child),
-    );
-    if (backdropBlur == 0) return surface;
-    if (MediaQuery.disableAnimationsOf(context) ||
-        MediaQuery.accessibleNavigationOf(context)) {
-      return ColoredBox(color: Colors.white, child: surface);
-    }
-    return ClipRRect(
+  Widget build(BuildContext context) => Container(
+    padding: padding,
+    decoration: BoxDecoration(
+      color: color,
       borderRadius: BorderRadius.circular(radius),
-      child: BackdropFilter(
-        filter: PmsStyle.glassFilter(backdropBlur, saturation),
-        child: surface,
-      ),
-    );
-  }
+      border: Border.all(color: borderColor),
+      boxShadow: shadow ? const [PmsStyle.shadow] : null,
+    ),
+    child: Material(type: MaterialType.transparency, child: child),
+  );
 }
 
 class PmsExpandablePanel extends StatelessWidget {
@@ -778,7 +666,7 @@ class PmsEmpty extends StatelessWidget {
   final bool tall;
   @override
   Widget build(BuildContext context) => Padding(
-    padding: EdgeInsets.symmetric(vertical: tall ? 64 : 24, horizontal: 12),
+    padding: EdgeInsets.symmetric(vertical: tall ? 48 : 18, horizontal: 12),
     child: Center(
       child: Text(
         ui(label),
@@ -1043,6 +931,7 @@ class PmsModal extends StatelessWidget {
     this.canClose = true,
     this.headerActions = const [],
     this.mobileSheet = false,
+    this.mobileFullScreen = false,
     this.titleSize = 32,
   });
   final String title;
@@ -1053,110 +942,135 @@ class PmsModal extends StatelessWidget {
   final bool canClose;
   final List<Widget> headerActions;
   final bool mobileSheet;
+  final bool mobileFullScreen;
   final double titleSize;
   @override
-  Widget build(BuildContext context) => PopScope(
-    canPop: canClose,
-    child: Dialog(
-      alignment: mobileSheet && MediaQuery.sizeOf(context).width <= 760
-          ? Alignment.bottomCenter
-          : Alignment.center,
-      backgroundColor: Colors.transparent,
-      insetPadding: EdgeInsets.all(
-        mobileSheet && MediaQuery.sizeOf(context).width <= 760
-            ? 0
-            : MediaQuery.sizeOf(context).width < 720
-            ? 7
-            : 24,
-      ),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: width,
-          maxHeight: MediaQuery.sizeOf(context).height * .92,
-        ),
-        child: PmsCard(
-          radius: 24,
-          color: const Color(0xE0FFFFFF),
-          backdropBlur: 26,
-          saturation: 1.55,
-          padding: EdgeInsets.zero,
-          shadow: true,
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width <= 760;
+    final fullScreen =
+        compact &&
+        mobileFullScreen &&
+        Theme.of(context).platform == TargetPlatform.android;
+    final content = Column(
+      mainAxisSize: fullScreen ? MainAxisSize.max : MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: fullScreen
+              ? const EdgeInsets.fromLTRB(16, 8, 8, 12)
+              : const EdgeInsets.fromLTRB(28, 28, 20, 18),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(28, 28, 20, 18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (eyebrow != null) PmsEyebrow(eyebrow!),
-                              Text(
-                                title,
-                                style: TextStyle(
-                                  fontSize: titleSize,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: -.8,
-                                ),
-                              ),
-                            ],
+                        if (eyebrow != null) PmsEyebrow(eyebrow!),
+                        Text(
+                          title,
+                          maxLines: fullScreen ? 2 : null,
+                          overflow: fullScreen ? TextOverflow.ellipsis : null,
+                          style: TextStyle(
+                            fontSize: fullScreen
+                                ? titleSize.clamp(18.0, 24.0)
+                                : titleSize,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -.8,
                           ),
-                        ),
-                        if (MediaQuery.sizeOf(context).width > 760)
-                          ...headerActions,
-                        PmsIconButton(
-                          '×',
-                          label: ui('Close dialog'),
-                          size: 36,
-                          surface: true,
-                          onPressed: canClose
-                              ? () => Navigator.of(context).pop()
-                              : null,
                         ),
                       ],
                     ),
-                    if (MediaQuery.sizeOf(context).width <= 760 &&
-                        headerActions.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 12),
-                        child: Wrap(
-                          alignment: WrapAlignment.end,
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: headerActions,
-                        ),
-                      ),
-                  ],
-                ),
+                  ),
+                  if (!compact) ...headerActions,
+                  PmsIconButton(
+                    '×',
+                    label: ui('Close dialog'),
+                    size: fullScreen ? 48 : 36,
+                    surface: true,
+                    onPressed: canClose
+                        ? () => Navigator.of(context).pop()
+                        : null,
+                  ),
+                ],
               ),
-              Flexible(
-                child: PmsScrollPane(
-                  padding: const EdgeInsets.fromLTRB(28, 0, 28, 20),
-                  child: child,
-                ),
-              ),
-              if (actions.isNotEmpty)
+              if (compact && headerActions.isNotEmpty)
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(28, 0, 28, 28),
+                  padding: const EdgeInsets.only(top: 12),
                   child: Wrap(
+                    alignment: WrapAlignment.end,
                     spacing: 8,
                     runSpacing: 8,
-                    alignment: WrapAlignment.end,
-                    children: actions,
+                    children: headerActions,
                   ),
                 ),
             ],
           ),
         ),
+        Flexible(
+          fit: fullScreen ? FlexFit.tight : FlexFit.loose,
+          child: PmsScrollPane(
+            padding: fullScreen
+                ? const EdgeInsets.fromLTRB(16, 0, 16, 12)
+                : const EdgeInsets.fromLTRB(28, 0, 28, 20),
+            child: child,
+          ),
+        ),
+        if (actions.isNotEmpty)
+          Padding(
+            padding: fullScreen
+                ? const EdgeInsets.fromLTRB(16, 8, 16, 8)
+                : const EdgeInsets.fromLTRB(28, 0, 28, 28),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.end,
+              children: actions,
+            ),
+          ),
+      ],
+    );
+    if (fullScreen) {
+      return PopScope(
+        canPop: canClose,
+        child: Dialog.fullscreen(
+          backgroundColor: Colors.white,
+          child: SafeArea(child: content),
+        ),
+      );
+    }
+    return PopScope(
+      canPop: canClose,
+      child: Dialog(
+        alignment: mobileSheet && MediaQuery.sizeOf(context).width <= 760
+            ? Alignment.bottomCenter
+            : Alignment.center,
+        backgroundColor: Colors.transparent,
+        insetPadding: EdgeInsets.all(
+          mobileSheet && MediaQuery.sizeOf(context).width <= 760
+              ? 0
+              : MediaQuery.sizeOf(context).width < 720
+              ? 7
+              : 24,
+        ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: width,
+            maxHeight: MediaQuery.sizeOf(context).height * .92,
+          ),
+          child: PmsCard(
+            radius: 16,
+            color: Colors.white,
+            padding: EdgeInsets.zero,
+            shadow: true,
+            child: content,
+          ),
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class PmsScrollPane extends StatefulWidget {

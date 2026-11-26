@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 import '../workspace/workspace_models.dart';
 import 'pms_controller.dart';
 import 'pms_dialogs.dart';
+import 'operational_visuals.dart';
 import 'pms_style.dart';
 
 class SecurityPage extends StatelessWidget {
@@ -14,93 +15,54 @@ class SecurityPage extends StatelessWidget {
   final PmsController c;
   @override
   Widget build(BuildContext context) {
-    final sec = c.object('security');
+    final sec = c.object('security'), runtime = c.object('runtime');
     if (!c.user.isOperator) return PmsEmpty(ui('No access'));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        PmsEyebrow(ui('PRODUCTION CORE')),
         PmsPageTitle(ui('Security center')),
-        Text(
-          ui(
-            'Sessions, tenant boundaries, access controls and audit evidence in one place.',
-          ),
+        const SizedBox(height: 16),
+        FactGrid(
+          facts: [
+            (ui('Environment'), ui(text(runtime, 'environment', 'Unknown'))),
+            (ui('Database'), text(runtime, 'database_backend', ui('Unknown'))),
+            (ui('Schema'), '${runtime['schema_version'] ?? '—'}'),
+            (ui('Version'), text(runtime, 'version', ui('Unknown'))),
+          ],
         ),
-        const SizedBox(height: 20),
-        PmsCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                ui('Production core'),
-                style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
-              ),
-              Text(
-                ui(
-                  'Production deployments require PostgreSQL, secure cookies, encryption keys and demo mode disabled.',
-                ),
-              ),
-              const SizedBox(height: 16),
-              PmsColumns([
-                for (final entry in {
-                  'environment': 'Environment',
-                  'database_backend': 'Database',
-                  'schema_version': 'Schema',
-                  'version': 'Version',
-                }.entries)
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        ui(entry.value),
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: PmsStyle.muted,
-                        ),
-                      ),
-                      SelectableText(
-                        entry.key == 'environment'
-                            ? ui(
-                                '${c.object('runtime')[entry.key] ?? 'Unknown'}',
-                              )
-                            : '${c.object('runtime')[entry.key] ?? ui('Unknown')}',
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                    ],
-                  ),
-              ], columns: 4),
-            ],
-          ),
-        ),
-        const SizedBox(height: 20),
-        PmsColumns([
-          for (final entry in {
-            'Active sessions': '${optionalRows(sec['sessions']).length}',
-            'MFA users':
-                '${sec['mfa_enabled_users'] ?? 0}/${sec['active_users'] ?? 0}',
-            'Passwords': text(sec, 'password_scheme', 'Unknown'),
-            'CSRF': 'ACTIVE',
-            'Tenant isolation': 'SERVER',
-            'Secure cookie': sec['secure_cookie_required'] == true
-                ? 'ON'
-                : 'LOCAL OFF',
-          }.entries)
-            PmsCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(ui(entry.key), style: const TextStyle(fontSize: 12)),
-                  Text(
-                    ui(entry.value),
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
+        const SizedBox(height: 17),
+        MetricRail(
+          metrics: [
+            (
+              ui('Active sessions'),
+              sec['sessions'] is List
+                  ? '${optionalRows(sec['sessions']).length}'
+                  : '—',
             ),
-        ], columns: 3),
+            (
+              ui('MFA users'),
+              sec['mfa_enabled_users'] != null && sec['active_users'] != null
+                  ? '${sec['mfa_enabled_users']}/${sec['active_users']}'
+                  : '—',
+            ),
+          ],
+        ),
+        const SizedBox(height: 15),
+        FactGrid(
+          facts: [
+            (ui('Passwords'), ui(text(sec, 'password_scheme', 'Unknown'))),
+            (ui('CSRF'), ui('ACTIVE')),
+            (ui('Tenant isolation'), ui('SERVER')),
+            (
+              ui('Secure cookie'),
+              ui(switch (sec['secure_cookie_required']) {
+                true => 'ON',
+                false => 'LOCAL OFF',
+                _ => 'Unknown',
+              }),
+            ),
+          ],
+        ),
         const SizedBox(height: 24),
         PmsColumns([
           PmsCard(
@@ -311,7 +273,6 @@ class _KnowledgePageState extends State<KnowledgePage>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        PmsEyebrow(ui('TRAIN DELVANE')),
         PmsPageTitle(ui('Train Delvane')),
         Text(
           ui(
@@ -527,7 +488,6 @@ class _OperatingModePageState extends State<OperatingModePage>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        PmsEyebrow(ui('PRODUCTION PILOT CONTROL')),
         PmsPageTitle(ui('Simulation / Operating mode')),
         errors(),
         const SizedBox(height: 24),
@@ -559,25 +519,21 @@ class _OperatingModePageState extends State<OperatingModePage>
         ], columns: 3),
         const SizedBox(height: 24),
         PmsEyebrow(ui('SIMULATION LEDGER')),
-        PmsColumns([
-          for (final entry in {
-            'simulated': 'Simulated',
-            'awaiting_approval': 'Awaiting approval',
-            'executed': 'Executed',
-          }.entries)
-            PmsCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(ui(entry.value)),
-                  Text(
-                    '${c.rows('actions').where((a) => a['status'] == entry.key).length}',
-                    style: const TextStyle(fontSize: 28),
-                  ),
-                ],
+        MetricRail(
+          metrics: [
+            for (final entry in {
+              'simulated': 'Simulated',
+              'awaiting_approval': 'Awaiting approval',
+              'executed': 'Executed',
+            }.entries)
+              (
+                ui(entry.value),
+                c.hasSection('actions')
+                    ? '${c.rows('actions').where((a) => a['status'] == entry.key).length}'
+                    : '—',
               ),
-            ),
-        ], columns: 3),
+          ],
+        ),
         const SizedBox(height: 16),
         for (final a in c.rows('actions').take(30))
           PmsCard(

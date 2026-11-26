@@ -32,13 +32,14 @@ class PmsController extends ChangeNotifier {
   PmsController(this.auth, {PmsPage? initialPage, DateTime Function()? clock})
     : _clock = clock ?? DateTime.now {
     _scope = _authScope;
+    _wasOffline = auth.offline;
     _invalidateOnMutation = _invalidateReads;
     api.onMutation = _invalidateOnMutation;
     auth.addListener(_authChanged);
     page =
         initialPage ??
         (user.isOperator
-            ? PmsPage.intelligence
+            ? PmsPage.today
             : user.role == 'maintenance'
             ? PmsPage.maintenance
             : PmsPage.today);
@@ -56,11 +57,16 @@ class PmsController extends ChangeNotifier {
   );
   String? chatRefreshError;
   static const _freshFor = Duration(seconds: 25);
+  static const syncInterval = Duration(seconds: 20);
+  static const _identityFreshFor = Duration(minutes: 1);
   final DateTime Function() _clock;
   final Map<String, (Object?, DateTime)> _reads = {};
   final Map<String, Future<Object?>> _pending = {};
   late final VoidCallback _invalidateOnMutation;
-  late (String, String, String)? _scope;
+  late (String, String, String, String)? _scope;
+  bool _wasOffline = false;
+  bool _foregroundRefreshDue = false;
+  Map<String, (Object, DateTime)> offlineData = {};
   int _readGeneration = 0;
   Future<void>? _identityRequest;
   DateTime? _identityChecked;
@@ -72,8 +78,13 @@ class PmsController extends ChangeNotifier {
       auth.workspaceId?.startsWith('staging:delvane-uat-') == true;
   bool hasSection(String key) => data.containsKey(key);
   int get readRevision => _readGeneration;
-  (String, String, String)? get _authScope => switch (auth.user) {
-    final identity? => (identity.id, identity.organizationId, identity.role),
+  (String, String, String, String)? get _authScope => switch (auth.user) {
+    final identity? => (
+      identity.id,
+      identity.organizationId,
+      identity.role,
+      (identity.permissions.toList()..sort()).join(','),
+    ),
     null => null,
   };
 
@@ -117,18 +128,64 @@ class PmsController extends ChangeNotifier {
 
   void _authChanged() {
     final scope = _authScope;
-    if (_scope == scope) return;
+    if (_scope == scope) {
+      if (auth.offline && !_wasOffline) {
+        _invalidateReads();
+        for (final key in ['inbox', 'summary', 'outbox', 'rules']) {
+          data.remove(key);
+        }
+        unawaited(_loadOffline());
+      }
+      _wasOffline = auth.offline;
+      emit();
+      return;
+    }
     _scope = scope;
+    _foregroundRefreshDue = false;
+    _wasOffline = auth.offline;
     _identityChecked = null;
     _invalidateReads();
     data.clear();
+    offlineData.clear();
     receptionDrafts.clear();
     receptionSelected = null;
+    receptionQuery = '';
     chat.invalidateAccess();
     ++_generation;
     if (scope != null) {
       if (!allows(page)) page = primary.first;
       unawaited(load());
+    }
+  }
+
+  Future<void> _loadOffline() async {
+    final scope = auth.cacheScope;
+    if (scope == null) return;
+    final paths = switch (page) {
+      PmsPage.today when user.isOperator => [
+        '/api/operations/today-command',
+        '/api/owner/dashboard',
+      ],
+      PmsPage.today || PmsPage.schedule => ['/api/worker/dashboard'],
+      PmsPage.reservations => ['/api/reservations', '/api/properties'],
+      PmsPage.operations => [
+        '/api/properties',
+        '/api/operations/today-command',
+      ],
+      _ => <String>[],
+    };
+    final selected = page;
+    final snapshots = <String, (Object, DateTime)>{};
+    for (final path in paths) {
+      final value = await auth.cache.read(path, scope, auth.now());
+      if (value != null) snapshots[path] = value;
+    }
+    if (!_disposed &&
+        auth.offline &&
+        auth.cacheScope == scope &&
+        selected == page) {
+      offlineData = snapshots;
+      emit();
     }
   }
 
@@ -152,6 +209,9 @@ class PmsController extends ChangeNotifier {
           .then((value) {
             if (!_disposed && generation == _readGeneration) {
               _reads[path] = (value, _clock());
+              unawaited(
+                auth.rememberOperational(path, value).catchError((Object _) {}),
+              );
             }
             return value;
           })
@@ -163,9 +223,10 @@ class PmsController extends ChangeNotifier {
 
   Future<void> _checkIdentity({required bool force}) {
     final lastChecked = _identityChecked;
-    if (!force &&
+    if (!auth.offline &&
+        !force &&
         lastChecked != null &&
-        _clock().difference(lastChecked) < _freshFor) {
+        _clock().difference(lastChecked) < _identityFreshFor) {
       return Future.value();
     }
     final scope = _scope;
@@ -184,6 +245,7 @@ class PmsController extends ChangeNotifier {
   String mode = 'observe';
   int receptionTab = 0;
   String? receptionSelected;
+  String receptionQuery = '';
   // Unsaved text stays in this authenticated session only; never written to disk.
   final Map<String, String> receptionDrafts = {};
   List<PmsPage> get primary => user.isOperator
@@ -243,9 +305,68 @@ class PmsController extends ChangeNotifier {
   }
 
   Future<void> refreshIfStale() => navigate(page);
-  Future<void> load() => _load(page, force: true);
+  Future<void> load() => _load(page, force: true, verifyIdentity: true);
 
-  Map<String, String> _routes(PmsPage selected) {
+  bool get liveWorkspace => const {
+    PmsPage.today,
+    PmsPage.schedule,
+    PmsPage.reservations,
+    PmsPage.operations,
+    PmsPage.maintenance,
+    PmsPage.supplies,
+    PmsPage.inbox,
+    PmsPage.intelligence,
+  }.contains(page);
+
+  Future<void> synchronize({bool foreground = false}) async {
+    if (_disposed || auth.user == null) return;
+    if (refreshing || saving) {
+      _foregroundRefreshDue |= foreground;
+      return;
+    }
+    _foregroundRefreshDue = false;
+    if (auth.offline || foreground || liveWorkspace) {
+      await _load(
+        page,
+        force: true,
+        verifyIdentity: foreground,
+        background: !foreground,
+      );
+    }
+  }
+
+  void _finishLoad() {
+    loading = refreshing = false;
+    emit();
+    if (_foregroundRefreshDue && !saving) {
+      unawaited(synchronize(foreground: true));
+    }
+  }
+
+  static const receptionSections = ['inbox', 'outbox', 'rules'];
+  static const _receptionRoutes = [
+    '/api/inbox',
+    '/api/communications/outbox',
+    '/api/automation/rules',
+  ];
+
+  Future<void> refreshReception() => _load(
+    PmsPage.inbox,
+    force: true,
+    background: true,
+    verifyIdentity: auth.offline,
+  );
+
+  Future<void> selectReception(int tab) async {
+    receptionTab = tab;
+    if (page == PmsPage.inbox) {
+      await _load(page, force: false, background: true);
+    } else {
+      emit();
+    }
+  }
+
+  Map<String, String> _routes(PmsPage selected, {required bool activeOnly}) {
     final paths = <String, String>{};
     switch (selected) {
       case PmsPage.today:
@@ -253,6 +374,7 @@ class PmsController extends ChangeNotifier {
           paths.addAll({
             'command': '/api/operations/today-command',
             'dashboard': '/api/owner/dashboard',
+            'reception': '/api/reception/summary',
           });
         } else {
           paths['worker'] = '/api/worker/dashboard';
@@ -271,12 +393,13 @@ class PmsController extends ChangeNotifier {
           'properties': '/api/properties',
         });
       case PmsPage.inbox:
-        paths.addAll({
-          'summary': '/api/reception/summary',
-          'inbox': '/api/inbox',
-          'outbox': '/api/communications/outbox',
-          'rules': '/api/automation/rules',
-        });
+        paths[receptionSections[receptionTab]] = _receptionRoutes[receptionTab];
+        paths['summary'] = '/api/reception/summary';
+        if (!activeOnly) {
+          for (var i = 0; i < receptionSections.length; i++) {
+            paths[receptionSections[i]] = _receptionRoutes[i];
+          }
+        }
       case PmsPage.operations:
         paths.addAll({
           'timeline': '/api/operations/timeline',
@@ -325,23 +448,37 @@ class PmsController extends ChangeNotifier {
     return paths;
   }
 
-  Future<void> _load(PmsPage selected, {required bool force}) async {
+  Future<void> _load(
+    PmsPage selected, {
+    required bool force,
+    bool verifyIdentity = false,
+    bool background = false,
+  }) async {
     if (_disposed || auth.user == null) return;
+    force = force || auth.offline;
     final generation = ++_generation;
-    final readGeneration = _readGeneration;
     final chatRevision = chat.revision;
     final samePage = selected == page;
     page = selected;
-    final paths = _routes(selected);
+    if (auth.offline) {
+      if (!samePage) offlineData = {};
+      unawaited(_loadOffline());
+    }
+    final paths = _routes(selected, activeOnly: background);
     if (!samePage) data.clear();
     for (final entry in paths.entries) {
       if (_reads[entry.value] case (final value, _)) {
         data[entry.key] = value;
       }
     }
-    error = null;
-    sectionErrors.clear();
-    chatRefreshError = null;
+    if (!samePage) sectionErrors.clear();
+    if (!background || !samePage) {
+      error = null;
+      for (final key in paths.keys) {
+        sectionErrors.remove(key);
+      }
+      chatRefreshError = null;
+    }
     final needsFetch =
         force ||
         paths.values.any((path) {
@@ -356,7 +493,7 @@ class PmsController extends ChangeNotifier {
         !_disposed && generation == _generation && auth.user != null;
     try {
       if (strings.data.isEmpty) await strings.load();
-      await _checkIdentity(force: force);
+      await _checkIdentity(force: verifyIdentity);
       if (!current()) return;
     } on ApiException catch (failure) {
       if (!current()) return;
@@ -367,16 +504,17 @@ class PmsController extends ChangeNotifier {
       }
       connectionIssue = failure.kind;
       error = safeError(failure);
-      loading = refreshing = false;
-      emit();
+      _finishLoad();
       return;
     }
+    final readGeneration = _readGeneration;
 
     Future<void> loadSection(MapEntry<String, String> entry) async {
       try {
         final result = await _read(entry.value, force: force);
         if (!current() || readGeneration != _readGeneration) return;
         data[entry.key] = result;
+        sectionErrors.remove(entry.key);
         if (entry.key == 'conversation' &&
             result != null &&
             chat.revision == chatRevision) {
@@ -401,7 +539,7 @@ class PmsController extends ChangeNotifier {
       if (current()) emit();
     }
 
-    if (user.isOperator) {
+    if (user.isOperator && !background) {
       Future<void> loadUtility(
         String path,
         void Function(Json value) update,
@@ -432,12 +570,13 @@ class PmsController extends ChangeNotifier {
 
     await Future.wait(paths.entries.map(loadSection));
     if (!current()) return;
-    if (data.isEmpty && sectionErrors.isNotEmpty) {
-      error = sectionErrors.values.first;
+    if (readGeneration == _readGeneration) {
+      error = data.isEmpty && sectionErrors.isNotEmpty
+          ? sectionErrors.values.first
+          : null;
+      if (sectionErrors.isEmpty) connectionIssue = null;
     }
-    if (sectionErrors.isEmpty) connectionIssue = null;
-    loading = refreshing = false;
-    emit();
+    _finishLoad();
   }
 
   Future<Object?> mutate(String method, String path, [Object? body]) async {
@@ -467,6 +606,7 @@ class PmsController extends ChangeNotifier {
     } finally {
       saving = false;
       emit();
+      if (_foregroundRefreshDue) unawaited(synchronize(foreground: true));
     }
   }
 

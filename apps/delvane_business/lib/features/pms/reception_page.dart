@@ -1,27 +1,37 @@
-import 'dart:async';
-
 import 'package:material_ui/material_ui.dart';
 
 import '../../core/localization/system_labels.dart';
+import '../../core/network/api_client.dart';
 
 import '../workspace/workspace_models.dart';
 import 'pms_controller.dart';
 import 'pms_dialogs.dart';
+import 'operational_visuals.dart';
 import 'pms_style.dart';
 import 'pms_workflows.dart';
 import 'guest_history_dialog.dart';
 import 'guest_link_picker.dart';
 import 'guest_delivery_status.dart';
 import 'actual_stay_controls.dart';
+import 'scoped_search.dart';
 
 class ReceptionPage extends StatefulWidget {
   const ReceptionPage({
     super.key,
     required this.controller,
     required this.openStay,
+  }) : conversation = null,
+       onConversationChanged = null;
+  const ReceptionPage._conversation({
+    required this.controller,
+    required this.openStay,
+    required this.conversation,
+    required this.onConversationChanged,
   });
   final PmsController controller;
   final ValueChanged<String> openStay;
+  final Json? conversation;
+  final VoidCallback? onConversationChanged;
   @override
   State<ReceptionPage> createState() => _ReceptionPageState();
 }
@@ -30,15 +40,25 @@ class _ReceptionPageState extends State<ReceptionPage>
     with PmsActions<ReceptionPage> {
   late final api = PmsWorkflows(widget.controller);
   final drafts = <String, TextEditingController>{};
-  final search = TextEditingController();
-  Json summary = {};
-  List<Json> inbox = [], outbox = [], rules = [];
-  String? selected;
-  Timer? deliveryRefresh;
+  late final search = TextEditingController(
+    text: widget.controller.receptionQuery,
+  );
+  PmsController get c => widget.controller;
+  Json get summary => c.object('summary');
+  List<Json> get inbox => c.auth.offline ? [] : c.rows('inbox');
+  List<Json> get outbox => c.rows('outbox');
+  List<Json> get rules => c.rows('rules');
   bool stale = false;
-  bool get locked => busy || stale;
-  int get tab => widget.controller.receptionTab;
+  bool unreadOnly = false;
+  bool get locked =>
+      busy || stale || c.auth.offline || c.auth.user?.isOperator != true;
+  int get tab => c.receptionTab;
+  String get section => PmsController.receptionSections[tab];
+  String? get selected => c.receptionSelected;
   String t(String s) => widget.controller.t(s);
+  bool get usesConversationRoute =>
+      MediaQuery.sizeOf(context).width <= 760 &&
+      Theme.of(context).platform == TargetPlatform.android;
   String status(String code) => t(switch (code) {
     'new' => 'NEW',
     'analyzed' => 'UNDERSTOOD',
@@ -51,40 +71,6 @@ class _ReceptionPageState extends State<ReceptionPage>
     'cancelled' => t('Cancelled'),
     _ => code,
   }).toUpperCase();
-  @override
-  void initState() {
-    super.initState();
-    api.authorize();
-    final c = widget.controller;
-    summary = c.object('summary');
-    inbox = c.rows('inbox');
-    outbox = c.rows('outbox');
-    rules = c.rows('rules');
-    selected = c.receptionSelected;
-    deliveryRefresh = Timer.periodic(const Duration(seconds: 15), (_) {
-      final pending = outbox.any(
-        (row) => const {
-          'queued',
-          'sending',
-          'retry_scheduled',
-          'provider_accepted',
-          'provider_delayed',
-        }.contains(optionalObject(row['delivery'])['state']),
-      );
-      if (tab == 1 &&
-          pending &&
-          !locked &&
-          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
-        unawaited(
-          perform(() async {
-            final rows = await api.rows('/api/communications/outbox');
-            if (mounted) setState(() => outbox = rows);
-          }),
-        );
-      }
-    });
-  }
-
   TextEditingController draft(String key, String initial) => drafts.putIfAbsent(
     key,
     () => TextEditingController(
@@ -92,33 +78,69 @@ class _ReceptionPageState extends State<ReceptionPage>
     ),
   );
   Future<void> refresh({String? select}) async {
-    final data = await api.object('/api/reception/summary');
-    final messages = await api.rows('/api/inbox'),
-        scheduled = await api.rows('/api/communications/outbox'),
-        automation = await api.rows('/api/automation/rules');
+    final requiredSection = widget.conversation == null ? section : 'inbox';
+    await c.refreshReception();
     if (!mounted) return;
+    final cause =
+        c.sectionErrors[requiredSection] ??
+        c.sectionErrors['summary'] ??
+        c.error;
+    if (cause != null) throw ApiException(cause);
+    if (!c.hasSection(requiredSection) || c.auth.offline) {
+      throw const ApiException(
+        'Reception is unavailable. Try again when connected.',
+      );
+    }
     setState(() {
-      summary = data;
-      inbox = messages;
-      outbox = scheduled;
-      rules = automation;
       stale = false;
-      if (select != null) selected = select;
-      if (!messages.any((m) => m['id'] == selected)) selected = null;
-      widget.controller.receptionSelected = selected;
+      if (select != null) c.receptionSelected = select;
+      if (c.hasSection('inbox') && !inbox.any((m) => m['id'] == selected)) {
+        c.receptionSelected = null;
+      }
     });
   }
 
   Future<void> action(Future<void> Function() operation) async {
     if (locked) return;
     final ok = await perform(operation);
-    if (ok) {
+    if (ok && mounted) {
+      widget.onConversationChanged?.call();
       setState(() => stale = true);
       await perform(() async {
         await refresh();
       });
     }
     // If refresh fails, action is not repeated automatically. Server state is authoritative.
+  }
+
+  Future<void> openMessage(Json row) async {
+    final id = text(row, 'id');
+    if (!usesConversationRoute) {
+      setState(() {
+        c.receptionSelected = id;
+      });
+      return;
+    }
+    FocusManager.instance.primaryFocus?.unfocus();
+    var changed = false;
+    final theme = Theme.of(context);
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => Theme(
+          data: theme,
+          child: ReceptionPage._conversation(
+            controller: widget.controller,
+            openStay: widget.openStay,
+            conversation: row,
+            onConversationChanged: () => changed = true,
+          ),
+        ),
+      ),
+    );
+    if (changed && mounted) {
+      setState(() => stale = true);
+      await perform(() => refresh());
+    }
   }
 
   Future<void> messageAction(Json m, String operation) async {
@@ -164,15 +186,20 @@ class _ReceptionPageState extends State<ReceptionPage>
       builder: (_) => NewInboxMessage(api: api),
     );
     if (result != null) {
-      await perform(() async {
-        await refresh(select: result);
+      if (!mounted) return;
+      final openRoute = usesConversationRoute;
+      final updated = await perform(() async {
+        await refresh(select: openRoute ? null : result);
       });
+      if (updated && mounted && openRoute) {
+        final row = inbox.where((row) => row['id'] == result).firstOrNull;
+        if (row != null) await openMessage(row);
+      }
     }
   }
 
   @override
   void dispose() {
-    deliveryRefresh?.cancel();
     for (final d in drafts.values) {
       d.dispose();
     }
@@ -181,65 +208,364 @@ class _ReceptionPageState extends State<ReceptionPage>
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: c,
+    builder: (context, _) => workspace(context),
+  );
+
+  Widget workspace(BuildContext context) {
+    if (widget.conversation case final conversation?) {
+      final id = text(conversation, 'id');
+      final active = inbox.where((m) => m['id'] == id).firstOrNull;
+      return PopScope(
+        canPop: !busy,
+        child: Scaffold(
+          appBar: AppBar(title: Text(t('Inbox'))),
+          body: SafeArea(
+            top: false,
+            child: ListView(
+              padding: const EdgeInsets.all(12),
+              children: [
+                errors(),
+                if (stale || failure != null)
+                  PmsButton(
+                    t('Refresh data'),
+                    onPressed: busy ? null : () => perform(refresh),
+                  ),
+                if (c.auth.offline)
+                  PmsEmpty(
+                    t('Reception is unavailable. Try again when connected.'),
+                  )
+                else if (active != null)
+                  message(active, false)
+                else if (!c.hasSection('inbox') && c.refreshing)
+                  skeleton(t('Loading conversations…'))
+                else
+                  PmsEmpty(t('This message is no longer in the inbox.')),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     final mobile = MediaQuery.sizeOf(context).width <= 760;
     final active =
         inbox.where((m) => m['id'] == selected).firstOrNull ??
         (!mobile && inbox.isNotEmpty ? inbox.first : null);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        ActualOccupancyPanel(c: widget.controller),
-        PmsColumns(
-          [
-            for (final entry in {
-              'New messages': summary['new'],
-              'Awaiting approval': summary['waiting_approval'],
-              'Prepared touchpoints': summary['scheduled'],
-              'Live external sending': 'OFF',
-            }.entries)
-              PmsCard(
-                radius: 24,
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      t(entry.key).toUpperCase(),
-                      style: const TextStyle(fontSize: 10, letterSpacing: .8),
-                    ),
-                    Text(
-                      entry.key == 'Live external sending'
-                          ? t('OFF')
-                          : '${entry.value ?? 0}',
-                      style: const TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
+    return LayoutBuilder(
+      builder: (context, box) {
+        final folderRail = box.maxWidth >= 950;
+        final folders = navigation(folderRail);
+        final main = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (!folderRail) ...[folders, const SizedBox(height: 10)],
+            if (c.auth.offline) ...[
+              PmsEmpty(
+                t('Reception is unavailable. Try again when connected.'),
+              ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: PmsButton(
+                  t('Retry'),
+                  onPressed: busy ? null : () => perform(refresh),
                 ),
               ),
-          ],
-          columns: 4,
-          mobileColumns: 2,
-        ),
-        const SizedBox(height: 16),
-        Wrap(
-          spacing: 12,
-          runSpacing: 8,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            PmsTabs(
-              labels: [
-                '${t('Inbox')} ${summary['new'] ?? 0}',
-                '${t('Scheduled')} ${summary['scheduled'] ?? 0}',
-                '${t('Automations')} ${summary['enabled_rules'] ?? 0}',
+            ] else ...[
+              toolbar(),
+              errors(),
+              if (stale)
+                Text(
+                  t(
+                    'The server accepted the action. Refresh data before making another change.',
+                  ),
+                ),
+              if (stale || failure != null)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: PmsButton(
+                    t('Refresh data'),
+                    onPressed: busy ? null : () => perform(refresh),
+                  ),
+                ),
+              if (!c.hasSection(section))
+                if (c.sectionErrors[section] ?? c.error case final reason?)
+                  loadFailure(reason)
+                else
+                  skeleton(
+                    t(
+                      tab == 0
+                          ? 'Loading conversations…'
+                          : 'Loading Reception…',
+                    ),
+                  )
+              else ...[
+                if (c.sectionErrors[section] ?? c.error case final reason?
+                    when !stale)
+                  loadFailure(reason),
+                if (tab == 0) ...[
+                  if (!mobile || active == null) inboxList(active, mobile),
+                  if (active != null && mobile) message(active, true),
+                ],
+                if (tab == 1) scheduled(),
+                if (tab == 2) automations(),
               ],
-              selected: tab,
-              onChanged: locked
-                  ? (_) {}
-                  : (v) => setState(() => widget.controller.receptionTab = v),
+            ],
+          ],
+        );
+        if (!folderRail) return main;
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(width: 168, child: folders),
+            const SizedBox(width: 18),
+            Expanded(child: main),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget loadFailure(String reason) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 12),
+    child: Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 12,
+      children: [
+        Text(t(reason), style: const TextStyle(color: operationalRed)),
+        TextButton(
+          onPressed: busy ? null : () => perform(refresh),
+          child: Text(t('Retry')),
+        ),
+      ],
+    ),
+  );
+
+  Widget skeleton(String label) => Semantics(
+    liveRegion: true,
+    label: label,
+    child: ExcludeSemantics(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Text(label),
+          ),
+          for (var i = 0; i < 3; i++)
+            Container(
+              height: 60,
+              margin: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.all(10),
+              decoration: const BoxDecoration(
+                border: Border(bottom: BorderSide(color: PmsStyle.panelLine)),
+              ),
+              child: Row(
+                children: [
+                  const CircleAvatar(
+                    radius: 15,
+                    backgroundColor: PmsStyle.soft,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(width: 112, height: 9, color: PmsStyle.soft),
+                        const SizedBox(height: 10),
+                        FractionallySizedBox(
+                          widthFactor: .64,
+                          child: Container(height: 7, color: PmsStyle.soft),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    ),
+  );
+
+  Widget navigation(bool vertical) {
+    final folders = [
+      ('Inbox', summary['new'], Icons.inbox_outlined),
+      ('Scheduled', summary['scheduled'], Icons.schedule),
+      ('Automations', summary['enabled_rules'], Icons.tune),
+    ];
+    Widget destination(int index) {
+      final (label, count, icon) = folders[index];
+      final active = index == tab;
+      final title = '${t(label)}${count == null ? '' : ' $count'}';
+      final labelText = Text(
+        title,
+        textAlign: vertical ? TextAlign.start : TextAlign.center,
+        style: TextStyle(
+          color: active ? PmsStyle.ink : PmsStyle.muted,
+          fontSize: 12,
+          fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+        ),
+      );
+      return Semantics(
+        selected: active,
+        button: true,
+        child: Material(
+          color: vertical && active
+              ? const Color(0xFFFFF2B4)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(7),
+          child: InkWell(
+            onTap: locked ? null : () => c.selectReception(index),
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 51),
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
+              decoration: vertical
+                  ? null
+                  : BoxDecoration(
+                      border: Border(
+                        bottom: BorderSide(
+                          width: 3,
+                          color: active ? PmsStyle.yellow : PmsStyle.panelLine,
+                        ),
+                      ),
+                    ),
+              child: Flex(
+                direction: vertical ? Axis.horizontal : Axis.vertical,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    icon,
+                    size: 17,
+                    color: active ? PmsStyle.ink : PmsStyle.muted,
+                  ),
+                  SizedBox(width: vertical ? 9 : 0, height: vertical ? 0 : 4),
+                  if (vertical) Expanded(child: labelText) else labelText,
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return vertical
+        ? Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(7, 0, 0, 12),
+                child: Text(
+                  t('Reception'),
+                  style: PmsStyle.pageTitle(context, size: 22),
+                ),
+              ),
+              for (var i = 0; i < folders.length; i++) destination(i),
+            ],
+          )
+        : IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var i = 0; i < folders.length; i++)
+                  Expanded(child: destination(i)),
+              ],
+            ),
+          );
+  }
+
+  Widget toolbar() => Row(
+    children: [
+      Expanded(
+        child: ExpansionTile(
+          title: Text(
+            t('Reception overview'),
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          ),
+          tilePadding: EdgeInsets.zero,
+          shape: const Border(),
+          collapsedShape: const Border(),
+          children: [overview()],
+        ),
+      ),
+      if (c.refreshing && c.hasSection(section))
+        Tooltip(
+          message: t('Synchronizing Reception…'),
+          child: Semantics(
+            label: t('Synchronizing Reception…'),
+            child: const SizedBox.square(
+              dimension: 13,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+        ),
+      const SizedBox(width: 6),
+      IconButton(
+        tooltip: t('Refresh'),
+        onPressed: busy ? null : () => perform(refresh),
+        icon: const Icon(Icons.refresh, size: 18),
+      ),
+    ],
+  );
+
+  Widget overview() => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      ActualOccupancyPanel(c: widget.controller),
+      MetricRail(
+        metrics: [
+          for (final entry in {
+            'New messages': summary['new'],
+            'Awaiting approval': summary['waiting_approval'],
+            'Prepared touchpoints': summary['scheduled'],
+            'Live external sending':
+                switch (summary['external_sending_connected']) {
+                  true => t('Connected'),
+                  false => t('OFF'),
+                  _ => '—',
+                },
+          }.entries)
+            (t(entry.key).toUpperCase(), '${entry.value ?? '—'}'),
+        ],
+      ),
+    ],
+  );
+
+  Widget inboxList(Json? active, bool mobile) {
+    final query = search.text.trim().toLowerCase();
+    final filtered = inbox
+        .where((message) => !unreadOnly || message['status'] == 'new')
+        .where(
+          (m) =>
+              '${m['sender_name']} ${m['subject']} ${m['body']} ${m['source']}'
+                  .toLowerCase()
+                  .contains(query),
+        )
+        .toList();
+    final list = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: ScopedSearch(
+                query: search,
+                label: 'Search in mail',
+                onChanged: (value) {
+                  setState(() => c.receptionQuery = value);
+                },
+              ),
+            ),
+            IconButton(
+              tooltip: t('Unread only'),
+              icon: const Icon(Icons.mark_email_unread_outlined, size: 19),
+              isSelected: unreadOnly,
+              selectedIcon: const Icon(
+                Icons.mark_email_unread,
+                color: operationalAmber,
+                size: 19,
+              ),
+              onPressed: () => setState(() => unreadOnly = !unreadOnly),
             ),
             PmsButton(
               '+ ${t('Paste message')}',
@@ -248,128 +574,96 @@ class _ReceptionPageState extends State<ReceptionPage>
             ),
           ],
         ),
-        const SizedBox(height: 16),
-        errors(),
-        if (stale)
-          Text(
+        const SizedBox(height: 12),
+        if (filtered.isEmpty)
+          PmsEmpty(
             ui(
-              'The server accepted the action. Refresh data before making another change.',
+              query.isNotEmpty || unreadOnly
+                  ? 'No matching conversations.'
+                  : 'Your inbox is clear. Guest messages will appear here.',
             ),
           ),
-        if (failure != null)
-          PmsButton(
-            ui('Refresh data'),
-            onPressed: busy
-                ? null
-                : () => perform(() async {
-                    await refresh();
-                  }),
-          ),
-        if (tab == 0) ...[
-          if (!mobile || active == null) inboxList(active, mobile),
-          if (active != null && mobile) message(active, true),
-        ],
-        if (tab == 1) scheduled(),
-        if (tab == 2) automations(),
-      ],
-    );
-  }
-
-  Widget inboxList(Json? active, bool mobile) {
-    final query = search.text.trim().toLowerCase();
-    final filtered = inbox
-        .where(
-          (m) =>
-              '${m['sender_name']} ${m['subject']} ${m['body']} ${m['source']}'
-                  .toLowerCase()
-                  .contains(query),
-        )
-        .toList();
-    final list = PmsCard(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          TextField(
-            onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
-            controller: search,
-            decoration: InputDecoration(hintText: ui('Search in mail')),
-            onChanged: (_) => setState(() {}),
-          ),
-          const SizedBox(height: 12),
-          PmsEyebrow(ui('All inboxes')),
-          if (filtered.isEmpty)
-            PmsEmpty(
-              ui('Your inbox is clear. Guest messages will appear here.'),
-            ),
-          for (final m in filtered)
-            Material(
-              color: active?['id'] == m['id']
-                  ? PmsStyle.soft
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(16),
-              child: ListTile(
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 8,
-                ),
-                leading: CircleAvatar(
-                  backgroundColor: const Color(0xFFFFF3BD),
-                  foregroundColor: PmsStyle.ink,
-                  child: Text(
-                    text(m, 'sender_name', '?').isEmpty
-                        ? '?'
-                        : text(m, 'sender_name')[0].toUpperCase(),
-                  ),
-                ),
-                title: Text(
-                  text(m, 'sender_name', 'Guest'),
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      text(m, 'subject', 'Guest message'),
+        for (final m in filtered) ...[
+          Material(
+            color: active?['id'] == m['id']
+                ? PmsStyle.soft
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 8,
+              ),
+              leading: CircleAvatar(
+                backgroundColor: const Color(0xFFFFF3BD),
+                foregroundColor: PmsStyle.ink,
+                child: Text(firstInitial(text(m, 'sender_name').trim())),
+              ),
+              title: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      text(m, 'sender_name', t('Guest')),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontWeight: m['status'] == 'new'
+                            ? FontWeight.w800
+                            : FontWeight.w600,
+                      ),
                     ),
+                  ),
+                  if (received(m).isNotEmpty) ...[
+                    const SizedBox(width: 6),
                     Text(
-                      text(m, 'body'),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Text(
-                      '${text(m, 'source')} · ${status(text(m, 'status'))}',
-                      style: const TextStyle(fontSize: 10),
+                      received(m),
+                      style: const TextStyle(
+                        color: PmsStyle.muted,
+                        fontSize: 11,
+                      ),
                     ),
                   ],
-                ),
-                trailing: m['status'] == 'new'
-                    ? const Text(
-                        '●',
-                        style: TextStyle(color: Color(0xFF8B5A00)),
-                      )
-                    : null,
-                onTap: locked
-                    ? null
-                    : () => setState(() {
-                        selected = text(m, 'id');
-                        widget.controller.receptionSelected = selected;
-                      }),
+                ],
               ),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    text(m, 'subject', t('Guest message')),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  Text(
+                    text(m, 'body'),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    '${text(m, 'source')} · ${status(text(m, 'status'))}',
+                    style: const TextStyle(fontSize: 10),
+                  ),
+                ],
+              ),
+              trailing: m['status'] == 'new'
+                  ? Tooltip(
+                      message: t('New message'),
+                      child: const Icon(
+                        Icons.circle,
+                        size: 8,
+                        color: operationalAmber,
+                      ),
+                    )
+                  : null,
+              onTap: locked ? null : () => openMessage(m),
             ),
+          ),
+          const Divider(height: 1, color: PmsStyle.panelLine),
         ],
-      ),
+      ],
     );
-    if (mobile) {
-      return ConstrainedBox(
-        constraints: BoxConstraints(
-          minHeight: (MediaQuery.sizeOf(context).height - 260).clamp(320, 1200),
-        ),
-        child: list,
-      );
-    }
+    if (mobile) return list;
     return LayoutBuilder(
       builder: (context, box) => SizedBox(
         height: (MediaQuery.sizeOf(context).height - 235).clamp(480, 1200),
@@ -401,17 +695,9 @@ class _ReceptionPageState extends State<ReceptionPage>
                     ),
                   ),
                   child: active == null
-                      ? PmsCard(
-                          child: Padding(
-                            padding: EdgeInsets.only(top: 112),
-                            child: Align(
-                              alignment: Alignment.topCenter,
-                              child: Text(
-                                ui('Select a message to review it.'),
-                                style: TextStyle(fontSize: 22),
-                              ),
-                            ),
-                          ),
+                      ? PmsEmpty(
+                          ui('Select a message to review it.'),
+                          tall: true,
                         )
                       : message(active, false),
                 ),
@@ -423,6 +709,18 @@ class _ReceptionPageState extends State<ReceptionPage>
     );
   }
 
+  String received(Json message) {
+    final date = DateTime.tryParse(text(message, 'received_at'))?.toLocal();
+    if (date == null) return '';
+    final localizations = MaterialLocalizations.of(context);
+    return isoDate(date) == isoDate(DateTime.now())
+        ? localizations.formatTimeOfDay(TimeOfDay.fromDateTime(date))
+        : localizations.formatShortDate(date);
+  }
+
+  String firstInitial(String name) =>
+      name.isEmpty ? '?' : String.fromCharCode(name.runes.first).toUpperCase();
+
   Widget message(Json m, bool mobile) {
     final a = m['analysis'] is Json
         ? jsonObject(m['analysis'])
@@ -430,7 +728,8 @@ class _ReceptionPageState extends State<ReceptionPage>
     final analyzed = a.isNotEmpty, key = 'inbox:${text(m, 'id')}';
     final editor = draft(key, text(m, 'draft_reply', text(a, 'draft_reply')));
     final guest = m['guest_context'];
-    return PmsCard(
+    return Padding(
+      padding: EdgeInsets.fromLTRB(mobile ? 0 : 20, 8, mobile ? 0 : 12, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -441,16 +740,29 @@ class _ReceptionPageState extends State<ReceptionPage>
                 ui('‹ Back to inbox'),
                 small: true,
                 onPressed: () => setState(() {
-                  selected = null;
-                  widget.controller.receptionSelected = null;
+                  c.receptionSelected = null;
                 }),
               ),
             ),
           PmsEyebrow('${text(m, 'source')} · ${status(text(m, 'status'))}'),
           Text(
-            text(m, 'sender_name', 'Guest'),
-            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700),
+            text(m, 'subject', ui('Guest message')),
+            style: const TextStyle(
+              fontSize: 29,
+              height: 1.12,
+              fontWeight: FontWeight.w700,
+            ),
           ),
+          const SizedBox(height: 10),
+          Text(
+            text(m, 'sender_name', ui('Guest')),
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+          ),
+          if (m['received_at'] != null)
+            Text(
+              uiDateTime(text(m, 'received_at')),
+              style: const TextStyle(color: PmsStyle.muted, fontSize: 12),
+            ),
           Text(
             '${text(m, 'property_name')} · ${text(m, 'reservation_arrival')} → ${text(m, 'reservation_departure')}',
           ),
@@ -497,29 +809,14 @@ class _ReceptionPageState extends State<ReceptionPage>
                 ],
               ),
             ),
-          PmsEyebrow(t('Guest message')),
-          PmsCard(
-            color: PmsStyle.soft,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(text(m, 'subject')),
-                const SizedBox(height: 8),
-                SelectableText(text(m, 'body')),
-              ],
-            ),
+          const Divider(height: 26),
+          SelectableText(
+            text(m, 'body'),
+            style: const TextStyle(fontSize: 15, height: 1.55),
           ),
+          const Divider(height: 26),
           if (!analyzed) ...[
             const SizedBox(height: 16),
-            Text(
-              ui('Let Delvane understand this first.'),
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
-            ),
-            Text(
-              ui(
-                'Structured facts and actions stay deterministic. Luna is optional.',
-              ),
-            ),
             PmsButton(
               t('Analyze'),
               primary: true,
@@ -794,27 +1091,13 @@ class _ReceptionPageState extends State<ReceptionPage>
   Widget automations() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      PmsEyebrow(ui('GUEST JOURNEY AUTOMATION')),
       Text(
-        ui('Delvane prepares the next touchpoint before you think about it.'),
-        style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
+        ui('Automation rules'),
+        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
       ),
       Text(
         ui(
-          'Rules create drafts only. OBSERVE previews, ASSIST requests approval, and AUTONOMOUS can prepare approved items. No external channel is connected yet.',
-        ),
-      ),
-      Align(
-        alignment: Alignment.centerLeft,
-        child: PmsButton(
-          t('Run Delvane scheduler'),
-          primary: true,
-          onPressed: locked
-              ? null
-              : () => action(() async {
-                  await api.change('POST', '/api/automation/run');
-                  widget.controller.receptionTab = 1;
-                }),
+          'The server prepares scheduled messages according to your operating mode and approval rules.',
         ),
       ),
       const SizedBox(height: 16),

@@ -6,13 +6,13 @@ import 'operations_dashboard.dart';
 import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
-import 'package:flutter/services.dart';
 
 import '../../core/auth/auth_controller.dart';
 import '../workspace/workspace_models.dart';
 import '../workspace/workspace_repository.dart';
 import '../workspace/record_page.dart';
 import 'pms_controller.dart';
+import 'operational_visuals.dart';
 import 'pms_style.dart';
 import 'pms_icons.dart';
 import 'pms_workflows.dart';
@@ -24,8 +24,11 @@ import 'team_page.dart';
 import 'operations_pages.dart';
 import 'operations_workflows.dart';
 import 'administration_pages.dart';
+import 'cleaning_workspace.dart';
+import 'signature_navigation.dart';
+import 'scoped_search.dart';
+import 'operations_pulse.dart';
 import 'integrations_page.dart';
-import 'guest_history_dialog.dart';
 import 'intelligence_workspace.dart';
 import 'ask_bar.dart';
 
@@ -41,6 +44,8 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
   late final c = PmsController(widget.auth, initialPage: widget.initialPage);
   final scroll = ScrollController();
   final chat = TextEditingController();
+  final reservationQuery = TextEditingController();
+  final workspaceOffsets = <PmsPage, double>{};
   final calendarSelection = CalendarSelection(DateTime.now());
   String? operationsProperty;
   late final Timer operationsRefresh;
@@ -49,24 +54,18 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     unawaited(c.load());
-    operationsRefresh = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed &&
-          !c.loading &&
-          !c.refreshing &&
-          !c.saving &&
-          const [
-            PmsPage.today,
-            PmsPage.operations,
-            PmsPage.schedule,
-          ].contains(c.page)) {
-        unawaited(c.refreshIfStale());
+    operationsRefresh = Timer.periodic(PmsController.syncInterval, (_) {
+      if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+        unawaited(c.synchronize());
       }
     });
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) unawaited(c.refreshIfStale());
+    if (state == AppLifecycleState.resumed) {
+      unawaited(c.synchronize(foreground: true));
+    }
   }
 
   @override
@@ -76,6 +75,7 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
     c.dispose();
     scroll.dispose();
     chat.dispose();
+    reservationQuery.dispose();
     super.dispose();
   }
 
@@ -83,6 +83,7 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
     RecordKind kind,
     String id, {
     String? reservationId,
+    int reservationTab = 0,
   }) async {
     if (kind == RecordKind.property && c.user.isOperator) {
       await showDialog<void>(
@@ -107,6 +108,7 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
         builder: (_) => ReservationWorkspace(
           api: PmsWorkflows(c),
           id: id,
+          initialTab: reservationTab,
           openTask: (taskId) =>
               record(RecordKind.cleaning, taskId, reservationId: id),
           openReception: () {
@@ -120,6 +122,10 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
           (changed == true || c.readRevision != readRevision)) {
         await c.refreshIfStale();
       }
+      return;
+    }
+    if (kind == RecordKind.cleaning) {
+      await openCleaning(id);
       return;
     }
     // Preserve the verified record/permission implementation while its visual modal port continues.
@@ -150,6 +156,27 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(ui(safeError(e)))));
       }
+    }
+  }
+
+  Future<void> openStayOperation(String id, StayOperation operation) async {
+    var changed = false;
+    void review(int tab) =>
+        unawaited(record(RecordKind.reservation, id, reservationTab: tab));
+    await showDialog<void>(
+      context: context,
+      useRootNavigator: false,
+      builder: (_) => ActualStayDialog(
+        api: PmsWorkflows(c),
+        reservationId: id,
+        operation: operation,
+        reviewBooking: () => review(0),
+        reviewGuests: () => review(1),
+        onChanged: () => changed = true,
+      ),
+    );
+    if (changed && mounted && c.auth.user != null) {
+      await c.load();
     }
   }
 
@@ -278,11 +305,8 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: Colors.white),
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFAFFFFFF), Color(0xA6FFF2AD)],
-                  ),
-                  boxShadow: const [PmsStyle.shadow],
+                  color: PmsStyle.soft,
+                  border: Border.all(color: PmsStyle.panelLine),
                 ),
                 child: Row(
                   children: [
@@ -359,7 +383,6 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
     transitionDuration: const Duration(milliseconds: 180),
     pageBuilder: (context, _, __) => PmsSideSheet(
       title: c.t('Settings'),
-      eyebrow: c.t('Workspace').toUpperCase(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -381,6 +404,14 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
               ],
             ),
           ),
+          if (c.user.isOperator && !c.auth.offline)
+            PmsButton(
+              ui('Properties'),
+              onPressed: () {
+                Navigator.pop(context);
+                openProperties();
+              },
+            ),
           const SizedBox(height: 22),
           LayoutBuilder(
             builder: (context, constraints) => Wrap(
@@ -484,81 +515,94 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
       ),
     ),
   );
-  Future<void> search() async {
-    final input = TextEditingController();
-    List<Json> results = [];
-    String? error;
-    if (!mounted) return;
-    await showDialog<void>(
-      useRootNavigator: false,
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, update) => PmsModal(
-          title: c.t('Search Delvane'),
-          width: 720,
-          child: Column(
+  Future<void> openProperties() async {
+    try {
+      final properties = await PmsWorkflows(c).rows('/api/properties');
+      if (!mounted) return;
+      final id = await showModalBottomSheet<String>(
+        context: context,
+        useSafeArea: true,
+        builder: (context) => SafeArea(
+          child: ListView(
+            shrinkWrap: true,
             children: [
-              TextField(
-                onTapOutside: (_) =>
-                    FocusManager.instance.primaryFocus?.unfocus(),
-                controller: input,
-                decoration: InputDecoration(hintText: ui('Search Delvane')),
-                onSubmitted: (q) async {
-                  try {
-                    final response = jsonObject(
-                      await c.api.get(
-                        '/api/search?q=${Uri.encodeQueryComponent(q)}',
-                      ),
-                    );
-                    if (context.mounted) {
-                      update(() {
-                        results = optionalRows(response['results']);
-                        error = null;
-                      });
-                    }
-                  } catch (e) {
-                    if (context.mounted) update(() => error = safeError(e));
-                  }
-                },
+              ListTile(
+                title: Text(
+                  ui('Properties'),
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
               ),
-              if (error != null) Text(ui(error!)),
-              for (final r in results)
+              if (properties.isEmpty)
+                ListTile(title: Text(ui('No properties available.'))),
+              for (final row in properties)
                 ListTile(
-                  title: Text(text(r, 'title')),
-                  subtitle: Text(text(r, 'subtitle')),
-                  onTap: () {
-                    final kind = switch (text(r, 'type')) {
-                      'reservation' => RecordKind.reservation,
-                      'property' => RecordKind.property,
-                      _ => null,
-                    };
-                    if (kind != null) {
-                      Navigator.pop(context);
-                      record(kind, text(r, 'id'));
-                    } else if (r['type'] == 'guest') {
-                      Navigator.pop(context);
-                      showDialog<void>(
-                        context: this.context,
-                        useRootNavigator: false,
-                        builder: (_) => GuestHistoryDialog(
-                          api: PmsWorkflows(c),
-                          id: text(r, 'id'),
-                        ),
-                      );
-                    } else if (r['type'] == 'message') {
-                      Navigator.pop(context);
-                      c.receptionSelected = text(r, 'id');
-                      c.receptionTab = 0;
-                      c.navigate(PmsPage.inbox);
-                    }
-                  },
+                  leading: const Icon(Icons.apartment),
+                  title: Text(c.propertyLabel(text(row, 'name'))),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.pop(context, text(row, 'id')),
                 ),
             ],
           ),
         ),
-      ),
+      );
+      if (mounted && id != null) {
+        setState(() {
+          operationsProperty = id;
+          calendarSelection.property = id;
+        });
+        await record(RecordKind.property, id);
+      }
+    } catch (failure) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(ui(safeError(failure)))));
+      }
+    }
+  }
+
+  Future<void> openCleaning(String id, {VoidCallback? assign}) async {
+    await showDialog<bool>(
+      context: context,
+      useRootNavigator: false,
+      barrierDismissible: false,
+      builder: (_) => CleaningWorkspace(controller: c, id: id, assign: assign),
     );
-    input.dispose();
+    if (mounted && c.auth.user != null) await c.load();
+  }
+
+  Future<void> selectPrimary(PmsPage next) async {
+    if (next == c.page || c.saving) return;
+    if (scroll.hasClients) workspaceOffsets[c.page] = scroll.offset;
+    FocusManager.instance.primaryFocus?.unfocus();
+    await c.navigate(next);
+    if (mounted && c.page == next && scroll.hasClients) {
+      scroll.jumpTo(
+        (workspaceOffsets[next] ?? 0).clamp(
+          0.0,
+          scroll.position.maxScrollExtent,
+        ),
+      );
+    }
+  }
+
+  List<PmsPage> get mobilePages => c.user.isOperator
+      ? const [
+          PmsPage.inbox,
+          PmsPage.intelligence,
+          PmsPage.today,
+          PmsPage.reservations,
+          PmsPage.operations,
+        ]
+      : c.primary;
+
+  void finishSwipe(DragEndDetails details) {
+    final speed = details.primaryVelocity ?? 0;
+    final index = mobilePages.indexOf(c.page);
+    if (speed.abs() < 230 || index < 0) return;
+    final next = index + (speed < 0 ? 1 : -1);
+    if (next >= 0 && next < mobilePages.length) {
+      unawaited(selectPrimary(mobilePages[next]));
+    }
   }
 
   Future<void> notifications() async {
@@ -609,83 +653,99 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
   }
 
   @override
-  Widget build(BuildContext context) => CallbackShortcuts(
-    bindings: {
-      const SingleActivator(LogicalKeyboardKey.keyK, control: true): () {
-        if (c.user.isOperator) search();
-      },
-      const SingleActivator(LogicalKeyboardKey.keyK, meta: true): () {
-        if (c.user.isOperator) search();
-      },
-    },
-    child: Focus(
-      autofocus: true,
-      child: Theme(
-        data: pmsTheme(),
-        child: AnimatedBuilder(
-          animation: c,
-          builder: (context, _) {
-            final mobile = MediaQuery.sizeOf(context).width <= 760;
-            final intelligencePage = c.page == PmsPage.intelligence;
-            final gap = intelligencePage && !mobile
-                ? 18.0
-                : mobile
-                ? 10.0
-                : (MediaQuery.sizeOf(context).width * .026).clamp(20.0, 48.0);
-            return Scaffold(
-              drawer: mobile
-                  ? Drawer(
-                      width: 320,
-                      child: Builder(
-                        builder: (drawerContext) => SafeArea(
-                          child: sidebar(
-                            closeDrawer: () => Navigator.pop(drawerContext),
-                          ),
-                        ),
+  Widget build(BuildContext context) => Theme(
+    data: pmsTheme(),
+    child: AnimatedBuilder(
+      animation: c,
+      builder: (context, _) {
+        final mobile = MediaQuery.sizeOf(context).width <= 760;
+        final mobileNavigation =
+            mobile &&
+            MediaQuery.viewInsetsOf(context).bottom == 0 &&
+            c.primary.length > 1;
+        final intelligencePage = c.page == PmsPage.intelligence;
+        final receptionPage = c.page == PmsPage.inbox;
+        final pullToRefresh = mobile && c.liveWorkspace && !intelligencePage;
+        final gap = intelligencePage && !mobile
+            ? 18.0
+            : mobile
+            ? 10.0
+            : (MediaQuery.sizeOf(context).width * .026).clamp(20.0, 48.0);
+        return Scaffold(
+          bottomNavigationBar: mobileNavigation
+              ? SignatureNavigation(
+                  key: const ValueKey('android-primary-navigation'),
+                  selected: mobilePages.indexOf(c.page),
+                  onSelect: (index) => selectPrimary(mobilePages[index]),
+                  items: [
+                    for (final page in mobilePages)
+                      (
+                        c.label(page),
+                        switch (page) {
+                          PmsPage.today => Icons.today_outlined,
+                          PmsPage.intelligence => Icons.auto_awesome_outlined,
+                          PmsPage.reservations ||
+                          PmsPage.schedule => Icons.calendar_month_outlined,
+                          PmsPage.inbox => Icons.inbox_outlined,
+                          PmsPage.operations => Icons.checklist_outlined,
+                          _ => Icons.build_outlined,
+                        },
+                        page.name,
                       ),
-                    )
-                  : null,
-              body: SafeArea(
-                child: Stack(
+                  ],
+                )
+              : null,
+          body: SafeArea(
+            child: Stack(
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        if (!mobile) sidebar(),
-                        Expanded(
-                          child: LayoutBuilder(
-                            builder: (context, viewport) => RawScrollbar(
+                    if (!mobile) sidebar(),
+                    Expanded(
+                      child: LayoutBuilder(
+                        builder: (context, viewport) {
+                          final workspace = RawScrollbar(
+                            controller: scroll,
+                            thumbVisibility: !mobile,
+                            thumbColor: PmsStyle.yellow,
+                            thickness: mobile ? 2.5 : 9,
+                            radius: const Radius.circular(6),
+                            crossAxisMargin: 3,
+                            child: SingleChildScrollView(
+                              key: const ValueKey('pms-main-scroll'),
                               controller: scroll,
-                              thumbVisibility: !mobile,
-                              thumbColor: PmsStyle.yellow,
-                              thickness: mobile ? 2.5 : 9,
-                              radius: const Radius.circular(6),
-                              crossAxisMargin: 3,
-                              child: SingleChildScrollView(
-                                key: const ValueKey('pms-main-scroll'),
-                                controller: scroll,
-                                child: Padding(
-                                  padding: EdgeInsets.fromLTRB(
-                                    gap,
-                                    mobile
-                                        ? 12
-                                        : intelligencePage
-                                        ? 16
-                                        : 14,
-                                    gap + (mobile || intelligencePage ? 0 : 15),
-                                    intelligencePage ? 18 : 100,
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      if (mobile)
-                                        Padding(
-                                          padding: EdgeInsets.only(
-                                            bottom: intelligencePage ? 20 : 24,
+                              physics: pullToRefresh
+                                  ? const AlwaysScrollableScrollPhysics()
+                                  : null,
+                              child: Padding(
+                                padding: EdgeInsets.fromLTRB(
+                                  gap,
+                                  mobile
+                                      ? 12
+                                      : intelligencePage
+                                      ? 16
+                                      : 14,
+                                  gap + (mobile || intelligencePage ? 0 : 15),
+                                  intelligencePage ? 18 : 100,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    if (mobile)
+                                      Padding(
+                                        padding: EdgeInsets.only(
+                                          bottom: intelligencePage ? 20 : 24,
+                                        ),
+                                        child: GestureDetector(
+                                          key: const ValueKey(
+                                            'workspace-swipe-header',
                                           ),
+                                          behavior: HitTestBehavior.opaque,
+                                          onHorizontalDragEnd: finishSwipe,
                                           child: SizedBox(
-                                            height: intelligencePage ? 44 : 56,
+                                            height: 48,
                                             child: Stack(
                                               alignment: Alignment.center,
                                               children: [
@@ -696,201 +756,145 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
                                                     ),
                                                   ),
                                                 ),
-                                                Align(
-                                                  alignment:
-                                                      Alignment.centerLeft,
-                                                  child: Builder(
-                                                    builder: (context) =>
-                                                        PmsIconButton(
-                                                          'menu',
-                                                          label: ui(
-                                                            'Open main menu',
-                                                          ),
-                                                          surface: true,
-                                                          onPressed: () =>
-                                                              Scaffold.of(
-                                                                context,
-                                                              ).openDrawer(),
-                                                        ),
+                                                if (c.user.isOperator &&
+                                                    !c.auth.offline)
+                                                  Align(
+                                                    alignment:
+                                                        Alignment.centerLeft,
+                                                    child: IconButton(
+                                                      icon: const Icon(
+                                                        Icons
+                                                            .apartment_outlined,
+                                                      ),
+                                                      tooltip: ui('Properties'),
+                                                      onPressed: openProperties,
+                                                    ),
                                                   ),
-                                                ),
                                                 Align(
                                                   alignment:
                                                       Alignment.centerRight,
-                                                  child: Row(
-                                                    mainAxisSize:
-                                                        MainAxisSize.min,
-                                                    children: [
-                                                      if (c.user.isOperator)
-                                                        PmsIconButton(
-                                                          'search',
-                                                          label: ui(
-                                                            'Search Delvane',
-                                                          ),
-                                                          onPressed: search,
-                                                        ),
-                                                      PmsIconButton(
-                                                        'settings',
-                                                        key: const ValueKey(
-                                                          'pms-mobile-settings',
-                                                        ),
-                                                        label: ui(
-                                                          'Open settings',
-                                                        ),
-                                                        onPressed: settings,
-                                                      ),
-                                                    ],
+                                                  child: PmsIconButton(
+                                                    'settings',
+                                                    key: const ValueKey(
+                                                      'pms-mobile-settings',
+                                                    ),
+                                                    label: ui('Open settings'),
+                                                    onPressed: settings,
                                                   ),
                                                 ),
                                               ],
                                             ),
                                           ),
-                                        )
-                                      else if (!intelligencePage)
-                                        Padding(
-                                          padding: const EdgeInsets.only(
-                                            bottom: 18,
-                                          ),
-                                          child: utility(),
                                         ),
-                                      if (c.actionError != null)
-                                        Text(
-                                          ui(c.actionError!),
-                                          style: const TextStyle(
-                                            color: Colors.red,
-                                          ),
+                                      )
+                                    else if (!intelligencePage)
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 18,
                                         ),
-                                      if (c.loading)
-                                        const Padding(
-                                          padding: EdgeInsets.all(48),
-                                          child: Center(
-                                            child: CircularProgressIndicator(),
-                                          ),
-                                        )
-                                      else if (c.error != null ||
-                                          c.sectionErrors.isNotEmpty)
-                                        PmsCard(
-                                          child: Wrap(
-                                            spacing: 12,
-                                            runSpacing: 8,
-                                            crossAxisAlignment:
-                                                WrapCrossAlignment.center,
-                                            children: [
+                                        child: utility(),
+                                      ),
+                                    if (!c.auth.offline &&
+                                        c.actionError != null)
+                                      Text(
+                                        ui(c.actionError!),
+                                        style: const TextStyle(
+                                          color: Colors.red,
+                                        ),
+                                      ),
+                                    if (!receptionPage &&
+                                        !c.auth.offline &&
+                                        c.loading)
+                                      const Padding(
+                                        padding: EdgeInsets.all(48),
+                                        child: Center(
+                                          child: CircularProgressIndicator(),
+                                        ),
+                                      )
+                                    else if (!receptionPage &&
+                                        !c.auth.offline &&
+                                        (c.error != null ||
+                                            c.sectionErrors.isNotEmpty))
+                                      PmsCard(
+                                        child: Wrap(
+                                          spacing: 12,
+                                          runSpacing: 8,
+                                          crossAxisAlignment:
+                                              WrapCrossAlignment.center,
+                                          children: [
+                                            Text(
+                                              ui(
+                                                c.error ?? 'Some sections could not be updated.',
+                                              ),
+                                            ),
+                                            if (c.error == null)
                                               Text(
                                                 ui(
-                                                  c.error ?? 'Some sections could not be updated.',
+                                                  c.sectionErrors.values.first,
                                                 ),
                                               ),
-                                              if (c.error == null)
-                                                Text(
-                                                  ui(
-                                                    c
-                                                        .sectionErrors
-                                                        .values
-                                                        .first,
-                                                  ),
-                                                ),
-                                              PmsButton(
-                                                ui('Retry'),
-                                                onPressed: c.load,
-                                              ),
-                                            ],
-                                          ),
+                                            PmsButton(
+                                              ui('Retry'),
+                                              onPressed: c.load,
+                                            ),
+                                          ],
                                         ),
-                                      if (!c.loading && c.refreshing)
-                                        const Padding(
-                                          padding: EdgeInsets.only(bottom: 8),
-                                          child: LinearProgressIndicator(
-                                            minHeight: 2,
-                                          ),
-                                        ),
-                                      if (!c.loading && c.data.isNotEmpty)
-                                        content(
-                                          viewportHeight: viewport.maxHeight,
-                                        ),
-                                    ],
-                                  ),
+                                      ),
+                                    if (receptionPage ||
+                                        c.auth.offline ||
+                                        (!c.loading && c.data.isNotEmpty))
+                                      content(
+                                        viewportHeight: viewport.maxHeight,
+                                      ),
+                                  ],
                                 ),
                               ),
                             ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (!c.loading &&
-                        c.error == null &&
-                        c.user.isOperator &&
-                        const [
-                          PmsPage.inbox,
-                          PmsPage.team,
-                          PmsPage.train,
-                        ].contains(c.page))
-                      Positioned(
-                        left: mobile ? 12 : PmsStyle.sidebarWidth,
-                        right: mobile
-                            ? (c.page == PmsPage.inbox ? 12 : 27)
-                            : 15,
-                        bottom: mobile ? 12 : 22,
-                        child: Align(
-                          alignment: Alignment.center,
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 900),
-                            child: PmsAskBar(
-                              key: ValueKey('ask-${c.page.name}'),
-                              c: c,
-                            ),
-                          ),
-                        ),
+                          );
+                          return pullToRefresh
+                              ? RefreshIndicator(
+                                  onRefresh: receptionPage
+                                      ? c.refreshReception
+                                      : c.load,
+                                  child: workspace,
+                                )
+                              : workspace;
+                        },
                       ),
+                    ),
                   ],
                 ),
-              ),
-            );
-          },
-        ),
-      ),
+                if (!c.auth.offline &&
+                    !c.loading &&
+                    c.error == null &&
+                    c.user.isOperator &&
+                    const [PmsPage.team, PmsPage.train].contains(c.page))
+                  Positioned(
+                    left: mobile ? 12 : PmsStyle.sidebarWidth,
+                    right: mobile ? 27 : 15,
+                    bottom: mobile ? 12 : 22,
+                    child: Align(
+                      alignment: Alignment.center,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 900),
+                        child: PmsAskBar(
+                          key: ValueKey('ask-${c.page.name}'),
+                          c: c,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
     ),
   );
   Widget utility() => Row(
     mainAxisAlignment: MainAxisAlignment.end,
     children: [
       if (c.user.isOperator) ...[
-        TextButton(
-          onPressed: search,
-          style: TextButton.styleFrom(
-            foregroundColor: Colors.black,
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            minimumSize: const Size(32, 41),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const PmsVectorIcon('search', size: 14),
-              if (MediaQuery.sizeOf(context).width >= 1100) ...[
-                const SizedBox(width: 8),
-                Text(
-                  c.t('Search Delvane'),
-                  style: const TextStyle(fontSize: 14),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 5,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF0ECE6),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    ui('Ctrl K'),
-                    style: const TextStyle(fontSize: 11),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
         Tooltip(
           message: c.t('Notifications'),
           child: TextButton(
@@ -943,9 +947,10 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
         description: c.t(description),
       );
   Widget content({double? viewportHeight}) {
+    if (c.auth.offline && c.page != PmsPage.inbox) return offlineWorkspace();
     switch (c.page) {
       case PmsPage.today:
-        return c.user.isOperator ? today() : workers(false);
+        return homeSwipe(c.user.isOperator ? today() : workers(false));
       case PmsPage.schedule:
         return workers(true);
       case PmsPage.reservations:
@@ -953,7 +958,7 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
       case PmsPage.intelligence:
         return intelligence(viewportHeight: viewportHeight);
       case PmsPage.operations:
-        return operations();
+        return homeSwipe(operations());
       case PmsPage.inbox:
         return ReceptionPage(
           controller: c,
@@ -962,6 +967,114 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
       default:
         return administration();
     }
+  }
+
+  Widget homeSwipe(Widget child) => MediaQuery.sizeOf(context).width > 760
+      ? child
+      : GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onHorizontalDragEnd: finishSwipe,
+          child: child,
+        );
+
+  Widget offlineWorkspace() {
+    final records = c.offlineData;
+    final oldest = records.values
+        .map((record) => record.$2)
+        .fold<DateTime?>(
+          null,
+          (earliest, time) =>
+              earliest == null || time.isBefore(earliest) ? time : earliest,
+        );
+    final reservations = optionalRows(records['/api/reservations']?.$1);
+    final properties = optionalRows(
+      records['/api/properties']?.$1 ??
+          optionalObject(records['/api/owner/dashboard']?.$1)['properties'],
+    );
+    final command = optionalObject(
+      records['/api/operations/today-command']?.$1,
+    );
+    final tasks = optionalRows(
+      optionalObject(records['/api/worker/dashboard']?.$1)['tasks'],
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Semantics(
+          liveRegion: true,
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            color: const Color(0xfffff3bd),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.cloud_off, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    ui(
+                      oldest == null
+                          ? 'Offline. This view has no saved data.'
+                          : 'Offline. Showing the last synchronized data.',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (oldest != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Text(
+              '${ui('Last synchronized')} · ${uiDateTime(oldest.toLocal().toIso8601String())}',
+            ),
+          ),
+        Text(
+          ui(c.label(c.page)),
+          style: Theme.of(context).textTheme.headlineSmall,
+        ),
+        for (final label in {
+          'arrivals': 'Arrivals',
+          'departures': 'Departures',
+          'cleaning': 'Turnovers',
+          'registration_risks': 'Registration issues',
+        }.entries)
+          if (command[label.key] is List)
+            ListTile(
+              title: Text(ui(label.value)),
+              trailing: Text('${(command[label.key] as List).length}'),
+            ),
+        for (final row in reservations)
+          ListTile(
+            title: Text(text(row, 'property_name')),
+            subtitle: Text(
+              '${uiDate(text(row, 'arrival_date'))} → ${uiDate(text(row, 'departure_date'))}',
+            ),
+            trailing: Text(ui(text(row, 'status'))),
+          ),
+        for (final row in properties)
+          ListTile(
+            leading: const Icon(Icons.apartment),
+            title: Text(c.propertyLabel(text(row, 'name'))),
+            trailing: Text(ui(text(row, 'state'))),
+          ),
+        for (final task in tasks)
+          ListTile(
+            title: Text(
+              [
+                text(task, 'property_name'),
+                text(task, 'unit_label'),
+              ].where((label) => label.isNotEmpty).join(' · '),
+            ),
+            subtitle: Text(uiDate(text(task, 'scheduled_date'))),
+            trailing: Text(ui(text(task, 'status'))),
+          ),
+        if (oldest == null) PmsEmpty(ui('Reconnect to load this workspace.')),
+        if (!c.refreshing)
+          TextButton(onPressed: c.load, child: Text(ui('Retry'))),
+      ],
+    );
   }
 
   Widget today() {
@@ -986,7 +1099,7 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
               ? ''
               : uiDate(text(cmd, 'date')),
           actions: [
-            if (c.hasSection('command'))
+            if (c.hasSection('command') && !c.hasSection('dashboard'))
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 18,
@@ -1007,61 +1120,64 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
               ),
           ],
         ),
-        if (c.hasSection('command')) ...[
-          LayoutBuilder(
-            builder: (context, box) {
-              final count = box.maxWidth < 780 ? 2 : 4,
-                  w = (box.maxWidth - 12 * (count - 1)) / count;
-              final metrics = {
-                'Arrivals': arrivals.length,
-                'Departures': optionalRows(cmd['departures']).length,
-                'Turnovers': cleaning
-                    .where((r) => r['deadline_time'] != null)
+        if (c.hasSection('dashboard') && c.hasSection('command')) ...[
+          OperationsPulse(
+            urgent: cmd['urgent_count'] is int
+                ? cmd['urgent_count'] as int
+                : null,
+            metrics: [
+              (
+                'Occupied properties',
+                optionalRows(dashboard['properties'])
+                    .where((p) => p['state'] == 'occupied')
                     .length,
-                'Registration issues': registration.length,
-              };
-              return Wrap(
-                key: const ValueKey('today-metrics'),
-                spacing: 12,
-                runSpacing: 12,
-                children: [
-                  for (final e in metrics.entries)
-                    SizedBox(
-                      width: w,
-                      child: PmsCard(
-                        radius: 12,
-                        shadow: false,
-                        color: Colors.white,
-                        borderColor: PmsStyle.panelLine,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 13,
-                          vertical: 12,
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                c.t(e.key),
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                            Text(
-                              '${e.value}',
-                              style: const TextStyle(
-                                fontSize: 24,
-                                color: Colors.black,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                ],
-              );
-            },
+                optionalRows(dashboard['properties']).length,
+                const Color(0xfff0ba58),
+              ),
+              (
+                'Ready properties',
+                optionalRows(dashboard['properties'])
+                    .where((p) => p['state'] == 'ready')
+                    .length,
+                optionalRows(dashboard['properties']).length,
+                const Color(0xff79ccaa),
+              ),
+              (
+                'Arrivals with complete registration',
+                arrivals
+                    .where((r) => r['registration_status'] == 'complete')
+                    .length,
+                arrivals.length,
+                const Color(0xff79b9ee),
+              ),
+            ],
+            onSelect: (index) => selectPrimary(
+              index == 2 ? PmsPage.reservations : PmsPage.operations,
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+        if (c.object('reception')['new'] case final int unread when unread > 0)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              icon: const Icon(Icons.mark_email_unread_outlined),
+              label: Text(ui('$unread unread messages')),
+              onPressed: () => selectPrimary(PmsPage.inbox),
+            ),
+          ),
+        if (c.hasSection('command')) ...[
+          MetricRail(
+            key: const ValueKey('today-metrics'),
+            metrics: [
+              (c.t('Arrivals'), '${arrivals.length}'),
+              (c.t('Departures'), '${optionalRows(cmd['departures']).length}'),
+              (
+                c.t('Turnovers'),
+                '${cleaning.where((r) => r['deadline_time'] != null).length}',
+              ),
+              (c.t('Registration issues'), '${registration.length}'),
+            ],
           ),
           const SizedBox(height: 22),
           if (registration.isNotEmpty) ...[
@@ -1188,11 +1304,20 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
               (r) => record(RecordKind.reservation, text(r, 'id')),
               time: 'arrival_time',
               title: 'guest_name',
+              stayOperation: StayOperation.checkIn,
+            ),
+            queue(
+              'Departures',
+              optionalRows(cmd['departures']),
+              (r) => record(RecordKind.reservation, text(r, 'id')),
+              time: 'checkout_time',
+              title: 'guest_name',
+              stayOperation: StayOperation.checkOut,
             ),
             queue(
               'Turnovers',
               cleaning,
-              (r) => record(RecordKind.property, text(r, 'property_id')),
+              (r) => openCleaning(text(r, 'id')),
               time: 'deadline_time',
               title: 'property_name',
             ),
@@ -1321,106 +1446,64 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
     void Function(Json) open, {
     required String time,
     String title = '',
-  }) => ClipRRect(
-    borderRadius: BorderRadius.circular(20),
-    child: PmsCard(
-      radius: 20,
-      padding: EdgeInsets.zero,
-      color: const Color(0xEBFFFDF8),
-      shadow: false,
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            color: PmsStyle.soft,
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    c.t(label),
-                    style: const TextStyle(
-                      fontSize: 11.68,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1,
-                      color: Color(0xFF685F4F),
-                    ),
-                  ),
-                ),
-                PmsCount('${rows.length}'),
-              ],
-            ),
-          ),
-          if (rows.isEmpty) const PmsEmpty('—'),
-          for (final r in rows)
-            InkWell(
-              onTap: () => open(r),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: 66),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 15,
-                    vertical: 13,
-                  ),
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: 44,
-                        child: time == 'severity'
-                            ? PmsBadge(
-                                text(r, time),
-                                tone: text(r, time),
-                                compact: true,
-                              )
-                            : Text(
-                                text(r, time, '—'),
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF554F43),
-                                ),
-                              ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              text(r, title),
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            Text(
-                              time == 'arrival_time'
-                                  ? ui(
-                                      '${c.propertyLabel(text(r, 'property_name'))} · ${ui("${r['guest_count'] ?? 0} guests")}',
-                                    )
-                                  : '${text(r, 'assigned_name', c.propertyLabel(text(r, 'property_name')))} · ${ui(text(r, 'status'))}',
-                              style: const TextStyle(fontSize: 11),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      PmsCount(
-                        time == 'arrival_time'
-                            ? '!'
-                            : time == 'deadline_time'
-                            ? '◷'
-                            : '›',
-                        symbol: true,
-                      ),
-                    ],
-                  ),
+    StayOperation? stayOperation,
+  }) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const Divider(height: 1),
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                c.t(label),
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ),
-        ],
+            Text(
+              '${rows.length}',
+              style: const TextStyle(color: PmsStyle.muted),
+            ),
+          ],
+        ),
       ),
-    ),
+      if (rows.isEmpty) const PmsEmpty('—'),
+      for (final r in rows)
+        TimelineEntry(
+          time: time == 'severity'
+              ? ui(text(r, time, '—'))
+              : text(r, time, '—'),
+          title: text(r, title),
+          detail: time == 'arrival_time'
+              ? '${c.propertyLabel(text(r, 'property_name'))} · ${ui("${r['guest_count'] ?? 0} guests")}'
+              : '${text(r, 'assigned_name', c.propertyLabel(text(r, 'property_name')))} · ${ui(text(r, 'status'))}',
+          color: switch (time) {
+            'deadline_time' => operationalAmber,
+            'severity' => operationalRed,
+            _ => operationalBlue,
+          },
+          onTap: () => open(r),
+          action: stayOperation == null
+              ? null
+              : TextButton(
+                  onPressed: () =>
+                      openStayOperation(text(r, 'id'), stayOperation),
+                  child: Text(
+                    ui(
+                      stayOperation == StayOperation.checkIn
+                          ? 'Check in'
+                          : 'Check out',
+                    ),
+                  ),
+                ),
+        ),
+    ],
   );
+
   Widget workers(bool schedule) {
     final d = c.object('worker');
     final tasks = optionalRows(d['tasks'])
@@ -1513,6 +1596,10 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
                                 );
                               }),
                       ),
+                    PmsButton(
+                      ui('Open cleaning task'),
+                      onPressed: () => openCleaning(text(t, 'id')),
+                    ),
                     if (t['status'] == 'pending' || t['status'] == 'open')
                       PmsButton(
                         c.t('Start cleaning'),
@@ -1574,38 +1661,101 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
     );
   }
 
-  Widget calendar({double? viewportHeight}) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      BookingCalendar(
-        selection: calendarSelection,
-        properties: c.rows('properties'),
-        reservations: c.rows('reservations'),
-        propertyLabel: c.propertyLabel,
-        onOpen: (id) => record(RecordKind.reservation, id),
-        onCreate: (date) => newReservation(date, calendarSelection.property),
-        onZoom: () {
-          if (scroll.hasClients) scroll.jumpTo(0);
-        },
-        viewportHeight: viewportHeight,
-        loading: !c.hasSection('reservations') && c.refreshing,
-      ),
-      if (c.user.isOperator && c.error == null) ...[
-        const SizedBox(height: 20),
-        Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 850),
-            child: PmsAskBar(key: const ValueKey('ask-reservations'), c: c),
-          ),
+  Widget calendar({double? viewportHeight}) {
+    final query = reservationQuery.text.trim().toLowerCase();
+    final matches = c
+        .rows('reservations')
+        .where(
+          (r) =>
+              (calendarSelection.property == null ||
+                  calendarSelection.property!.isEmpty ||
+                  calendarSelection.property == r['property_id']) &&
+              [
+                r['guest_name'],
+                r['property_name'],
+                r['external_ref'],
+                r['arrival_date'],
+                r['departure_date'],
+              ].join(' ').toLowerCase().contains(query),
+        )
+        .toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            if (query.isNotEmpty)
+              PmsButton(
+                ui('New reservation'),
+                primary: true,
+                onPressed: () => newReservation(
+                  isoDate(calendarSelection.day),
+                  calendarSelection.property,
+                ),
+              ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: ScopedSearch(
+                query: reservationQuery,
+                label: 'Search reservations',
+                onChanged: (_) => setState(() {}),
+              ),
+            ),
+          ],
         ),
+        const SizedBox(height: 12),
+        if (query.isNotEmpty) ...[
+          if (!c.hasSection('reservations'))
+            PmsEmpty(
+              ui(
+                c.refreshing
+                    ? 'Loading bookings…'
+                    : 'Reservations unavailable.',
+              ),
+            ),
+          if (c.hasSection('reservations') && matches.isEmpty)
+            PmsEmpty(ui('No matching reservations.')),
+          for (final row in matches)
+            ListTile(
+              title: Text(text(row, 'guest_name')),
+              subtitle: Text(
+                '${text(row, 'property_name')} · ${uiDate(text(row, 'arrival_date'))}',
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => record(RecordKind.reservation, text(row, 'id')),
+            ),
+        ] else
+          BookingCalendar(
+            selection: calendarSelection,
+            properties: c.rows('properties'),
+            reservations: c.rows('reservations'),
+            propertyLabel: c.propertyLabel,
+            onOpen: (id) => record(RecordKind.reservation, id),
+            onCreate: (date) =>
+                newReservation(date, calendarSelection.property),
+            onZoom: () {
+              if (scroll.hasClients) scroll.jumpTo(0);
+            },
+            viewportHeight: viewportHeight,
+            loading: !c.hasSection('reservations') && c.refreshing,
+          ),
+        if (c.user.isOperator && c.error == null) ...[
+          const SizedBox(height: 20),
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 850),
+              child: PmsAskBar(key: const ValueKey('ask-reservations'), c: c),
+            ),
+          ),
+        ],
       ],
-    ],
-  );
+    );
+  }
 
   Widget intelligence({double? viewportHeight}) => IntelligenceWorkspace(
     c: c,
     input: chat,
-    openSearch: search,
+    openSearch: () => selectPrimary(PmsPage.reservations),
     viewportHeight: viewportHeight,
   );
 
@@ -1614,6 +1764,8 @@ class _PmsShellState extends State<PmsShell> with WidgetsBindingObserver {
     property: operationsProperty,
     onPropertyChanged: (value) => setState(() => operationsProperty = value),
     openReservation: (id) => record(RecordKind.reservation, id),
+    openStay: openStayOperation,
+    openCleaning: openCleaning,
     tools: stayAndClosingTools(),
   );
 

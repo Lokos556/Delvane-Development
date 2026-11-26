@@ -1,5 +1,4 @@
 import 'package:material_ui/material_ui.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:delvane_business/app/app.dart';
 import 'package:delvane_business/core/network/api_client.dart';
@@ -519,22 +518,29 @@ void main() {
     },
   );
   testWidgets(
-    'Ctrl K opens existing search without resetting the operational page',
+    'reservation search expands inline and leaves the workspace in place',
     (t) async {
       final pms = ChannelPms();
       final a = await signedIn(pms);
       try {
         await t.pumpWidget(
           MaterialApp(
-            home: PmsShell(auth: a, initialPage: PmsPage.today),
+            home: PmsShell(auth: a, initialPage: PmsPage.reservations),
           ),
         );
         await t.pumpAndSettle();
-        await t.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
-        await t.sendKeyEvent(LogicalKeyboardKey.keyK);
-        await t.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+        expect(find.byTooltip('Search Delvane'), findsNothing);
+        await t.tap(find.byTooltip('Search reservations'));
         await t.pumpAndSettle();
-        expect(find.byType(TextField), findsOneWidget);
+        final field = find.byWidgetPredicate(
+          (widget) =>
+              widget is TextField &&
+              widget.decoration?.labelText == 'Search reservations',
+        );
+        expect(field, findsOneWidget);
+        await t.enterText(field, 'no such synthetic reservation');
+        await t.pumpAndSettle();
+        expect(find.text('No matching reservations.'), findsOneWidget);
       } finally {
         await t.pumpWidget(const SizedBox());
         a.dispose();

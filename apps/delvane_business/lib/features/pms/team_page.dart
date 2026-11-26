@@ -10,6 +10,7 @@ import '../workspace/workspace_models.dart';
 import 'operations_workflows.dart';
 import 'pms_controller.dart';
 import 'pms_dialogs.dart';
+import 'operational_visuals.dart';
 import 'pms_style.dart';
 
 class TeamPage extends StatefulWidget {
@@ -61,11 +62,8 @@ class _TeamPageState extends State<TeamPage> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         PmsPageHeader(
-          eyebrow: ui('TEAM & ACCESS'),
-          title: ui('Your people, their work, and exactly what they can see.'),
-          description: ui(
-            'Add cleaners, maintenance workers and managers, review access, suspend accounts and understand workload without mixing it into the day-to-day task screens.',
-          ),
+          eyebrow: '',
+          title: ui('Team & Access'),
           actions: [
             canManage
                 ? PmsButton(
@@ -79,32 +77,17 @@ class _TeamPageState extends State<TeamPage> {
                   ),
           ],
         ),
-        PmsColumns(gap: 0, [
-          for (final e in {
-            'active': 'Active people',
-            'cleaners': 'Cleaners',
-            'maintenance': 'Maintenance',
-            'unverified': 'Access attention',
-          }.entries)
-            PmsCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${stats[e.key] ?? 0}',
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  Text(
-                    ui(e.value).toUpperCase(),
-                    style: const TextStyle(fontSize: 10, letterSpacing: .5),
-                  ),
-                ],
-              ),
-            ),
-        ], columns: 4),
+        MetricRail(
+          metrics: [
+            for (final e in {
+              'active': 'Active people',
+              'cleaners': 'Cleaners',
+              'maintenance': 'Maintenance',
+              'unverified': 'Access attention',
+            }.entries)
+              (ui(e.value).toUpperCase(), '${stats[e.key] ?? '—'}'),
+          ],
+        ),
         const SizedBox(height: 24),
         PmsTabs(
           plain: true,

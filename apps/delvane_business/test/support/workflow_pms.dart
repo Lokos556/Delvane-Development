@@ -57,6 +57,9 @@ class WorkflowPms extends FakePms {
     Object? body,
   ) async {
     final path = uri.path;
+    if (overrides.containsKey(path)) {
+      return super.request(method, uri, headers, body);
+    }
     final custom =
         path.startsWith('/api/properties/p1/room-types') ||
         path.startsWith('/api/reservations') ||
@@ -82,7 +85,11 @@ class WorkflowPms extends FakePms {
     if (path == failPath ||
         (failRefresh &&
             method == 'GET' &&
-            path == '/api/reception/summary' &&
+            const {
+              '/api/reception/summary',
+              '/api/inbox',
+              '/api/communications/outbox',
+            }.contains(path) &&
             mutationCount > 0)) {
       return json({}, failureStatus);
     }
@@ -107,6 +114,9 @@ class WorkflowPms extends FakePms {
         });
       }
       if (path == '/api/reservations') return json([booking, ...extraBookings]);
+      if (path.endsWith('/booking-contact')) {
+        return json({'invitation_email': booking['invitation_email'] ?? ''});
+      }
       if (path.endsWith('/detail')) {
         return json({
           'reservation': booking,

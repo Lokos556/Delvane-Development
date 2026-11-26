@@ -61,6 +61,62 @@ def test_native_configuration_parser_and_method_allowlist():
     assert not uat_access.route_allowed('PUT', '/api/registration/records/id/workspace', None)
 
 
+def test_native_booking_edit_and_initial_guest_draft(client, monkeypatch):
+    monkeypatch.setattr(app.app.state, 'uat_accounts', {('org_casa_rosa','usr_owner')})
+    android = TestClient(app.app, base_url=API)
+    windows = TestClient(app.app, base_url=API)
+    login(android)
+    login(windows)
+    booking = body()
+    created = android.post('/api/reservations', json=booking)
+    assert created.status_code == 200
+    rid = created.json()['id']
+    base = f'/api/reservations/{rid}'
+    assert windows.get(base + '/reporting-details').status_code == 200
+    assert windows.get(base + '/allocations').status_code == 200
+    departure = str(app.date.fromisoformat(booking['departure_date']) + app.timedelta(days=1))
+    assert windows.patch(base, json={'departure_date': departure}).status_code == 200
+    assert android.get(base + '/detail').json()['reservation']['departure_date'] == departure
+    guests = android.get(base + '/guest-checkin-status').json()['guests']
+    guest = f"/api/registration/records/{guests[1]['id']}/workspace"
+    version = android.get(guest).json()['revision']
+    saved = android.put(guest, json={'revision':version, 'identity':{'manual':{'csaladnev':'Fictional','utonev':'Guest Two'}}})
+    assert saved.status_code == 200, saved.text
+    restored = windows.get(guest).json()
+    assert restored['identity']['utonev'] == 'Guest Two'
+    assert not restored['can_verify'] and restored['verification']['status'] == 'needs_review'
+    assert restored['readiness']['transmission_enabled'] is False
+
+
+def test_native_cleaning_workspace_preserves_assignment_and_checklist(client, monkeypatch):
+    monkeypatch.setattr(app.app.state, 'uat_accounts', {
+        ('org_casa_rosa', 'usr_owner'), ('org_casa_rosa', 'usr_cleaner'), ('org_casa_rosa', 'usr_cleaner2'),
+    })
+    owner = TestClient(app.app, base_url=API)
+    login(owner)
+    task = owner.post('/api/work-tasks', json={
+        'property_id': 'prop_flora', 'title': 'Synthetic cleaning',
+        'scheduled_date': str(app.date.today()), 'assigned_to': 'usr_cleaner',
+    })
+    assert task.status_code == 200
+    path = '/api/work-tasks/' + task.json()['id']
+    assert owner.get(path).json()['can_work'] is False
+    cleaner = TestClient(app.app, base_url=API)
+    login(cleaner, 'cleaner')
+    assert cleaner.post(path + '/start', json={}).status_code == 200
+    items = cleaner.get(path).json()['checklist']
+    assert items
+    for item in items:
+        assert cleaner.patch(f"{path}/checklist/{item['id']}", json={'completed': True}).status_code == 200
+    assert cleaner.post(path + '/finish', json={'note': ''}).status_code == 200
+    result = owner.get(path).json()
+    assert result['status'] == 'complete' and all(item['completed'] for item in result['checklist'])
+    intruder = TestClient(app.app, base_url=API)
+    response = intruder.post('/api/login', json={'email': 'erika@demo.rosa', 'password': 'rosa-erika'})
+    assert response.status_code == 200
+    assert intruder.get(path).status_code == 404
+
+
 def test_scheduler_reuses_existing_operations_and_is_restart_safe(client):
     login(client)
     booking = body()

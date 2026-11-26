@@ -4,6 +4,7 @@ import '../../core/network/api_client.dart';
 import '../workspace/workspace_models.dart';
 import 'guest_country_names.dart';
 import 'pms_controller.dart';
+import 'operational_visuals.dart';
 import 'pms_style.dart';
 import 'pms_workflows.dart';
 
@@ -153,7 +154,7 @@ class _GuestRegistrationWorkspaceState
   final _initial = <String, String>{};
   Json? _profile;
   List<Json> _guests = [];
-  String? _reservationId, _guestId, _error, _errorField;
+  String? _reservationId, _guestId, _error, _errorField, _success;
   String _applicability = '', _method = 'in_person';
   bool _busy = false,
       _reviewSuggestions = false,
@@ -189,6 +190,12 @@ class _GuestRegistrationWorkspaceState
       _confirmScanner ||
       _reviewSuggestions;
   bool get _dirty => _identityChanged || _reportingChanged;
+  bool get _initialDraft =>
+      !_reportingChanged &&
+      const {
+        'awaiting_invitation',
+        'awaiting_registration',
+      }.contains(_profile?['registration_stage']);
   bool get _separateNationality =>
       !_strings(_profile?['ntak_countries'])
           .contains(_value('allampolgarsagKod'));
@@ -257,6 +264,7 @@ class _GuestRegistrationWorkspaceState
     setState(() {
       _busy = true;
       _error = _errorField = null;
+      _success = null;
     });
     try {
       await action();
@@ -303,7 +311,8 @@ class _GuestRegistrationWorkspaceState
   }
 
   bool _validate() {
-    if (_value('reason').length < 3) {
+    if ((!_initialDraft || _value('reason').isNotEmpty) &&
+        _value('reason').length < 3) {
       return _invalid('reason', 'Enter a short reason for the changes.');
     }
     for (final key in ['szuletesiDatum', 'beutazasDatuma', 'effective_from']) {
@@ -366,7 +375,16 @@ class _GuestRegistrationWorkspaceState
       _apply(
         jsonObject(await widget.api.change('PUT', _path(_guestId!), request)),
       );
-      await _loadGuests();
+      if (!mounted) return;
+      final saved = _profile!;
+      _guests = [
+        for (final guest in _guests)
+          if (guest['id'] == saved['id'])
+            {...guest, 'registration_stage': saved['registration_stage']}
+          else
+            guest,
+      ];
+      _success = 'Guest details saved.';
     });
   }
 
@@ -386,11 +404,17 @@ class _GuestRegistrationWorkspaceState
 
   @override
   Widget build(BuildContext context) => PmsModal(
+    mobileFullScreen: true,
     title: ui('Guest registration'),
     titleSize: 28,
     width: 1120,
     canClose: !_busy,
     actions: [
+      if (_success != null || _error != null || _busy)
+        Semantics(
+          liveRegion: true,
+          child: Text(ui(_success ?? _error ?? 'Saving…')),
+        ),
       if (_dirty && !_busy)
         PmsButton(
           ui('Discard changes'),
@@ -474,9 +498,12 @@ class _GuestRegistrationWorkspaceState
             style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
           ),
           const SizedBox(height: 6),
-          LinearProgressIndicator(value: received / _guests.length),
+          WorkProgress(
+            completed: received,
+            total: _guests.length,
+            label: '$received / ${_guests.length} · ${ui('Details received')}',
+          ),
           const SizedBox(height: 6),
-          Text('$received / ${_guests.length} · ${ui('Details received')}'),
           for (final guest in _guests)
             ListTile(
               contentPadding: EdgeInsets.zero,
@@ -691,9 +718,11 @@ class _GuestRegistrationWorkspaceState
           const SizedBox(height: 12),
           _section('Save changes', [
             _notice(
-              'Changes are saved with their reason and may require a new identity review.',
+              _initialDraft
+                  ? 'You can save these details before identity verification.'
+                  : 'Changes are saved with their reason and may require a new identity review.',
             ),
-            _field('reason', required: true, maxLength: 500),
+            _field('reason', required: !_initialDraft, maxLength: 500),
           ]),
         ],
         const SizedBox(height: 12),

@@ -1,0 +1,5 @@
+FROM delvane-uat:permanent-v2-3091-local
+USER root
+COPY app.py guest_stays.py uat_access.py /app/
+RUN chmod 0644 /app/app.py /app/guest_stays.py /app/uat_access.py
+USER 10001:10001

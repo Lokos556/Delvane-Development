@@ -14,6 +14,7 @@ class CalendarSelection {
 
   DateTime day;
   bool yearView = false;
+  int yearOffset = 0;
   String? property;
 }
 
@@ -47,8 +48,21 @@ class BookingCalendar extends StatefulWidget {
 
 class _BookingCalendarState extends State<BookingCalendar> {
   CalendarSelection get selection => widget.selection;
-  DateTime get today => DateUtils.dateOnly(DateTime.now());
+  DateTime get today {
+    final property =
+        widget.properties
+            .where((row) => row['id'] == selection.property)
+            .firstOrNull ??
+        widget.properties.firstOrNull;
+    return DateUtils.dateOnly(
+      DateTime.tryParse(text(property ?? {}, 'business_date')) ??
+          DateTime.now(),
+    );
+  }
+
   DateTime get month => DateTime(selection.day.year, selection.day.month);
+  DateTime get yearStart =>
+      DateTime(today.year + selection.yearOffset, today.month);
 
   DateTime shiftDay(DateTime day, int offset) =>
       DateTime(day.year, day.month, day.day + offset);
@@ -59,15 +73,20 @@ class _BookingCalendarState extends State<BookingCalendar> {
   }
 
   void step(int amount) => setState(() {
-    final target = selection.yearView
-        ? DateTime(month.year + amount, month.month)
-        : DateTime(month.year, month.month + amount);
-    selectMonth(target.year, target.month);
+    if (selection.yearView) {
+      selection.yearOffset += amount;
+    } else {
+      final target = DateTime(month.year, month.month + amount);
+      selectMonth(target.year, target.month);
+    }
   });
 
   void zoom(bool year) {
     if (selection.yearView == year) return;
-    setState(() => selection.yearView = year);
+    setState(() {
+      selection.yearView = year;
+      if (year) selection.yearOffset = 0;
+    });
     widget.onZoom?.call();
   }
 
@@ -165,8 +184,8 @@ class _BookingCalendarState extends State<BookingCalendar> {
     final data = selection.yearView
         ? bookingsFor(
             records,
-            DateTime(month.year),
-            DateTime(month.year, 12, 31),
+            yearStart,
+            DateTime(yearStart.year, yearStart.month + 12, 0),
           )
         : bookingsFor(records, days.first, days.last);
     return CallbackShortcuts(
@@ -229,7 +248,7 @@ class _BookingCalendarState extends State<BookingCalendar> {
                         onPressed: jumpToDate,
                         child: Text(
                           selection.yearView
-                              ? '${month.year}'
+                              ? '${labels.formatMonthYear(yearStart)} – ${labels.formatMonthYear(DateTime(yearStart.year, yearStart.month + 11))}'
                               : labels.formatMonthYear(month),
                           key: const ValueKey('calendar-period'),
                           style: Theme.of(context).textTheme.titleMedium,
@@ -243,8 +262,12 @@ class _BookingCalendarState extends State<BookingCalendar> {
                       icon: const Icon(Icons.chevron_right),
                       onPressed: () => step(1),
                     ),
+                    const SizedBox(width: 10),
                     TextButton(
-                      onPressed: () => setState(() => selection.day = today),
+                      onPressed: () => setState(() {
+                        selection.day = today;
+                        selection.yearOffset = 0;
+                      }),
                       child: Text(ui('Today')),
                     ),
                   ],
@@ -445,7 +468,7 @@ class _BookingCalendarState extends State<BookingCalendar> {
             ? Colors.white
             : const Color(0xFFF7F7F5),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(7),
+          borderRadius: BorderRadius.circular(4),
           side: BorderSide(
             color: selected ? const Color(0xFFD4A900) : const Color(0xFFEAEAE6),
           ),
@@ -578,14 +601,15 @@ class _BookingCalendarState extends State<BookingCalendar> {
       builder: (dialogContext) => PmsModal(
         title: dayLabel(context, day),
         actions: [
-          PmsButton(
-            ui('Add a stay'),
-            primary: true,
-            onPressed: () {
-              Navigator.pop(dialogContext);
-              widget.onCreate(date);
-            },
-          ),
+          if (entries.isEmpty)
+            PmsButton(
+              ui('Add a stay'),
+              primary: true,
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                widget.onCreate(date);
+              },
+            ),
         ],
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -631,13 +655,12 @@ class _BookingCalendarState extends State<BookingCalendar> {
     );
   }
 
-  Widget dayPanel(BuildContext context, List<_DayBooking> entries) => PmsCard(
+  Widget dayPanel(BuildContext context, List<_DayBooking> entries) => Container(
     key: const ValueKey('calendar-selected-day'),
-    padding: const EdgeInsets.all(14),
-    shadow: false,
-    radius: 12,
-    color: const Color(0xFFF9F9F6),
-    borderColor: PmsStyle.panelLine,
+    padding: const EdgeInsets.fromLTRB(15, 12, 0, 12),
+    decoration: const BoxDecoration(
+      border: Border(left: BorderSide(color: PmsStyle.yellow, width: 2)),
+    ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -662,11 +685,12 @@ class _BookingCalendarState extends State<BookingCalendar> {
             onPressed: () => showDay(selection.day, entries),
             child: Text(ui('View all bookings')),
           ),
-        const SizedBox(height: 12),
-        PmsButton(
-          ui('Add a stay'),
-          onPressed: () => widget.onCreate(isoDate(selection.day)),
-        ),
+        if (entries.isEmpty) const SizedBox(height: 12),
+        if (entries.isEmpty)
+          PmsButton(
+            ui('Add a stay'),
+            onPressed: () => widget.onCreate(isoDate(selection.day)),
+          ),
       ],
     ),
   );
@@ -686,10 +710,14 @@ class _BookingCalendarState extends State<BookingCalendar> {
         spacing: 12,
         runSpacing: 12,
         children: [
-          for (var number = 1; number <= 12; number++)
+          for (var offset = 0; offset < 12; offset++)
             SizedBox(
               width: width,
-              child: miniMonth(context, DateTime(month.year, number), data),
+              child: miniMonth(
+                context,
+                DateTime(yearStart.year, yearStart.month + offset),
+                data,
+              ),
             ),
         ],
       );

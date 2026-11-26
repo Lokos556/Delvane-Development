@@ -1,9 +1,11 @@
 import 'package:material_ui/material_ui.dart';
 
 import '../workspace/workspace_models.dart';
+import 'actual_stay_controls.dart';
 import 'operational_desk.dart';
 import 'operations_pages.dart';
 import 'pms_controller.dart';
+import 'operational_visuals.dart';
 import 'pms_style.dart';
 import 'work_assignment_dialog.dart';
 
@@ -14,6 +16,8 @@ class OperationsDashboard extends StatelessWidget {
     required this.property,
     required this.onPropertyChanged,
     required this.openReservation,
+    this.openStay,
+    this.openCleaning,
     required this.tools,
   });
 
@@ -21,6 +25,8 @@ class OperationsDashboard extends StatelessWidget {
   final String? property;
   final ValueChanged<String?> onPropertyChanged;
   final ValueChanged<String> openReservation;
+  final void Function(String, StayOperation)? openStay;
+  final Future<void> Function(String, {VoidCallback? assign})? openCleaning;
   final Widget tools;
 
   Future<void> editWork(BuildContext context, Widget editor) async {
@@ -98,6 +104,24 @@ class OperationsDashboard extends StatelessWidget {
                 _ => text(row, 'current_stage'),
               }),
               onTap: () => openReservation(text(row, 'id')),
+              action: openStay == null
+                  ? null
+                  : TextButton(
+                      onPressed: () => openStay!(
+                        text(row, 'id'),
+                        row['actual_stay_state'] == 'arrived' ||
+                                row['actual_stay_state'] == 'departed'
+                            ? StayOperation.checkOut
+                            : StayOperation.checkIn,
+                      ),
+                      child: Text(
+                        ui(switch (row['actual_stay_state']) {
+                          'arrived' => 'Check out',
+                          'departed' => 'Review stay',
+                          _ => 'Check in',
+                        }),
+                      ),
+                    ),
             ),
         ],
       ),
@@ -116,10 +140,18 @@ class OperationsDashboard extends StatelessWidget {
               detail:
                   '${uiDate(text(row, 'scheduled_date'))} · ${row['assigned_name'] ?? ui('Unassigned')}',
               status: ui(text(row, 'status')),
-              onTap: c.hasSection('team') && row['status'] != 'complete'
-                  ? () =>
-                        editWork(context, WorkAssignmentDialog(c: c, work: row))
-                  : null,
+              onTap: openCleaning == null
+                  ? null
+                  : () => openCleaning!(
+                      text(row, 'id'),
+                      assign:
+                          c.hasSection('team') && row['status'] != 'complete'
+                          ? () => editWork(
+                              context,
+                              WorkAssignmentDialog(c: c, work: row),
+                            )
+                          : null,
+                    ),
             ),
         ],
         actions: [
@@ -264,10 +296,11 @@ class OperationsDashboard extends StatelessWidget {
           subtitle: selected.isEmpty ? '' : ui('All properties'),
           items: [
             for (final row in c.activity)
-              _OperationRow(
+              TimelineEntry(
+                time: uiDateTime(text(row, 'created_at')),
+                timeWidth: 118,
                 title: c.activityLabel(row),
-                detail:
-                    '${uiDateTime(text(row, 'created_at'))} · ${text(row, 'actor', 'Delvane')}',
+                detail: text(row, 'actor', 'Delvane'),
               ),
           ],
         ),
@@ -295,12 +328,11 @@ class _OperationsSection extends StatelessWidget {
   final List<Widget> items, actions;
 
   @override
-  Widget build(BuildContext context) => PmsCard(
-    radius: 12,
-    color: Colors.white,
-    borderColor: PmsStyle.panelLine,
-    shadow: false,
-    padding: const EdgeInsets.all(13),
+  Widget build(BuildContext context) => Container(
+    decoration: const BoxDecoration(
+      border: Border(top: BorderSide(color: PmsStyle.panelLine)),
+    ),
+    padding: const EdgeInsets.fromLTRB(2, 13, 2, 8),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -317,7 +349,11 @@ class _OperationsSection extends StatelessWidget {
                 ),
               ),
             ),
-            if (items.isNotEmpty) PmsBadge('${items.length}'),
+            if (items.isNotEmpty)
+              Text(
+                '${items.length}',
+                style: const TextStyle(color: PmsStyle.muted),
+              ),
           ],
         ),
         if (subtitle.isNotEmpty)
@@ -354,10 +390,12 @@ class _OperationRow extends StatelessWidget {
     required this.detail,
     this.status = '',
     this.onTap,
+    this.action,
   });
 
   final String title, detail, status;
   final VoidCallback? onTap;
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) => ListTile(
@@ -379,7 +417,9 @@ class _OperationRow extends StatelessWidget {
             ].join(' · '),
             style: const TextStyle(color: PmsStyle.muted, fontSize: 12),
           ),
-    trailing: onTap == null ? null : const Icon(Icons.chevron_right, size: 18),
+    trailing:
+        action ??
+        (onTap == null ? null : const Icon(Icons.chevron_right, size: 18)),
     onTap: onTap,
   );
 }

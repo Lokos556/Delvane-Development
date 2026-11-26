@@ -4,10 +4,13 @@ import 'dart:math';
 
 import '../workspace/workspace_models.dart' show text;
 import 'inventory_controls.dart';
+import 'operational_visuals.dart';
 import 'pms_controller.dart';
 import 'pms_dialogs.dart';
 import 'pms_style.dart';
 import 'pms_workflows.dart';
+
+enum StayOperation { checkIn, checkOut }
 
 String stayRequestId() {
   final r = Random.secure();
@@ -98,9 +101,15 @@ class ActualStayDialog extends StatefulWidget {
     super.key,
     required this.api,
     required this.reservationId,
+    this.operation,
+    this.reviewBooking,
+    this.reviewGuests,
+    this.onChanged,
   });
   final PmsWorkflows api;
   final String reservationId;
+  final StayOperation? operation;
+  final VoidCallback? reviewBooking, reviewGuests, onChanged;
   @override
   State<ActualStayDialog> createState() => _ActualStayDialogState();
 }
@@ -108,9 +117,73 @@ class ActualStayDialog extends StatefulWidget {
 class _ActualStayDialogState extends State<ActualStayDialog>
     with PmsActions<ActualStayDialog> {
   Json? data;
+  late StayOperation operation = widget.operation ?? StayOperation.checkIn;
   final selected = <String>{};
   Map<String, String> unitLabels = {};
-  String get base => '/api/reservations/${widget.reservationId}/actual-stay';
+  bool earlierArrival = false;
+  bool get checkingIn => operation == StayOperation.checkIn;
+  String get base =>
+      '/api/reservations/${idPath(widget.reservationId)}/actual-stay';
+  List<Json> get plan => optionalRows(data?['planned_allocations']);
+  List<Json> get readiness => optionalRows(data?['unit_readiness']);
+  List<Json> get guests => optionalRows(data?['guests']);
+  bool eligible(Json guest) => checkingIn
+      ? guest['actual_state'] != 'arrived'
+      : guest['actual_state'] == 'arrived';
+
+  Set<String> arrivalUnits({bool currentOnly = false}) {
+    final day = text(data ?? {}, 'business_date');
+    return {
+      for (final allocation in plan)
+        if (!currentOnly ||
+            day.isEmpty ||
+            (text(allocation, 'date_from').compareTo(day) <= 0 &&
+                (text(allocation, 'date_to').compareTo(day) > 0 ||
+                    allocation['date_from'] == day &&
+                        allocation['date_to'] == day)))
+          text(allocation, 'unit_id'),
+    };
+  }
+
+  String? get blocker {
+    if (text(data ?? {}, 'reservation_status', 'confirmed') != 'confirmed') {
+      return 'Confirm the reservation before recording an actual stay.';
+    }
+    if (guests.isEmpty) {
+      return 'There are no guest records for this reservation.';
+    }
+    if (!guests.any(eligible)) {
+      return checkingIn
+          ? 'All guests are already checked in.'
+          : 'No guests are currently checked in.';
+    }
+    if (!checkingIn) {
+      final units = {
+        for (final guest in guests)
+          if (selected.contains(guest['id']))
+            optionalObject(guest['occupancy'])['unit_id'],
+      };
+      return units.length > 1
+          ? 'Select guests occupying the same unit, or perform separate operations.'
+          : null;
+    }
+    if (plan.isEmpty) {
+      return 'Assign a planned physical unit before confirming arrival.';
+    }
+    if (earlierArrival) return null;
+    final todayUnits = arrivalUnits(currentOnly: true);
+    if (todayUnits.isEmpty) return 'No physical unit is allocated for today.';
+    if (data?.containsKey('unit_readiness') == true &&
+        !readiness.any(
+          (room) =>
+              todayUnits.contains(room['unit_id']) &&
+              room['state'] != 'unavailable',
+        )) {
+      return 'The planned units are unavailable today. Review the room allocation.';
+    }
+    return null;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -119,26 +192,50 @@ class _ActualStayDialogState extends State<ActualStayDialog>
 
   Future<void> load() => perform(() async {
     final value = await widget.api.object(base);
-    final detail = await widget.api.detail(widget.reservationId);
-    final prop = (detail['reservation'] as Map?)?['property_id'];
-    if (prop != null) {
-      final units = await widget.api.object(
-        '/api/properties/$prop/physical-units?business_date=${DateTime.now().toIso8601String().substring(0, 10)}',
+    final labels = <String, String>{
+      for (final room in optionalRows(value['unit_readiness']))
+        text(room, 'unit_id'): text(room, 'label'),
+    };
+    if (!value.containsKey('unit_readiness')) {
+      final detail = await widget.api.detail(widget.reservationId);
+      final property = text(
+        optionalObject(detail['reservation']),
+        'property_id',
       );
-      unitLabels = {
-        for (final u in units['units'] as List? ?? [])
-          '${u['id']}': '${u['building']} · ${u['unit_number']}',
-      };
+      if (property.isNotEmpty) {
+        final units = await widget.api.object(
+          '/api/properties/${idPath(property)}/physical-units?business_date=${isoDate(DateTime.now())}',
+        );
+        for (final unit in optionalRows(units['units'])) {
+          labels[text(unit, 'id')] = [
+            text(unit, 'building'),
+            text(unit, 'unit_number'),
+          ].where((label) => label.isNotEmpty).join(' · ');
+        }
+      }
     }
-    if (mounted) setState(() => data = value);
+    if (mounted) {
+      setState(() {
+        data = value;
+        unitLabels = labels;
+        selected.retainAll(
+          guests.where(eligible).map((guest) => text(guest, 'id')),
+        );
+      });
+    }
   });
   Future<void> action(String kind) async {
-    if (selected.isEmpty) return;
+    if (selected.isEmpty || blocker != null) return;
     final requestId = stayRequestId();
-    final unitIds = (data?['planned_allocations'] as List? ?? [])
-        .map((a) => '${a['unit_id']}')
-        .toSet();
-    await showDialog(
+    final unitIds = arrivalUnits(currentOnly: !earlierArrival);
+    if (!earlierArrival && data?.containsKey('unit_readiness') == true) {
+      unitIds.retainAll(
+        readiness
+            .where((room) => room['state'] != 'unavailable')
+            .map((room) => text(room, 'unit_id')),
+      );
+    }
+    final changed = await showDialog<bool>(
       context: context,
       useRootNavigator: false,
       builder: (_) => InventoryForm(
@@ -170,8 +267,9 @@ class _ActualStayDialogState extends State<ActualStayDialog>
         },
       ),
     );
-    if (mounted) {
+    if (changed == true && mounted) {
       selected.clear();
+      widget.onChanged?.call();
       await load();
     }
   }
@@ -197,7 +295,7 @@ class _ActualStayDialogState extends State<ActualStayDialog>
       return;
     }
     if (!mounted) return;
-    await showDialog(
+    final changed = await showDialog<bool>(
       context: context,
       useRootNavigator: false,
       builder: (_) => InventoryForm(
@@ -226,8 +324,9 @@ class _ActualStayDialogState extends State<ActualStayDialog>
         },
       ),
     );
-    if (mounted) {
+    if (changed == true && mounted) {
       selected.clear();
+      widget.onChanged?.call();
       await load();
     }
   }
@@ -235,16 +334,18 @@ class _ActualStayDialogState extends State<ActualStayDialog>
   @override
   Widget build(BuildContext context) => PmsModal(
     title: ui('Actual guest stays'),
+    mobileFullScreen: true,
     width: 760,
     actions: [
       PmsButton(ui('Refresh'), onPressed: busy ? null : load),
       PmsButton(
-        ui('Check in selected guests'),
-        onPressed: busy || selected.isEmpty ? null : () => action('arrive'),
-      ),
-      PmsButton(
-        ui('Check out selected guests'),
-        onPressed: busy || selected.isEmpty ? null : () => action('depart'),
+        ui(
+          checkingIn ? 'Check in selected guests' : 'Check out selected guests',
+        ),
+        primary: true,
+        onPressed: busy || selected.isEmpty || blocker != null
+            ? null
+            : () => action(checkingIn ? 'arrive' : 'depart'),
       ),
     ],
     child: Column(
@@ -257,8 +358,114 @@ class _ActualStayDialogState extends State<ActualStayDialog>
           ),
         ),
         if (data != null) ...[
-          Text('${ui('Actual occupants')}: ${data!['actual_occupants']}'),
-          for (final g in data!['guests'] as List? ?? [])
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final choice in StayOperation.values)
+                ChoiceChip(
+                  label: Text(
+                    ui(
+                      choice == StayOperation.checkIn
+                          ? 'Check in'
+                          : 'Check out',
+                    ),
+                  ),
+                  selected: choice == operation,
+                  onSelected: busy
+                      ? null
+                      : (_) => setState(() {
+                          operation = choice;
+                          selected.clear();
+                          earlierArrival = false;
+                        }),
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          FactGrid(
+            facts: [
+              (
+                ui('Reservation status'),
+                ui(text(data!, 'reservation_status', 'Unknown')),
+              ),
+              (
+                ui('Registration'),
+                ui(text(data!, 'registration_status', 'Unknown')),
+              ),
+              (ui('Actual occupants'), '${data!['actual_occupants']}'),
+              if (data!['business_date'] case final String day)
+                (ui('Business date'), uiDate(day)),
+            ],
+          ),
+          if (checkingIn && data!.containsKey('unit_readiness')) ...[
+            const SizedBox(height: 12),
+            Text(
+              ui('Room readiness'),
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            for (final allocation in arrivalUnits(currentOnly: true))
+              Text(
+                '${unitLabels[allocation] ?? ui('Planned unit')} · ${ui(ReadinessStrip.mark(text(readiness.where((room) => room['unit_id'] == allocation).firstOrNull ?? {}, 'state')).$1)}',
+              ),
+            if (arrivalUnits(currentOnly: true).isEmpty)
+              Text(ui('No physical unit is allocated for today.')),
+          ],
+          if (blocker case final reason?)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Text(
+                ui(reason),
+                style: const TextStyle(color: operationalAmber),
+              ),
+            )
+          else if (selected.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Text(
+                ui(
+                  'Select the guests whose arrival or departure you observed.',
+                ),
+              ),
+            ),
+          Wrap(
+            spacing: 8,
+            children: [
+              if (widget.reviewBooking != null && blocker != null)
+                TextButton(
+                  onPressed: busy
+                      ? null
+                      : () {
+                          Navigator.pop(context);
+                          widget.reviewBooking!();
+                        },
+                  child: Text(ui('Review booking')),
+                ),
+              if (widget.reviewGuests != null &&
+                  data!['registration_status'] != 'complete')
+                TextButton(
+                  onPressed: busy
+                      ? null
+                      : () {
+                          Navigator.pop(context);
+                          widget.reviewGuests!();
+                        },
+                  child: Text(ui('Review guest registration')),
+                ),
+              if (checkingIn &&
+                  plan.isNotEmpty &&
+                  data!['business_date'] != null &&
+                  !earlierArrival)
+                TextButton(
+                  onPressed: busy
+                      ? null
+                      : () => setState(() => earlierArrival = true),
+                  child: Text(ui('Record an earlier arrival')),
+                ),
+            ],
+          ),
+          for (final g in guests)
             CheckboxListTile(
               title: Text('${g['full_name']}'),
               subtitle: Text(
@@ -271,7 +478,7 @@ class _ActualStayDialogState extends State<ActualStayDialog>
                           ui('Assigned unit'),
                     ),
               value: selected.contains(g['id']),
-              onChanged: busy
+              onChanged: busy || !eligible(g)
                   ? null
                   : (v) => setState(() {
                       if (v == true) {
@@ -326,6 +533,8 @@ class _ActualStayDialogState extends State<ActualStayDialog>
               ),
             ),
         ],
+        if (failure != null)
+          PmsButton(ui('Retry'), onPressed: busy ? null : load),
       ],
     ),
   );

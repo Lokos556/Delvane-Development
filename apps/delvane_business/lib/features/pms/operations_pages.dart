@@ -37,13 +37,7 @@ class _MaintenancePageState extends State<MaintenancePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        PmsEyebrow(ui('MAINTENANCE')),
-        PmsPageTitle(ui('Issues become owned work.')),
-        Text(
-          ui(
-            'No WhatsApp archaeology. Every issue has a property, urgency, owner and resolution trail.',
-          ),
-        ),
+        PmsPageTitle(ui('Maintenance')),
         const SizedBox(height: 16),
         if (c.user.isOperator || c.user.role == 'cleaner')
           Align(
@@ -112,7 +106,11 @@ class MaintenanceCaseCard extends StatelessWidget {
       'verified',
     ];
     final index = stages.indexOf(status == 'open' ? 'reported' : status);
-    return PmsCard(
+    return Container(
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: PmsStyle.panelLine)),
+      ),
+      padding: const EdgeInsets.fromLTRB(2, 14, 8, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -207,8 +205,7 @@ class _MaintenanceEditorState extends State<MaintenanceEditor>
 
   @override
   Widget build(BuildContext context) => PmsModal(
-    title: ui('Delvane will route it.'),
-    eyebrow: ui('REPORT ISSUE'),
+    title: ui('Report issue'),
     width: 650,
     canClose: !busy,
     actions: [
@@ -288,8 +285,7 @@ class SuppliesPage extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        PmsEyebrow(ui('SUPPLIES')),
-        PmsPageTitle(ui('Delvane watches consumption.')),
+        PmsPageTitle(ui('Supplies')),
         Text(
           ui(
             '${d['upcoming_stays'] ?? 0} upcoming stays are included in the current estimate.',
@@ -299,9 +295,8 @@ class SuppliesPage extends StatelessWidget {
         PmsColumns([
           for (final item in items)
             PmsCard(
-              color: item['low'] == true
-                  ? const Color(0xFFFFF5CC)
-                  : PmsStyle.soft,
+              color: PmsStyle.canvas,
+              borderColor: PmsStyle.panelLine,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -331,7 +326,16 @@ class SuppliesPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  LinearProgressIndicator(value: stockFraction(item)),
+                  LinearProgressIndicator(
+                    value: stockFraction(item),
+                    semanticsLabel: ui('Stock level'),
+                    minHeight: 6,
+                    borderRadius: BorderRadius.circular(3),
+                    backgroundColor: PmsStyle.panelLine,
+                    color: item['low'] == true
+                        ? const Color(0xffbd8400)
+                        : PmsStyle.ink,
+                  ),
                   const SizedBox(height: 16),
                   Align(
                     alignment: Alignment.centerLeft,

@@ -7,6 +7,7 @@ import 'distribution_dialog.dart';
 import 'sandbox_dialog.dart';
 import 'pms_controller.dart';
 import 'pms_dialogs.dart';
+import 'operational_visuals.dart';
 import 'pms_style.dart';
 import 'pms_workflows.dart';
 import 'ntak_reporting_dialog.dart';
@@ -35,67 +36,30 @@ class IntegrationsPage extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        PmsEyebrow(ui('INTEGRATIONS')),
         PmsPageTitle(ui('Channel distribution')),
-        Text(
-          ui(
-            'Base prices and availability stay published automatically, while reservations and date-specific overrides update Channex safely.',
-          ),
+        const SizedBox(height: 14),
+        MetricRail(
+          metrics: [
+            for (final e in {
+              'ACTIVE DISTRIBUTION': booking
+                  .where((i) => i['distribution_state'] == 'active')
+                  .length,
+              'OUTGOING QUEUE': booking.fold<int>(
+                0,
+                (n, i) => n + (i['ari_pending_count'] as num? ?? 0).toInt(),
+              ),
+              'UNACKNOWLEDGED BOOKINGS': booking.fold<int>(
+                0,
+                (n, i) => n + (i['unacknowledged_count'] as num? ?? 0).toInt(),
+              ),
+              'STILL DISCONNECTED': booking
+                  .where((i) => i['connection_stage'] != 'channex_ready')
+                  .length,
+            }.entries)
+              (ui(e.key), '${e.value}'),
+          ],
         ),
         const SizedBox(height: 24),
-        PmsCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              PmsEyebrow(ui('CURRENT PHASE')),
-              Text(
-                ui('Two-way channel control'),
-                style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
-              ),
-              Text(
-                ui(
-                  'Changes made in Delvane are saved first, queued durably, batched by date range and retried automatically if Channex is temporarily unavailable.',
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 20),
-        PmsColumns([
-          for (final e in {
-            'ACTIVE DISTRIBUTION': booking
-                .where((i) => i['distribution_state'] == 'active')
-                .length,
-            'OUTGOING QUEUE': booking.fold<int>(
-              0,
-              (n, i) => n + (i['ari_pending_count'] as num? ?? 0).toInt(),
-            ),
-            'UNACKNOWLEDGED BOOKINGS': booking.fold<int>(
-              0,
-              (n, i) => n + (i['unacknowledged_count'] as num? ?? 0).toInt(),
-            ),
-            'STILL DISCONNECTED': booking
-                .where((i) => i['connection_stage'] != 'channex_ready')
-                .length,
-          }.entries)
-            PmsCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  PmsEyebrow(ui(e.key)),
-                  Text(
-                    '${e.value}',
-                    style: const TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-        ], columns: 4),
-        const SizedBox(height: 24),
-        PmsEyebrow(ui('BOOKING.COM')),
         Wrap(
           alignment: WrapAlignment.spaceBetween,
           runSpacing: 8,
@@ -195,38 +159,66 @@ class IntegrationsPage extends StatelessWidget {
         ready = i['connection_stage'] == 'channex_ready';
     final cfg = optionalObject(i['public_config']),
         api = ChannelApi(c, text(i, 'id'));
-    return PmsCard(
+    final (health, indicator) = switch ((
+      i['status'] == 'error',
+      booking,
+      ready,
+      i['receiver_state'] == 'active',
+    )) {
+      (true, _, _, _) => ('NEEDS ATTENTION', operationalRed),
+      (_, false, _, _) => ('SANDBOX ONLY', PmsStyle.muted),
+      (_, true, false, _) => ('NOT CONNECTED', PmsStyle.muted),
+      (_, true, true, true) => ('RECEIVER ACTIVE', operationalGreen),
+      _ => ('SETUP REQUIRED', operationalAmber),
+    };
+    return Container(
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: PmsStyle.panelLine)),
+      ),
+      padding: const EdgeInsets.fromLTRB(2, 12, 14, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          PmsEyebrow(text(i, 'property_name')),
+          Text(
+            text(i, 'property_name'),
+            style: const TextStyle(fontSize: 12, color: PmsStyle.muted),
+          ),
           Text(
             text(i, 'provider'),
-            style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
           ),
+          const SizedBox(height: 7),
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 12,
+            runSpacing: 4,
             children: [
-              PmsBadge(
-                i['status'] == 'error'
-                    ? ui('NEEDS ATTENTION')
-                    : !booking
-                    ? ui('SANDBOX ONLY')
-                    : !ready
-                    ? ui('NOT CONNECTED')
-                    : i['receiver_state'] == 'active'
-                    ? ui('RECEIVER ACTIVE')
-                    : ui('SETUP REQUIRED'),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.circle, size: 8, color: indicator),
+                  const SizedBox(width: 6),
+                  Text(
+                    ui(health),
+                    style: TextStyle(
+                      color: indicator,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
               ),
-              PmsBadge(
+              Text(
                 cfg['certification_workspace'] == true
                     ? ui('Certification workspace')
-                    : text(
-                        cfg,
-                        'channex_environment',
-                        booking ? 'Environment not reported' : 'Sandbox only',
+                    : ui(
+                        text(
+                          cfg,
+                          'channex_environment',
+                          booking ? 'Environment not reported' : 'Sandbox only',
+                        ),
                       ),
+                style: const TextStyle(color: PmsStyle.muted, fontSize: 12),
               ),
             ],
           ),
@@ -245,11 +237,14 @@ class IntegrationsPage extends StatelessWidget {
                   ),
           ),
           const SizedBox(height: 16),
-          Text(ui('OUTGOING QUEUE  ${i['ari_pending_count'] ?? 0}')),
-          Text(
-            ui(
-              'LAST DISTRIBUTION UPDATE  ${uiDateTime(text(i, 'last_ari_sent_at', ui('Never')))}',
-            ),
+          FactGrid(
+            facts: [
+              (ui('OUTGOING QUEUE'), '${i['ari_pending_count'] ?? '—'}'),
+              (
+                ui('LAST DISTRIBUTION UPDATE'),
+                uiDateTime(text(i, 'last_ari_sent_at', ui('Never'))),
+              ),
+            ],
           ),
           if (i['status'] == 'error')
             Text(ui('Needs attention. Review the delivery diagnostics.')),

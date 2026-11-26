@@ -41,7 +41,109 @@ AuthController remoteAuth(
   clock: () => fakeNow,
 );
 
+class SwitchableNetwork extends FakePms {
+  bool down = false;
+  @override
+  Future<ApiResponse> request(
+    String method,
+    Uri uri,
+    Map<String, String> headers,
+    Object? body,
+  ) async {
+    if (down) throw const SocketException('Synthetic disconnect');
+    return super.request(method, uri, headers, body);
+  }
+}
+
 void main() {
+  test('offline access restores only scoped projections and blocks writes until revalidated', () async {
+    final network = SwitchableNetwork()
+      ..overrides.addAll(remoteServer('staging').overrides);
+    final store = MemorySessionStore();
+    final first = remoteAuth(network, store);
+    await first.restore();
+    await first.signIn('fictional@workspace.invalid', 'fictional-password');
+    final scope = first.cacheScope!;
+    await first.rememberOperational('/api/reservations', [
+      {
+        'id': 'fake_booking',
+        'property_id': 'fake_property',
+        'guest_name': 'Sensitive Test Name',
+        'document_number': 'Sensitive Test Number',
+      },
+    ]);
+    expect(store.values.values.join(), isNot(contains('Sensitive Test')));
+    first.dispose();
+    network.down = true;
+    final reopened = remoteAuth(network, store);
+    addTearDown(reopened.dispose);
+    await reopened.restore();
+    expect(reopened.offline, isTrue);
+    expect(reopened.phase, AuthPhase.authenticated);
+    expect(
+      await reopened.cache.read('/api/reservations', '${scope}other', fakeNow),
+      isNull,
+    );
+    expect(
+      await reopened.cache.read(
+        '/api/reservations',
+        scope,
+        fakeNow.add(const Duration(hours: 12)),
+      ),
+      isNull,
+    );
+    expect(
+      (await reopened.cache.read('/api/reservations', scope, fakeNow))!.$1,
+      [
+        {'id': 'fake_booking', 'property_id': 'fake_property'},
+      ],
+    );
+    await expectLater(
+      reopened.api.patch('/api/reservations/fake_booking', {}),
+      throwsA(isA<ApiException>()),
+    );
+    network.down = false;
+    await reopened.revalidate();
+    expect(reopened.offline, isFalse);
+    expect(
+      await reopened.cache.read('/api/reservations', scope, fakeNow),
+      isNull,
+    );
+    await reopened.logout();
+    expect(store.values, isEmpty);
+  });
+
+  test(
+    'a staging outage keeps the saved session and reconnect restores it',
+    () async {
+      final server = remoteServer('staging');
+      final store = MemorySessionStore();
+      final initial = remoteAuth(server, store);
+      await initial.restore();
+      await initial.signIn('synthetic@workspace.invalid', 'fictional-password');
+      expect(initial.phase, AuthPhase.authenticated);
+      initial.dispose();
+      final saved = Map.of(store.values);
+      final metadata = server.overrides['/api/client/environment']!;
+      server.overrides['/api/client/environment'] = const ApiResponse(
+        503,
+        '{}',
+      );
+      final session = remoteAuth(server, store);
+      addTearDown(session.dispose);
+      await session.restore();
+      expect(session.phase, AuthPhase.disconnected);
+      expect(store.values, saved);
+      server.overrides['/api/client/environment'] = metadata;
+      await session.restore();
+      expect(session.phase, AuthPhase.authenticated);
+      expect(
+        server.requests.where((r) => r.path == '/api/login'),
+        hasLength(1),
+      );
+    },
+  );
+
   test(
     'local defaults and existing URL override preserve localhost/ADB reverse',
     () {

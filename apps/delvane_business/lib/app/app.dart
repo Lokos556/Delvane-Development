@@ -30,7 +30,8 @@ class DelvaneBusinessApp extends StatefulWidget {
   State<DelvaneBusinessApp> createState() => _DelvaneBusinessAppState();
 }
 
-class _DelvaneBusinessAppState extends State<DelvaneBusinessApp> {
+class _DelvaneBusinessAppState extends State<DelvaneBusinessApp>
+    with WidgetsBindingObserver {
   BusinessController? controller;
   AuthController? auth;
   late bool showDemo;
@@ -41,6 +42,7 @@ class _DelvaneBusinessAppState extends State<DelvaneBusinessApp> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WebStrings.current.addListener(_languageChanged);
     unawaited(
       WebStrings.current
@@ -77,10 +79,23 @@ class _DelvaneBusinessAppState extends State<DelvaneBusinessApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     WebStrings.current.removeListener(_languageChanged);
     controller?.dispose();
     if (widget.auth == null) auth?.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final current = auth;
+    if (!showDemo &&
+        state == AppLifecycleState.resumed &&
+        current != null &&
+        current.environment != ApiEnvironment.local &&
+        current.phase == AuthPhase.disconnected) {
+      unawaited(current.restore());
+    }
   }
 
   void _languageChanged() {

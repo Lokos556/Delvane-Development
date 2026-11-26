@@ -1,17 +1,21 @@
+import 'package:delvane_business/features/pms/signature_navigation.dart';
+
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:delvane_business/features/pms/pms_controller.dart';
 import 'package:delvane_business/features/pms/pms_shell.dart';
 import 'package:delvane_business/features/pms/pms_style.dart';
+
 import 'support/fake_pms.dart';
 
 FakePms androidFixture() {
   final pms = FakePms();
-  final fixtures =
-      jsonDecode(File('test/fixtures/web_reference.json').readAsStringSync())
-          as Map;
+  final fixtures = jsonDecode(
+    File('test/fixtures/web_reference.json').readAsStringSync(),
+  ) as Map;
   for (final e in fixtures.entries) {
     pms.overrides[e.key as String] = pms.json(e.value);
   }
@@ -29,6 +33,42 @@ void phone(WidgetTester t) {
 }
 
 void main() {
+  testWidgets('Android main tabs fit a narrow phone and hide for the IME', (
+    t,
+  ) async {
+    phone(t);
+    t.view.physicalSize = const Size(320, 740);
+    final auth = await signedIn(androidFixture());
+    try {
+      await t.pumpWidget(
+        MaterialApp(
+          theme: pmsTheme().copyWith(platform: TargetPlatform.android),
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: TextScaler.linear(1.15)),
+            child: child!,
+          ),
+          home: PmsShell(auth: auth, initialPage: PmsPage.today),
+        ),
+      );
+      await t.pumpAndSettle();
+      final navigation = find.byKey(
+        const ValueKey('android-primary-navigation'),
+      );
+      expect(t.widget<SignatureNavigation>(navigation).selected, 2);
+      await t.tap(find.byKey(const ValueKey('android-tab-intelligence')));
+      await t.pumpAndSettle();
+      expect(t.widget<SignatureNavigation>(navigation).selected, 1);
+      t.view.viewInsets = const FakeViewPadding(bottom: 270);
+      await t.pumpAndSettle();
+      expect(navigation, findsNothing);
+      expect(t.takeException(), isNull);
+    } finally {
+      await t.pumpWidget(const SizedBox());
+      auth.dispose();
+    }
+  });
+
   for (final page in [
     PmsPage.today,
     PmsPage.reservations,
@@ -53,11 +93,12 @@ void main() {
         );
         await t.pumpAndSettle();
         expect(t.takeException(), isNull);
-        expect(find.byTooltip('Open main menu'), findsOneWidget);
+        expect(find.byTooltip('Open main menu'), findsNothing);
         expect(find.text('No demo data has been substituted.'), findsNothing);
-        await t.tap(find.byTooltip('Open main menu'));
+        await t.tap(find.byKey(const ValueKey('pms-mobile-settings')));
         await t.pumpAndSettle();
-        expect(find.byType(Drawer), findsOneWidget);
+        expect(find.byType(Drawer), findsNothing);
+        expect(find.text('Sign out'), findsOneWidget);
       } finally {
         await t.pumpWidget(const SizedBox());
         auth.dispose();

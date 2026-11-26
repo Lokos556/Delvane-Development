@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import '../network/api_client.dart';
 import '../network/api_configuration.dart';
 import 'session_store.dart';
+import 'offline_operations.dart';
 
 enum AuthPhase { restoring, signedOut, signingIn, authenticated, disconnected }
 
@@ -78,11 +79,14 @@ class AuthController extends ChangeNotifier {
       },
     );
     api.onUnauthorized = _expired;
+    api.onConnectionLost = _connectionLost;
+    api.offline = () => offline;
     // Preserve existing local sessions; remote namespaces cannot reuse them.
     storageKey =
         'delvane.business.session.v1.'
         '${configuration.isLocal ? '' : '${environment.name}.'}'
         '${Uri.encodeComponent(configuration.origin.origin)}';
+    cache = OfflineOperations(store, storageKey);
   }
   static File? _tunnelDiagnostics() {
     final path = Platform.environment['DELVANE_UAT_API_LOG'];
@@ -94,12 +98,16 @@ class AuthController extends ChangeNotifier {
   final DateTime Function() now;
   late final ApiClient api;
   late final String storageKey;
+  late final OfflineOperations cache;
   AuthPhase phase = AuthPhase.restoring;
   AuthUser? user;
   String? error;
   String? workspaceId;
   String? _cookie, _csrf;
   DateTime? _expiresAt;
+  DateTime? lastVerified;
+  bool offline = false;
+  String? _sessionEpoch;
   Timer? _expiryTimer;
   int _generation = 0;
   bool _disposed = false;
@@ -120,10 +128,80 @@ class AuthController extends ChangeNotifier {
     _cookie = _csrf = null;
     user = null;
     _expiresAt = null;
+    lastVerified = null;
+    _sessionEpoch = null;
+    offline = false;
     _expiryTimer?.cancel();
   }
 
-  Future<void> _deleteStored() => _store(() => store.delete(storageKey));
+  Future<void> _deleteStored() => _store(() async {
+    await store.delete(storageKey);
+    await cache.clear();
+  });
+
+  String? get cacheScope {
+    final identity = user;
+    if (identity == null ||
+        _sessionEpoch == null ||
+        workspaceId == null ||
+        environment == ApiEnvironment.local) {
+      return null;
+    }
+    return jsonEncode([
+      workspaceId,
+      identity.id,
+      identity.organizationId,
+      identity.role,
+      identity.permissions.toList()..sort(),
+      _sessionEpoch,
+    ]);
+  }
+
+  Future<void> rememberOperational(String path, Object? data) {
+    final scope = cacheScope;
+    if (scope == null || offline) return Future.value();
+    return _store(() => cache.remember(path, data, scope, now()));
+  }
+
+  Future<void> _saveSession(AuthUser identity) async {
+    lastVerified = now();
+    _sessionEpoch ??= lastVerified!.toIso8601String();
+    final encoded = jsonEncode({
+      'cookie': _cookie,
+      'expires_at': _expiresAt!.toIso8601String(),
+      'origin': api.baseUrl.origin,
+      'workspace_id': workspaceId,
+      if (environment != ApiEnvironment.local) ...{
+        'verified_at': lastVerified!.toIso8601String(),
+        'epoch': _sessionEpoch,
+        'offline_identity': {
+          'id': identity.id,
+          'role': identity.role,
+          'organization_id': identity.organizationId,
+          'organization_name': identity.organization,
+          'full_name': '',
+          'permissions': identity.permissions.toList(),
+        },
+      },
+    });
+    await _store(() => store.write(storageKey, encoded));
+  }
+
+  DateTime? get _offlineUntil => lastVerified?.add(OfflineOperations.retention);
+
+  void _connectionLost() {
+    if (environment == ApiEnvironment.local ||
+        user == null ||
+        offline ||
+        _disposed) {
+      return;
+    }
+    if (_offlineUntil?.isAfter(now()) != true) {
+      _expired();
+      return;
+    }
+    _activate(user!, cached: true);
+  }
 
   Future<void> _checkWorkspace() async {
     if (environment != ApiEnvironment.local) {
@@ -165,12 +243,16 @@ class AuthController extends ChangeNotifier {
     return identity;
   }
 
-  void _activate(AuthUser identity) {
+  void _activate(AuthUser identity, {bool cached = false}) {
     user = identity;
     phase = AuthPhase.authenticated;
     error = null;
+    offline = cached;
     _expiryTimer?.cancel();
-    final remaining = _expiresAt!.difference(now());
+    final expires = cached && _offlineUntil!.isBefore(_expiresAt!)
+        ? _offlineUntil!
+        : _expiresAt!;
+    final remaining = expires.difference(now());
     if (remaining <= Duration.zero) {
       _expired();
       return;
@@ -185,6 +267,7 @@ class AuthController extends ChangeNotifier {
     error = null;
     _clearMemory();
     _emit();
+    Map<String, dynamic>? stored;
     try {
       await _checkWorkspace(); // Never send a credential before this gate.
       final saved = await store.read(storageKey);
@@ -195,6 +278,7 @@ class AuthController extends ChangeNotifier {
         return;
       }
       final value = jsonDecode(saved) as Map<String, dynamic>;
+      stored = value;
       final expires = DateTime.parse(value['expires_at'] as String);
       if (value['workspace_id'] != workspaceId ||
           value['origin'] != api.baseUrl.origin ||
@@ -207,10 +291,48 @@ class AuthController extends ChangeNotifier {
       }
       _cookie = value['cookie'];
       _expiresAt = expires;
+      _sessionEpoch = value['epoch'] as String?;
       final identity = await _loadIdentity();
+      if (generation != _generation || _disposed) return;
+      if (environment != ApiEnvironment.local) await _saveSession(identity);
       if (generation == _generation && !_disposed) _activate(identity);
     } catch (e) {
       if (generation != _generation || _disposed) return;
+      if (environment != ApiEnvironment.local &&
+          e is ApiException &&
+          e.isConnectionLoss) {
+        try {
+          stored ??= jsonDecode(
+            await store.read(storageKey) ?? '{}',
+          ) as Map<String, dynamic>;
+          if (generation != _generation || _disposed) return;
+          final saved = stored;
+          final verified = DateTime.parse(saved['verified_at'] as String);
+          final expires = DateTime.parse(saved['expires_at'] as String);
+          if (saved['origin'] == api.baseUrl.origin &&
+              _validCookie(saved['cookie']) &&
+              (saved['workspace_id'] as String).startsWith(
+                '${environment.name}:',
+              ) &&
+              (workspaceId == null || workspaceId == saved['workspace_id']) &&
+              !verified.isAfter(now()) &&
+              verified.add(OfflineOperations.retention).isAfter(now()) &&
+              expires.isAfter(now())) {
+            final identity = AuthUser.fromJson(
+              Map<String, dynamic>.from(saved['offline_identity'] as Map),
+            );
+            _sessionEpoch = saved['epoch'] as String;
+            lastVerified = verified;
+            _expiresAt = expires;
+            _cookie = saved['cookie'];
+            workspaceId = saved['workspace_id'];
+            _activate(identity, cached: true);
+            return;
+          }
+        } catch (_) {
+          /* An invalid or expired local lease cannot unlock the app. */
+        }
+      }
       _clearMemory();
       error = e is ApiException
           ? e.message
@@ -263,17 +385,7 @@ class AuthController extends ChangeNotifier {
       _expiresAt = now().add(Duration(seconds: cookie.maxAge!));
       final identity = await _loadIdentity();
       if (generation != _generation || _disposed) return;
-      await _store(
-        () => store.write(
-          storageKey,
-          jsonEncode({
-            'cookie': _cookie,
-            'expires_at': _expiresAt!.toIso8601String(),
-            'origin': api.baseUrl.origin,
-            'workspace_id': workspaceId,
-          }),
-        ),
-      );
+      await _saveSession(identity);
       if (generation == _generation && !_disposed) _activate(identity);
     } catch (e) {
       if (generation != _generation || _disposed) return;
@@ -297,10 +409,34 @@ class AuthController extends ChangeNotifier {
   Future<void> revalidate() async {
     if (phase != AuthPhase.authenticated) return;
     final generation = _generation;
-    final identity = await _loadIdentity();
-    if (generation == _generation && !_disposed) {
+    final wasOffline = offline;
+    final expected = workspaceId;
+    try {
+      if (wasOffline) {
+        await _checkWorkspace();
+        if (expected != workspaceId) {
+          _expired();
+          throw const ApiException(
+            'The server environment changed. Sign in again.',
+          );
+        }
+      }
+      final identity = await _loadIdentity();
+      if (generation != _generation || _disposed) return;
+      final previousScope = cacheScope;
       user = identity;
-      _emit();
+      if (wasOffline || previousScope != cacheScope) await _store(cache.clear);
+      if (generation != _generation || _disposed) return;
+      if (environment != ApiEnvironment.local &&
+          (wasOffline ||
+              lastVerified == null ||
+              now().difference(lastVerified!) >= const Duration(minutes: 5))) {
+        await _saveSession(identity);
+      }
+      if (generation == _generation && !_disposed) _activate(identity);
+    } on ApiException catch (failure) {
+      if (generation == _generation && failure.statusCode == 403) _expired();
+      rethrow;
     }
   }
 
@@ -324,6 +460,7 @@ class AuthController extends ChangeNotifier {
     ++_generation;
     String? warning;
     try {
+      if (offline) throw const ApiException('Offline');
       await api.post('/api/logout', const {});
     } catch (_) {
       warning = 'Signed out locally. Server revocation was not confirmed; the server session may remain until expiry.';
@@ -345,6 +482,7 @@ class AuthController extends ChangeNotifier {
     ++_generation;
     _clearMemory();
     api.onUnauthorized = null;
+    api.onConnectionLost = null;
     api.close();
     super.dispose();
   }

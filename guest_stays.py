@@ -7,6 +7,7 @@ import uuid
 from fastapi import APIRouter,Cookie,HTTPException,Request
 from pydantic import BaseModel,ConfigDict,Field
 import guest_reporting
+import overnight_turnover
 import physical_units
 import reservation_allocations as allocations
 import ntak_reporting
@@ -51,15 +52,20 @@ class StayAction(BaseModel):
 def stamp(value):return value.astimezone(timezone.utc).isoformat()
 
 
+def stay_timezone(con, org, property_id):
+    settings = con.execute('SELECT timezone FROM organization_settings WHERE organization_id=?', (org,)).fetchone()
+    calendar = con.execute('SELECT timezone FROM business_day_settings WHERE property_id=? AND organization_id=?',
+                           (property_id, org)).fetchone()
+    return ZoneInfo(calendar['timezone'] if calendar else settings['timezone'] if settings else 'Europe/Budapest')
+
+
 def context(backend,con,org,rid):
     row=con.execute('SELECT * FROM reservations WHERE id=? AND organization_id=?',(rid,org)).fetchone()
     if not row:raise HTTPException(404,'Reservation not found')
     con.execute('UPDATE properties SET id=id WHERE id=? AND organization_id=?',(row['property_id'],org))
     backend._lock_reservation(con,rid,org)
     row=dict(con.execute('SELECT * FROM reservations WHERE id=?',(rid,)).fetchone())
-    settings=con.execute('SELECT timezone FROM organization_settings WHERE organization_id=?',(org,)).fetchone()
-    calendar=con.execute('SELECT timezone FROM business_day_settings WHERE property_id=? AND organization_id=?',(row['property_id'],org)).fetchone()
-    return row,ZoneInfo(calendar['timezone'] if calendar else settings['timezone'] if settings else 'Europe/Budapest')
+    return row, stay_timezone(con, org, row['property_id'])
 
 
 def unit_on(con,r,uid,day):
@@ -338,11 +344,11 @@ def extended(backend,con,r,tz,action,actor,source,at,day,digest,gids):
     return {'ok':True,'id':eid,'duplicate':False}
 
 
-def overview(con,org,rid):
+def overview(con,org,rid,now):
     r=con.execute('SELECT * FROM reservations WHERE id=? AND organization_id=?',(rid,org)).fetchone()
     if not r:raise HTTPException(404,'Reservation not found')
-    settings=con.execute('SELECT timezone FROM organization_settings WHERE organization_id=?',(org,)).fetchone()
-    tz=ZoneInfo(settings['timezone'] if settings else 'Europe/Budapest')
+    tz = stay_timezone(con, org, r['property_id'])
+    business_date = now.astimezone(tz).date()
     guests=[]
     for g in con.execute('SELECT g.id,g.full_name,g.completeness,v.status verification_status FROM guest_records g LEFT JOIN guest_identity_verifications v ON v.guest_record_id=g.id WHERE g.reservation_id=? ORDER BY g.id',(rid,)):
         present=current(con,g['id'])
@@ -354,7 +360,15 @@ def overview(con,org,rid):
     for e in con.execute('''SELECT e.id,e.kind,e.occurred_at,e.business_date,e.timezone,e.source,e.actor_id,e.reason,e.correction_of,e.sequence,j.state reporting_state,COALESCE(j.error_code,e.reporting_blocker) error_code
        FROM stay_events e LEFT JOIN ntak_jobs j ON j.id=e.reporting_job_id WHERE e.reservation_id=? ORDER BY e.sequence''',(rid,)):
         events.append({**dict(e),'guest_ids':[g['guest_id'] for g in con.execute('SELECT guest_id FROM stay_event_guests WHERE event_id=?',(e['id'],))]})
-    return {'stay_type':r['stay_type'],'day_use_overnight_mismatch':r['stay_type']=='day_use' and any((v['guest_nights'] or 0)>0 for g in guests for v in g['history']),'guests':guests,'events':events,'planned_allocations':allocations.active(con,rid),'actual_occupants':sum(g['actual_state']=='arrived' for g in guests)}
+    return {
+        'reservation_status': r['status'], 'registration_status': r['registration_status'],
+        'property_id': r['property_id'], 'business_date': str(business_date), 'stay_type': r['stay_type'],
+        'day_use_overnight_mismatch': r['stay_type'] == 'day_use' and any(
+            (v['guest_nights'] or 0) > 0 for g in guests for v in g['history']),
+        'guests': guests, 'events': events, 'planned_allocations': allocations.active(con, rid),
+        'actual_occupants': sum(g['actual_state'] == 'arrived' for g in guests),
+        'unit_readiness': overnight_turnover.readiness(con, org, r['property_id'], business_date),
+    }
 
 
 def recover_pending(backend,con,limit=20):
@@ -382,7 +396,7 @@ def install(backend):
         user=backend.require_user(rosa_session);backend.require_roles(user,'owner','manager')
         with backend.db() as con:
             import viza_reporting
-            result=overview(con,user['organization_id'],reservation_id)
+            result=overview(con,user['organization_id'],reservation_id,backend.datetime.now(timezone.utc))
             result['viza_reporting']=viza_reporting.overview(con,user['organization_id'],reservation_id)
             return result
     @router.post('')

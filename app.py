@@ -279,7 +279,7 @@ async def lifespan(app: FastAPI):
                 with suppress(asyncio.CancelledError):
                     await task
 
-APP_VERSION = "2.10.59"
+APP_VERSION = "2.10.60"
 app = FastAPI(title="Rosa", version=APP_VERSION, lifespan=lifespan)
 
 
@@ -4173,7 +4173,12 @@ def property_list(rosa_session: str | None = Cookie(default=None)):
     user = require_user(rosa_session)
     require_roles(user, "owner", "manager")
     with db() as con:
-        return rows(con.execute("SELECT id,name,address,checkin_time,checkout_time,max_guests FROM properties WHERE organization_id=? ORDER BY name", (user["organization_id"],)))
+        properties = rows(con.execute('''SELECT p.id,p.name,p.address,p.checkin_time,p.checkout_time,p.max_guests,s.timezone
+            FROM properties p LEFT JOIN business_day_settings s ON s.property_id=p.id AND s.organization_id=p.organization_id
+            WHERE p.organization_id=? ORDER BY p.name''', (user['organization_id'],)))
+    for prop in properties:
+        prop['business_date'] = str(datetime.now(ZoneInfo(prop.pop('timezone') or 'Europe/Budapest')).date())
+    return properties
 
 
 @app.get("/api/properties/{property_id}/overview")
@@ -4892,26 +4897,45 @@ def inbox_list(rosa_session: str | None = Cookie(default=None)):
     with db() as con:
         items = con.execute(
             """SELECT m.*,p.name property_name,r.guest_name reservation_guest,r.arrival_date reservation_arrival,
-                      r.departure_date reservation_departure,r.status reservation_status
+                      r.departure_date reservation_departure,r.status reservation_status,
+                      g.id linked_guest_id,g.full_name linked_guest_name,g.preferred_language linked_language,
+                      (SELECT COUNT(*) FROM guest_reservations history
+                       JOIN reservations stay ON stay.id=history.reservation_id
+                       WHERE history.guest_id=g.id AND stay.organization_id=m.organization_id) linked_stays
                FROM inbox_messages m
-               LEFT JOIN properties p ON p.id=m.property_id
-               LEFT JOIN reservations r ON r.id=m.reservation_id
+               LEFT JOIN properties p ON p.id=m.property_id AND p.organization_id=m.organization_id
+               LEFT JOIN reservations r ON r.id=m.reservation_id AND r.organization_id=m.organization_id
+               LEFT JOIN guests g ON g.id=(
+                   SELECT candidate.id FROM guest_reservations gr JOIN guests candidate ON candidate.id=gr.guest_id
+                   WHERE gr.reservation_id=r.id AND gr.is_primary=1 AND candidate.organization_id=m.organization_id
+                   ORDER BY candidate.id LIMIT 1)
                WHERE m.organization_id=? AND m.status!='archived'
                ORDER BY m.received_at DESC,m.created_at DESC""",
             (org,),
         ).fetchall()
-        payloads=[]
+        guest_ids = sorted({row['linked_guest_id'] for row in items if row['linked_guest_id']})
+        preferences = {}
+        for start in range(0, len(guest_ids), 250):
+            group = guest_ids[start:start + 250]
+            slots = ','.join('?' for _ in group)
+            for pref in con.execute(f"""SELECT guest_id,preference_key,preference_value,source FROM (
+                SELECT guest_id,preference_key,preference_value,source,
+                       ROW_NUMBER() OVER (PARTITION BY guest_id ORDER BY preference_key) preference_rank
+                FROM guest_preferences WHERE organization_id=? AND guest_id IN ({slots})
+                ) ranked WHERE preference_rank<=5 ORDER BY guest_id,preference_key""", (org, *group)):
+                entry = dict(pref)
+                preferences.setdefault(entry.pop('guest_id'), []).append(entry)
+        payloads = []
         for row in items:
-            item=inbox_payload(row)
-            item["guest_context"]=None
-            if item.get("reservation_id"):
-                guest=con.execute("""SELECT g.* FROM guest_reservations gr JOIN guests g ON g.id=gr.guest_id
-                                     WHERE gr.reservation_id=? AND gr.is_primary=1 AND g.organization_id=? LIMIT 1""",(item["reservation_id"],org)).fetchone()
-                if guest:
-                    stays=con.execute("""SELECT COUNT(*) c FROM guest_reservations gr JOIN reservations rr ON rr.id=gr.reservation_id
-                                          WHERE gr.guest_id=? AND rr.organization_id=?""",(guest["id"],org)).fetchone()["c"]
-                    prefs=rows(con.execute("SELECT preference_key,preference_value,source FROM guest_preferences WHERE guest_id=? AND organization_id=? ORDER BY preference_key LIMIT 5",(guest["id"],org)))
-                    item["guest_context"]={"id":guest["id"],"full_name":guest["full_name"],"preferred_language":guest["preferred_language"],"stays":stays,"preferences":prefs}
+            item = inbox_payload(row)
+            guest_id = item.pop('linked_guest_id')
+            guest_name = item.pop('linked_guest_name')
+            language = item.pop('linked_language')
+            stays = item.pop('linked_stays')
+            item['guest_context'] = None if guest_id is None else {
+                'id': guest_id, 'full_name': guest_name, 'preferred_language': language,
+                'stays': stays, 'preferences': preferences.get(guest_id, []),
+            }
             payloads.append(item)
         return payloads
 
@@ -9459,6 +9483,10 @@ def reservation_detail(reservation_id: str, rosa_session: str | None = Cookie(de
         messages=rows(con.execute("SELECT id,source,sender_name,subject,body,received_at,status FROM inbox_messages WHERE reservation_id=? AND organization_id=? ORDER BY received_at DESC",(reservation_id,org)))
         state=_sync_registration(con,reservation_id,org)
         r=dict(r); r["registration_status"]=state
+        if user['role'] in ('owner', 'manager'):
+            r['actual_occupants'] = con.execute(
+                'SELECT COUNT(*) n FROM guest_occupancy WHERE reservation_id=? AND ended_at IS NULL AND voided=0',
+                (reservation_id,)).fetchone()['n']
         records=rows(con.execute("""SELECT g.id,g.full_name,g.nationality,g.completeness,COALESCE(v.status,'not_submitted') verification_status
             FROM guest_records g LEFT JOIN guest_identity_verifications v ON v.guest_record_id=g.id
             WHERE g.reservation_id=? AND g.organization_id=? ORDER BY g.full_name""",(reservation_id,org)))
@@ -9491,6 +9519,19 @@ def reservation_detail(reservation_id: str, rosa_session: str | None = Cookie(de
                                                                   guest_delivery.active(_sys.modules[__name__]))
         return {"reservation":dict(r),"notes":notes,"messages":messages,"registration":records,"cleaning":cleaning,"events":events,"guest":dict(guest) if guest else None,"guest_profile":guest_profile,"maintenance":maint,
                 "precheckin_invitation": invitation_info}
+
+
+@app.get("/api/reservations/{reservation_id}/booking-contact")
+def reservation_booking_contact(reservation_id: str, rosa_session: str | None = Cookie(default=None)):
+    user = require_user(rosa_session)
+    require_roles(user, "owner", "manager")
+    with db() as con:
+        reservation = con.execute('SELECT id FROM reservations WHERE id=? AND organization_id=?',
+                                  (reservation_id, user['organization_id'])).fetchone()
+        if not reservation:
+            raise HTTPException(404, 'Reservation not found')
+        address = guest_delivery.contact_override(_sys.modules[__name__], con, reservation_id)
+    return JSONResponse({'invitation_email': address}, headers={'Cache-Control': 'no-store'})
 
 @app.post("/api/reservations/{reservation_id}/registration-reminder")
 def reservation_registration_reminder(reservation_id: str, request: Request, rosa_session: str | None = Cookie(default=None)):
@@ -9566,6 +9607,28 @@ def reservation_operational_update(reservation_id: str, body: ReservationOperati
         audit_event(con,user["organization_id"],"reservation.updated","Reservation operational details updated.",actor_user_id=user["id"],entity_type="reservation",entity_id=reservation_id,metadata={"fields":list(updates)},request=request)
     refresh_cleaning_tasks(user["organization_id"])
     return {"ok":True}
+
+@app.get('/api/work-tasks/{task_id}')
+def cleaning_workspace(task_id: str, rosa_session: str | None = Cookie(default=None)):
+    user = require_user(rosa_session)
+    require_roles(user, 'owner', 'manager', 'cleaner')
+    org = user['organization_id']
+    with db() as con:
+        task = con.execute('''SELECT t.*,p.name property_name,u.full_name assigned_name FROM work_tasks t
+            JOIN properties p ON p.id=t.property_id AND p.organization_id=t.organization_id
+            LEFT JOIN users u ON u.id=t.assigned_to AND u.organization_id=t.organization_id
+            WHERE t.id=? AND t.organization_id=? AND t.task_type='cleaning' ''', (task_id, org)).fetchone()
+        if not task or (user['role'] == 'cleaner' and task['assigned_to'] != user['id']):
+            raise HTTPException(404, 'Task not found')
+        task = dict(task)
+        overnight_turnover.decorate_tasks(con, [task], date.fromisoformat(task['scheduled_date']))
+        ensure_task_checklist(con, org, task_id)
+        items = rows(con.execute('''SELECT id,label,completed FROM task_checklist_items
+            WHERE task_id=? AND organization_id=? ORDER BY sort_order''', (task_id, org)))
+        fields = ('id', 'property_name', 'unit_label', 'assigned_name', 'status', 'scheduled_date', 'detail')
+        return {**{key: task.get(key) for key in fields}, 'checklist': items,
+                'can_work': user['role'] == 'cleaner' and task['status'] in ('open', 'in_progress')}
+
 
 @app.get("/api/work-tasks/{task_id}/checklist")
 def checklist_get(task_id: str, rosa_session: str | None = Cookie(default=None)):

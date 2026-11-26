@@ -11,6 +11,7 @@ import 'dart:convert';
 import 'package:material_ui/material_ui.dart';
 
 import '../workspace/workspace_models.dart';
+import '../../core/network/api_client.dart';
 import 'pms_controller.dart';
 import 'pms_dialogs.dart';
 import 'pms_style.dart';
@@ -51,6 +52,8 @@ class _ReservationEditorState extends State<ReservationEditor>
   String property = '', room = '', source = 'Direct', stayType = 'overnight';
   String? selectedGuestId;
   final bookingDetails = BookingReportingState();
+  late final Json initialValues;
+  bool contactAvailable = true;
   bool loading = true, roomLoading = false;
   int request = 0;
   bool get editing => widget.reservation != null;
@@ -98,6 +101,7 @@ class _ReservationEditorState extends State<ReservationEditor>
     source = text(r, 'source', 'Direct');
     property = text(r, 'property_id', widget.initialProperty ?? '');
     room = text(r, 'room_type_id');
+    initialValues = bookingValues();
     load();
   }
 
@@ -107,16 +111,36 @@ class _ReservationEditorState extends State<ReservationEditor>
       if (!editing && !properties.any((p) => p['id'] == property)) {
         property = properties.isEmpty ? '' : text(properties.first, 'id');
       }
-      if (property.isNotEmpty) rooms = await widget.api.rooms(property);
-      if (!rooms.any((r) => r['id'] == room)) {
+      await Future.wait<void>([
+        if (property.isNotEmpty)
+          widget.api.rooms(property).then((value) => rooms = value),
+        if (editing)
+          bookingDetails.load(widget.api, text(widget.reservation!, 'id')),
+        if (editing) loadContact(),
+      ]);
+      if (!editing && !rooms.any((r) => r['id'] == room)) {
         room = rooms.isEmpty ? '' : text(rooms.first, 'id');
-      }
-      if (editing) {
-        await bookingDetails.load(widget.api, text(widget.reservation!, 'id'));
       }
       loading = false;
     });
     if (!ok && mounted) setState(() => loading = true);
+  }
+
+  Future<void> loadContact() async {
+    try {
+      final id = idPath(text(widget.reservation!, 'id'));
+      final result = await widget.api.object(
+        '/api/reservations/$id/booking-contact',
+      );
+      if (!mounted) return;
+      final address = text(result, 'invitation_email');
+      initialValues['invitation_email'] = address;
+      fields['invitation_email']!.text = address;
+      contactAvailable = true;
+    } on ApiException catch (error) {
+      if (error.statusCode != 404) rethrow;
+      if (mounted) contactAvailable = false;
+    }
   }
 
   Future<void> changeProperty(String value) async {
@@ -146,44 +170,61 @@ class _ReservationEditorState extends State<ReservationEditor>
     }
   }
 
-  Future<void> save() async {
-    if (!form.currentState!.validate()) return;
-    final body = <String, dynamic>{
-      if (selectedGuestId != null) 'guest_id': selectedGuestId,
+  Json bookingValues() {
+    String value(String key) => fields[key]!.text.trim();
+    String? optional(String key) => value(key).isEmpty ? null : value(key);
+    return {
       'property_id': property,
       'room_type_id': room.isEmpty ? null : room,
       'source': source,
       'stay_type': stayType,
       'planned_arrival_time': stayType == 'day_use'
-          ? fields['planned_arrival_time']!.text
+          ? optional('planned_arrival_time')
           : null,
       'planned_departure_time': stayType == 'day_use'
-          ? fields['planned_departure_time']!.text
+          ? optional('planned_departure_time')
           : null,
-      'reporting': bookingDetails.reporting,
-      if (bookingDetails.allocationsChanged)
-        'allocations': bookingDetails.allocations,
-      'guest_name': fields['guest_name']!.text.trim(),
-      if (fields['invitation_email']!.text.trim().isNotEmpty)
-        'invitation_email': fields['invitation_email']!.text.trim(),
-      'arrival_date': fields['arrival_date']!.text,
-      'departure_date': fields['departure_date']!.text,
-      'guest_count': int.parse(fields['guest_count']!.text),
-      'arrival_time': fields['arrival_time']!.text.isEmpty
-          ? null
-          : fields['arrival_time']!.text,
-      'total_huf': fields['total_huf']!.text.isEmpty
-          ? null
-          : int.parse(fields['total_huf']!.text),
-      'external_ref': fields['external_ref']!.text.isEmpty
-          ? null
-          : fields['external_ref']!.text,
-      'special_requests': fields['special_requests']!.text
+      'guest_name': value('guest_name'),
+      'invitation_email': value('invitation_email'),
+      'arrival_date': value('arrival_date'),
+      'departure_date': value('departure_date'),
+      'guest_count': int.tryParse(value('guest_count')),
+      'arrival_time': optional('arrival_time'),
+      'total_huf': int.tryParse(value('total_huf')),
+      'external_ref': optional('external_ref'),
+      'special_requests': value('special_requests'),
+    };
+  }
+
+  Future<void> save() async {
+    if (!form.currentState!.validate()) return;
+    final body = bookingValues();
+    if (editing) {
+      body.removeWhere((key, value) => value == initialValues[key]);
+      if (body.containsKey('stay_type')) {
+        body['arrival_date'] = fields['arrival_date']!.text;
+        body['departure_date'] = fields['departure_date']!.text;
+      }
+    } else if (body['invitation_email'] == '') {
+      body.remove('invitation_email');
+    }
+    if (body['special_requests'] case final String requests) {
+      body['special_requests'] = requests
           .split(',')
           .map((s) => s.trim())
           .where((s) => s.isNotEmpty)
-          .toList(),
-    };
+          .toList();
+    }
+    if (selectedGuestId case final id?) body['guest_id'] = id;
+    final reporting = bookingDetails.changes;
+    if (reporting.isNotEmpty) body['reporting'] = reporting;
+    if (bookingDetails.allocationsChanged) {
+      body['allocations'] = bookingDetails.allocations;
+    }
+    if (body.isEmpty) {
+      Navigator.pop(context, false);
+      return;
+    }
     final ok = await perform(() async {
       await widget.api.save(
         body,
@@ -227,6 +268,7 @@ class _ReservationEditorState extends State<ReservationEditor>
     return PopScope(
       canPop: !busy,
       child: PmsModal(
+        mobileFullScreen: true,
         title: editing
             ? text(widget.reservation!, 'guest_name')
             : t('Add a stay'),
@@ -392,15 +434,24 @@ class _ReservationEditorState extends State<ReservationEditor>
                         required: true,
                       ),
                       PmsField(
-                        editing
-                            ? 'New invitation email (optional)'
-                            : 'Invitation email (optional)',
+                        'Invitation email (optional)',
                         controller: fields['invitation_email']!,
                         keyboard: TextInputType.emailAddress,
                         maxLength: 254,
                         status: failureField == 'invitation_email'
                             ? failure
                             : null,
+                      ),
+                      Text(
+                        ui(
+                          contactAvailable
+                              ? 'If left blank, invitations use the primary guest’s email when available.'
+                              : 'The saved invitation email will be visible after the UAT backend update.',
+                        ),
+                        style: const TextStyle(
+                          color: PmsStyle.muted,
+                          fontSize: 12,
+                        ),
                       ),
                       PmsColumns([
                         PmsDateField(
@@ -512,11 +563,13 @@ class ReservationWorkspace extends StatefulWidget {
     required this.id,
     required this.openReception,
     this.openTask,
+    this.initialTab = 0,
   });
   final PmsWorkflows api;
   final String id;
   final VoidCallback openReception;
   final ValueChanged<String>? openTask;
+  final int initialTab;
   @override
   State<ReservationWorkspace> createState() => _ReservationWorkspaceState();
 }
@@ -525,7 +578,7 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
     with PmsActions<ReservationWorkspace> {
   Json? data, delivery;
   String? deliveryError;
-  int tab = 0;
+  late int tab = widget.initialTab;
   bool changed = false;
   final arrival = TextEditingController(), note = TextEditingController();
   String payment = 'unknown', registration = 'incomplete';
@@ -590,6 +643,52 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
     });
   }
 
+  Future<void> editBooking() async {
+    Json? latest;
+    final loaded = await perform(() async {
+      latest = optionalObject(
+        (await widget.api.detail(widget.id))['reservation'],
+      );
+    });
+    if (!loaded || !mounted || latest == null) return;
+    final result = await showDialog<bool>(
+      useRootNavigator: false,
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => ReservationEditor(api: widget.api, reservation: latest),
+    );
+    if (result == true && mounted) {
+      changed = true;
+      await load();
+    }
+  }
+
+  Future<void> openActualStay(StayOperation action) async {
+    var updated = false;
+    await showDialog<void>(
+      context: context,
+      useRootNavigator: false,
+      builder: (_) => ActualStayDialog(
+        api: widget.api,
+        reservationId: widget.id,
+        operation: action,
+        reviewBooking: () {
+          if (optionalObject(data?['reservation'])['status'] == 'confirmed') {
+            editBooking();
+          } else {
+            setState(() => tab = 0);
+          }
+        },
+        reviewGuests: () => setState(() => tab = 1),
+        onChanged: () => updated = true,
+      ),
+    );
+    if (updated && mounted) {
+      changed = true;
+      await load();
+    }
+  }
+
   @override
   void dispose() {
     arrival.dispose();
@@ -606,6 +705,7 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
     return PopScope(
       canPop: !busy,
       child: PmsModal(
+        mobileFullScreen: true,
         title: text(r, 'guest_name', 'Reservation'),
         titleSize: MediaQuery.sizeOf(context).width <= 760 ? 18 : 22,
         mobileSheet: true,
@@ -613,38 +713,8 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
         canClose: !busy,
         width: 1040,
         headerActions: [
-          PmsButton(
-            ui('Actual guest stays'),
-            onPressed: data == null || busy
-                ? null
-                : () => showDialog(
-                    context: context,
-                    useRootNavigator: false,
-                    builder: (_) => ActualStayDialog(
-                      api: widget.api,
-                      reservationId: widget.id,
-                    ),
-                  ),
-          ),
           if (data != null)
-            PmsButton(
-              t('Edit booking'),
-              onPressed: busy
-                  ? null
-                  : () async {
-                      final result = await showDialog<bool>(
-                        useRootNavigator: false,
-                        context: context,
-                        barrierDismissible: false,
-                        builder: (_) =>
-                            ReservationEditor(api: widget.api, reservation: r),
-                      );
-                      if (result == true) {
-                        changed = true;
-                        await load();
-                      }
-                    },
-            ),
+            PmsButton(t('Edit booking'), onPressed: busy ? null : editBooking),
         ],
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -713,6 +783,27 @@ class _ReservationWorkspaceState extends State<ReservationWorkspace>
                     const SizedBox(height: 8),
                     Text(text(r, 'property_name')),
                     PmsBadge(text(r, 'status')),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        PmsButton(
+                          t('Check in'),
+                          primary: (r['actual_occupants'] as num? ?? 0) == 0,
+                          onPressed: busy
+                              ? null
+                              : () => openActualStay(StayOperation.checkIn),
+                        ),
+                        PmsButton(
+                          t('Check out'),
+                          primary: (r['actual_occupants'] as num? ?? 0) > 0,
+                          onPressed: busy
+                              ? null
+                              : () => openActualStay(StayOperation.checkOut),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),

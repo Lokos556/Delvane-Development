@@ -4,7 +4,6 @@ import 'package:flutter/rendering.dart';
 
 import 'assistant_prompts.dart';
 import 'section_picker.dart';
-import 'overflow_row.dart';
 
 import 'package:material_ui/material_ui.dart';
 
@@ -161,7 +160,10 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
         provider = c.object('provider');
     final mobile = MediaQuery.sizeOf(context).width <= 760;
     final messages = c.chat.messages;
-    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
+    // Scaffold adjusts the body height and removes its inherited bottom inset.
+    final keyboardOpen =
+        MediaQuery.viewInsetsOf(context).bottom > 0 ||
+        View.of(context).viewInsets.bottom > 0;
     final localizedPrompts = [
       for (final prompt in ownerAssistantPrompts) prompt.text(c.strings),
     ];
@@ -185,11 +187,7 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
               constraints: const BoxConstraints(minHeight: 64),
               padding: EdgeInsets.symmetric(horizontal: mobile ? 12 : 20),
               decoration: const BoxDecoration(
-                color: Color(0xA6FFFCF6),
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(24),
-                  topRight: Radius.circular(24),
-                ),
+                border: Border(bottom: BorderSide(color: PmsStyle.panelLine)),
               ),
               child: Row(
                 children: [
@@ -247,12 +245,10 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
                 12,
               ),
               child: mobile
-                  ? PmsOverflowRow(
-                      child: Row(
-                        children: metrics(d)
-                            .map((w) => SizedBox(width: 160, child: w))
-                            .toList(),
-                      ),
+                  ? Row(
+                      children: metrics(d)
+                          .map((item) => Expanded(child: item))
+                          .toList(),
                     )
                   : Row(
                       children: [
@@ -336,11 +332,13 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  ui('Read-only assistant'),
-                  style: const TextStyle(fontSize: 11, color: PmsStyle.muted),
-                ),
-                const SizedBox(height: 6),
+                if (!keyboardOpen) ...[
+                  Text(
+                    ui('Read-only assistant'),
+                    style: const TextStyle(fontSize: 11, color: PmsStyle.muted),
+                  ),
+                  const SizedBox(height: 6),
+                ],
                 if (c.chatRefreshError != null)
                   TextButton(
                     onPressed: c.load,
@@ -364,12 +362,13 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
                   ),
                 const SizedBox(height: 10),
                 PmsCard(
-                  radius: 24,
+                  radius: 12,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 14,
                     vertical: 8,
                   ),
-                  color: const Color(0xE6FFFFFF),
+                  color: PmsStyle.canvas,
+                  borderColor: PmsStyle.panelLine,
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
@@ -605,32 +604,27 @@ class _IntelligenceWorkspaceState extends State<IntelligenceWorkspace> {
           },
         ),
         child: Padding(
-          padding: const EdgeInsets.only(right: 16),
+          padding: const EdgeInsets.fromLTRB(2, 5, 5, 5),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                widget.c.t(entry.$1),
-                style: TextStyle(
-                  fontSize: MediaQuery.sizeOf(context).width <= 760 ? 13 : 11,
+                '${entry.$2}',
+                style: const TextStyle(
+                  fontSize: 24,
+                  height: 1.15,
                   fontWeight: FontWeight.w700,
                 ),
               ),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      widget.c.t(entry.$3),
-                      style: TextStyle(
-                        fontSize: MediaQuery.sizeOf(context).width <= 760
-                            ? 11
-                            : 10,
-                      ),
-                    ),
-                  ),
-                  Text('${entry.$2}', style: const TextStyle(fontSize: 24)),
-                ],
+              Text(
+                widget.c.t(entry.$1),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
               ),
+              if (MediaQuery.sizeOf(context).width > 760)
+                Text(
+                  widget.c.t(entry.$3),
+                  style: const TextStyle(fontSize: 11, color: PmsStyle.muted),
+                ),
             ],
           ),
         ),

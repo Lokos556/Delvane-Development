@@ -76,7 +76,7 @@ class IdentityChanges(contract.DTO):
 
 class Edit(contract.DTO):
     revision: list[int] = Field(min_length=2, max_length=2)
-    reason: str = Field(min_length=3, max_length=500)
+    reason: str = Field(default='', max_length=500)
     identity: IdentityChanges | None = None
     reporting: ReportingEdit | None = None
 
@@ -214,13 +214,17 @@ def install(backend):
     @router.put('')
     def put(guest_id: str, body: Edit, request: Request, rosa_session: str | None = Cookie(default=None)):
         reason = body.reason.strip()
-        if len(reason) < 3:
-            raise backend.pms_error('invalid_fields', 'reason')
         with backend.db() as con:
             user, row = access(con, guest_id, rosa_session)
             projected = viza_identity.project(backend, con, guest_id)
             if latest_revision(con, guest_id, projected) != body.revision:
                 raise backend.pms_error('guest_workspace_changed', None, 409)
+            if not reason and body.identity is not None and body.reporting is None:
+                current = workspace(backend, con, row, date.fromisoformat(row['arrival_date']))
+                if current['registration_stage'] in {'awaiting_invitation', 'awaiting_registration'}:
+                    reason = 'Initial guest identity draft'
+            if len(reason) < 3:
+                raise backend.pms_error('invalid_fields', 'reason')
             if body.identity is not None:
                 edit = viza_identity.IdentityEdit(**body.identity.model_dump(), reason=reason)
                 viza_identity.apply_edit(backend, con, user, row, edit)

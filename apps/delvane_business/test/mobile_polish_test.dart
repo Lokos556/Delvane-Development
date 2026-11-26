@@ -10,6 +10,8 @@ import 'package:delvane_business/features/pms/pms_style.dart';
 import 'package:delvane_business/features/pms/pms_icons.dart';
 import 'package:delvane_business/features/pms/booking_calendar.dart';
 
+import 'package:delvane_business/features/pms/signature_navigation.dart';
+
 import 'android_readiness_test.dart' show phone, androidFixture;
 import 'support/fake_pms.dart';
 import 'support/visual_fonts.dart';
@@ -91,7 +93,7 @@ void main() {
           ),
         );
         await t.pumpAndSettle();
-        expect(find.byTooltip(ui('Open main menu')), findsOneWidget);
+        expect(find.byTooltip(ui('Open main menu')), findsNothing);
         expect(t.takeException(), isNull);
         await t.runAsync(
           () => Future<void>.delayed(const Duration(milliseconds: 40)),
@@ -128,15 +130,12 @@ void main() {
       );
       await t.pumpAndSettle();
       final brand = find.byKey(const ValueKey('mobile-wordmark'));
-      final menu = find.byTooltip(ui('Open main menu'));
+      final properties = find.byTooltip(ui('Properties')).first;
       final settings = find.byKey(const ValueKey('pms-mobile-settings'));
       final brandCenter = t.getCenter(brand);
       expect(brandCenter.dx, closeTo(393 / 2, .1));
-      expect(brandCenter.dy, closeTo(t.getCenter(menu).dy, .1));
-      expect(
-        t.getBottomRight(brand).dx,
-        lessThan(t.getTopLeft(find.byTooltip(ui('Search Delvane'))).dx),
-      );
+      expect(brandCenter.dy, closeTo(t.getCenter(properties).dy, .1));
+      expect(t.getBottomRight(brand).dx, lessThan(t.getTopLeft(settings).dx));
       expect(t.getCenter(settings).dy, brandCenter.dy);
       expect(t.takeException(), isNull);
     } finally {
@@ -145,39 +144,38 @@ void main() {
     }
   });
 
-  testWidgets('Hungarian drawer groups all main routes and tracks selection', (
-    t,
-  ) async {
-    phone(t);
-    final auth = await signedIn(androidFixture());
-    try {
-      await t.pumpWidget(
-        host(PmsShell(auth: auth, initialPage: PmsPage.today)),
-      );
-      await t.pumpAndSettle();
-      await t.tap(find.byTooltip(ui('Open main menu')));
-      await t.pumpAndSettle();
-      for (final page in [
-        PmsPage.today,
-        PmsPage.intelligence,
-        PmsPage.reservations,
-        PmsPage.inbox,
-        PmsPage.operations,
-      ]) {
-        final item = find.byKey(ValueKey('pms-nav-${page.name}'));
-        expect(item, findsOneWidget);
-        expect(t.widget<PmsNavItem>(item).selected, page == PmsPage.today);
+  testWidgets(
+    'Hungarian signature navigation orders workspaces and tracks selection',
+    (t) async {
+      phone(t);
+      final auth = await signedIn(androidFixture());
+      try {
+        await t.pumpWidget(
+          host(PmsShell(auth: auth, initialPage: PmsPage.today)),
+        );
+        await t.pumpAndSettle();
+        final nav = t.widget<SignatureNavigation>(
+          find.byType(SignatureNavigation),
+        );
+        expect(nav.items.map((item) => item.$1), [
+          'Recepció',
+          'Intelligencia',
+          'Ma',
+          'Foglalások',
+          'Műveletek',
+        ]);
+        expect(nav.selected, 2);
+        await t.tap(find.byKey(const ValueKey('android-tab-reservations')));
+        await t.pumpAndSettle();
+        expect(find.byType(Drawer), findsNothing);
+        expect(find.text('Naptár'), findsOneWidget);
+        expect(t.takeException(), isNull);
+      } finally {
+        await t.pumpWidget(const SizedBox());
+        auth.dispose();
       }
-      await t.tap(find.byKey(const ValueKey('pms-nav-reservations')));
-      await t.pumpAndSettle();
-      expect(find.byType(Drawer), findsNothing);
-      expect(find.text('Naptár'), findsOneWidget);
-      expect(t.takeException(), isNull);
-    } finally {
-      await t.pumpWidget(const SizedBox());
-      auth.dispose();
-    }
-  });
+    },
+  );
 
   testWidgets(
     'settings language selector persists English for the next launch',
@@ -240,14 +238,6 @@ void main() {
             platform: platform,
           ),
         );
-        await t.pumpAndSettle();
-        await t.tap(find.byTooltip(ui('Open main menu')));
-        await t.pumpAndSettle();
-        final account = t.widget<InkWell>(
-          find.byKey(const ValueKey('pms-account')),
-        );
-        expect(account.onTap == null, platform == TargetPlatform.android);
-        await t.tapAt(const Offset(380, 180));
         await t.pumpAndSettle();
         await t.tap(find.byKey(const ValueKey('pms-mobile-settings')));
         await t.pumpAndSettle();
@@ -343,13 +333,27 @@ void main() {
       await t.ensureVisible(cell);
       await t.tap(cell);
       await t.pumpAndSettle();
-      final create = find.descendant(
-        of: find.byType(PmsModal),
-        matching: find.text(ui('Add a stay')),
+      expect(
+        find.descendant(
+          of: find.byType(PmsModal),
+          matching: find.text(ui('Add a stay')),
+        ),
+        findsNothing,
       );
-      await t.tap(create);
+      await t.tap(find.byTooltip(ui('Close dialog')));
       await t.pumpAndSettle();
-      expect(created, '2032-05-10');
+      final empty = find.byKey(const ValueKey('calendar-day-2032-05-20'));
+      await t.ensureVisible(empty);
+      await t.tap(empty);
+      await t.pumpAndSettle();
+      await t.tap(
+        find.descendant(
+          of: find.byType(PmsModal),
+          matching: find.text(ui('Add a stay')),
+        ),
+      );
+      await t.pumpAndSettle();
+      expect(created, '2032-05-20');
       expect(t.takeException(), isNull);
     },
   );

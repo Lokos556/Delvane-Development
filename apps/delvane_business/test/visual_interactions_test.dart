@@ -101,38 +101,35 @@ void main() {
       }
     },
   );
-  testWidgets(
-    'mobile navigation closes the drawer and loads the selected real workspace',
-    (t) async {
-      t.view.physicalSize = const Size(390, 844);
-      t.view.devicePixelRatio = 1;
-      addTearDown(t.view.resetPhysicalSize);
-      addTearDown(t.view.resetDevicePixelRatio);
-      final pms = visualPms();
-      final a = await signedIn(pms);
-      try {
-        await t.pumpWidget(
-          MaterialApp(
-            home: PmsShell(auth: a, initialPage: PmsPage.today),
-          ),
-        );
-        await t.pumpAndSettle();
-        await t.tap(find.byTooltip('Open main menu'));
-        await t.pumpAndSettle();
-        await t.tap(find.byKey(const ValueKey('pms-nav-inbox')));
-        await t.pumpAndSettle();
-        expect(find.byType(Drawer), findsNothing);
-        expect(find.text('Search in mail'), findsOneWidget);
-        expect(
-          pms.requests.any((r) => r.path == '/api/reception/summary'),
-          isTrue,
-        );
-      } finally {
-        await t.pumpWidget(const SizedBox());
-        a.dispose();
-      }
-    },
-  );
+  testWidgets('mobile navigation loads the selected authorized workspace', (
+    t,
+  ) async {
+    t.view.physicalSize = const Size(390, 844);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.resetPhysicalSize);
+    addTearDown(t.view.resetDevicePixelRatio);
+    final pms = visualPms();
+    final a = await signedIn(pms);
+    try {
+      await t.pumpWidget(
+        MaterialApp(
+          home: PmsShell(auth: a, initialPage: PmsPage.today),
+        ),
+      );
+      await t.pumpAndSettle();
+      await t.tap(find.byKey(const ValueKey('android-tab-inbox')));
+      await t.pumpAndSettle();
+      expect(find.byType(Drawer), findsNothing);
+      expect(find.byTooltip('Search in mail'), findsOneWidget);
+      expect(
+        pms.requests.any((r) => r.path == '/api/reception/summary'),
+        isTrue,
+      );
+    } finally {
+      await t.pumpWidget(const SizedBox());
+      a.dispose();
+    }
+  });
   testWidgets(
     'settings uses the right-side sheet and is removed on session revocation',
     (t) async {

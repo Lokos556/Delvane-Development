@@ -6,6 +6,11 @@ import 'pms_style.dart';
 
 class BookingReportingState {
   Json reporting = {};
+  Json _initialReporting = {};
+  Json get changes => {
+    for (final entry in reporting.entries)
+      if (entry.value != _initialReporting[entry.key]) entry.key: entry.value,
+  };
   List<String> missingFields = [];
   List<Json> allocations = [];
   bool allocationsChanged = false;
@@ -13,6 +18,7 @@ class BookingReportingState {
   Future<void> load(PmsWorkflows api, String id) async {
     final result = await api.object('/api/reservations/$id/reporting-details');
     reporting = Map<String, dynamic>.from(result['values'] as Map? ?? {});
+    _initialReporting = Map.of(reporting);
     missingFields = (result['missing_fields'] as List? ?? [])
         .map((v) => v.toString())
         .toList();

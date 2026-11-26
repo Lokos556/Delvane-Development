@@ -147,7 +147,24 @@ No staging endpoint has been contacted or configured. Before future deployment:
    install a staging build. Production uses the same process with separate resources
    and `ROSA_DEPLOYMENT_ENVIRONMENT=production`.
 
-## Build against a future staging origin
+## Permanent Android UAT release
+
+Run `powershell -NoProfile -ExecutionPolicy Bypass -File .\tool\build_android_uat.ps1`
+from the Flutter app directory. The ARM64 release uses the local debug signer for
+UAT and connects directly to `https://api.delvane.app` over HTTPS. The named APK is
+`build/app/outputs/flutter-apk/delvane-business-uat-v2-arm64.apk`. It can be opened on
+the Xiaomi through Files or installed with `adb install -r` over USB. USB reverse
+forwarding is unnecessary. Only the authenticated session is stored. Passwords
+and integration secrets stay out of the APK.
+
+Verify sign-in, relaunch, Wi-Fi to mobile data recovery, Reception back navigation,
+guest profiles and role-specific operations using UAT accounts. Camera access is
+requested by the browser on the existing guest registration link. The native
+workspace can review the submitted scan data. Native push and App Links are
+inactive. Future external notification or link intents should pass through the
+same authenticated navigator and server authorization before opening a record.
+
+## Build against another staging origin
 
 After replacing the placeholder origin in a reviewed copy of
 `config/staging.example.json`, from the Flutter app directory:

@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import '../workspace/workspace_models.dart';
 import 'pms_controller.dart';
 import 'pms_dialogs.dart';
+import 'operational_visuals.dart';
 import 'pms_style.dart';
 import 'property_rates_dialog.dart';
 import 'inventory_controls.dart';
@@ -58,6 +59,7 @@ class _PropertyWorkspaceState extends State<PropertyWorkspace>
       d['arriving_today'] ?? d['current'] ?? d['next'],
     );
     return PmsModal(
+      mobileFullScreen: true,
       title: widget.c.propertyLabel(text(p, 'name', ui('Property'))),
       eyebrow: ui('PROPERTY'),
       width: 760,
@@ -116,32 +118,6 @@ class _PropertyWorkspaceState extends State<PropertyWorkspace>
         children: [
           errors(),
           if (data != null) ...[
-            if (d['same_day_turnover'] == true)
-              PmsCard(
-                color: const Color(0xFFFFF4BD),
-                child: Column(
-                  children: [
-                    PmsEyebrow(ui('SAME-DAY TURNOVER')),
-                    PmsColumns([
-                      Text(
-                        ui(
-                          '${text(p, 'checkout_time')}\n${text(optionalObject(d['departing_today']), 'guest_name')} leaves',
-                        ),
-                      ),
-                      Text(
-                        ui(
-                          'Cleaning\n${text(p, 'checkout_time')} → ${text(p, 'checkin_time')}',
-                        ),
-                      ),
-                      Text(
-                        ui(
-                          '${text(p, 'checkin_time')}\n${text(optionalObject(d['arriving_today']), 'guest_name')} checks in',
-                        ),
-                      ),
-                    ], columns: 3),
-                  ],
-                ),
-              ),
             const SizedBox(height: 16),
             Wrap(
               spacing: 18,
@@ -154,65 +130,78 @@ class _PropertyWorkspaceState extends State<PropertyWorkspace>
               ],
             ),
             const SizedBox(height: 24),
-            PmsColumns([
-              PmsCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    PmsEyebrow(ui('TODAY')),
-                    for (final key in ['departing_today', 'arriving_today'])
-                      if (optionalObject(d[key]).isNotEmpty)
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(
-                            key == 'arriving_today'
-                                ? ui(
-                                    'Arrival · ${text(optionalObject(d[key]), 'arrival_time', text(p, 'checkin_time'))}',
-                                  )
-                                : ui('Departure · ${text(p, 'checkout_time')}'),
-                          ),
-                          subtitle: Text(
-                            text(optionalObject(d[key]), 'guest_name'),
-                          ),
-                        ),
-                    if (d['departing_today'] == null &&
-                        d['arriving_today'] == null)
-                      Text(ui('No changeover today')),
-                  ],
+            Text(
+              ui(
+                d['same_day_turnover'] == true ? 'Same-day turnover' : 'Today',
+              ),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+            ),
+            if (optionalObject(d['departing_today']).isNotEmpty)
+              TimelineEntry(
+                time: text(p, 'checkout_time'),
+                title: ui('Departure'),
+                detail: text(
+                  optionalObject(d['departing_today']),
+                  'guest_name',
                 ),
               ),
-              PmsCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    PmsEyebrow(ui('CLEANING')),
-                    PmsBadge(text(cleaning, 'status', 'No cleaning scheduled')),
-                    const SizedBox(height: 12),
-                    Text(
-                      cleaning.isEmpty
-                          ? ui('Nothing currently scheduled.')
-                          : '${text(cleaning, 'scheduled_date')} · ${text(cleaning, 'earliest_time', ui('Flexible'))} → ${text(cleaning, 'deadline_time')} · ${text(cleaning, 'assigned_name', ui('Unassigned'))}',
+            TimelineEntry(
+              color: operationalAmber,
+              time: cleaning.isEmpty && d['same_day_turnover'] != true
+                  ? '—'
+                  : text(
+                      cleaning,
+                      'earliest_time',
+                      text(p, 'checkout_time', ui('Flexible')),
                     ),
-                  ],
+              title: ui('Cleaning'),
+              detail: [
+                ui(text(cleaning, 'status', 'No cleaning scheduled')),
+                if (cleaning.isNotEmpty) ...[
+                  uiDate(text(cleaning, 'scheduled_date')),
+                  text(cleaning, 'deadline_time'),
+                  text(cleaning, 'assigned_name', ui('Unassigned')),
+                ],
+              ].where((value) => value.isNotEmpty).join(' · '),
+            ),
+            if (optionalObject(d['arriving_today']).isNotEmpty)
+              TimelineEntry(
+                time: text(
+                  optionalObject(d['arriving_today']),
+                  'arrival_time',
+                  text(p, 'checkin_time'),
                 ),
+                title: ui('Arrival'),
+                detail: text(optionalObject(d['arriving_today']), 'guest_name'),
               ),
-            ], columns: 2),
+            if (d['departing_today'] == null && d['arriving_today'] == null)
+              PmsEmpty(ui('No changeover today')),
             const SizedBox(height: 24),
             if (rooms.isNotEmpty) ...[
-              PmsEyebrow(ui('Room readiness')),
+              Text(
+                ui('Room readiness'),
+                style: const TextStyle(
+                  fontSize: 19,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 10),
+              ReadinessStrip(
+                states: [for (final room in rooms) text(room, 'state')],
+              ),
+              const SizedBox(height: 8),
               for (final room in rooms)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: Text(text(room, 'label')),
-                  trailing: PmsBadge(
-                    ui(switch (room['state']) {
-                      'ready' => 'Ready',
-                      'occupied' => 'Occupied',
-                      'cleaning' => 'Cleaning pending',
-                      'waiting_for_checkout' => 'Waiting for actual checkout',
-                      _ => 'Room unavailable',
-                    }),
-                    tone: text(room, 'state'),
+                  title: Text(
+                    text(room, 'label'),
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  subtitle: Text(
+                    ui(ReadinessStrip.mark(text(room, 'state')).$1),
+                    style: TextStyle(
+                      color: ReadinessStrip.mark(text(room, 'state')).$2,
+                    ),
                   ),
                 ),
               const SizedBox(height: 16),
@@ -255,7 +244,6 @@ class _PropertyWorkspaceState extends State<PropertyWorkspace>
                     ),
                   ),
             const SizedBox(height: 24),
-            PmsEyebrow(ui('ROOM TYPES')),
             Wrap(
               alignment: WrapAlignment.spaceBetween,
               runSpacing: 8,

@@ -131,10 +131,7 @@ class _OperationalDeskState extends State<OperationalDesk>
               Positioned.fill(
                 child: GestureDetector(
                   onTap: busy ? null : () => Navigator.pop(context),
-                  child: BackdropFilter(
-                    filter: PmsStyle.glassFilter(20, 1.6),
-                    child: const ColoredBox(color: Color(0x6BFFFFFF)),
-                  ),
+                  child: const ColoredBox(color: Color(0x36000000)),
                 ),
               ),
               Align(
@@ -142,7 +139,7 @@ class _OperationalDeskState extends State<OperationalDesk>
                 child: SizedBox(
                   width: width,
                   child: Material(
-                    color: const Color(0xFFFFFDF9),
+                    color: PmsStyle.canvas,
                     child: SafeArea(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -161,7 +158,6 @@ class _OperationalDeskState extends State<OperationalDesk>
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      PmsEyebrow(ui('LIVE CONTEXT')),
                                       Text(
                                         widget.c.t(labels[0]),
                                         style: const TextStyle(

@@ -20,6 +20,7 @@ void main() {
         'operating_mode': 'observe',
       });
       pms.overrides['/api/notifications'] = pms.json({'unread': 0});
+      pms.overrides['/api/reception/summary'] = pms.json({'new': 0});
       final auth = await signedIn(pms);
       addTearDown(auth.dispose);
       final controller = PmsController(auth, initialPage: PmsPage.today);
@@ -146,6 +147,15 @@ void main() {
         },
       ]);
       pms.overrides['/api/operations/timeline'] = pms.json([]);
+      pms.overrides['/api/work-tasks/t2'] = pms.json({
+        ...pms.task,
+        'id': 't2',
+        'property_name': 'Second House',
+        'can_work': false,
+        'checklist': [
+          {'id': 'c1', 'label': 'Check linens', 'completed': true},
+        ],
+      });
       final auth = await signedIn(pms);
       await tester.pumpWidget(
         MaterialApp(
@@ -171,6 +181,10 @@ void main() {
       expect(find.text('Synthetic tap repair'), findsNothing);
       final task = find.widgetWithText(ListTile, 'Second House');
       await tester.tap(task);
+      await tester.pumpAndSettle();
+      expect(find.text('Cleaning checklist'), findsOneWidget);
+      expect(find.text('Check linens'), findsOneWidget);
+      await tester.tap(find.text('Assignment'));
       await tester.pumpAndSettle();
       expect(find.text('Assign work'), findsOneWidget);
       expect(find.text('Synthetic Cleaner'), findsWidgets);
@@ -217,14 +231,21 @@ void main() {
 
       await tester.tap(find.text('Year'));
       await tester.pumpAndSettle();
+      final firstMonth = find.byKey(
+        ValueKey('calendar-month-${now.year}-${now.month}'),
+      );
+      final finalMonth = DateTime(now.year, now.month + 11);
+      expect(firstMonth, findsOneWidget);
       expect(
-        find.byKey(ValueKey('calendar-month-${now.year}-12')),
+        find.byKey(
+          ValueKey('calendar-month-${finalMonth.year}-${finalMonth.month}'),
+        ),
         findsOneWidget,
       );
       await tester.tap(find.byTooltip('Next year'));
       await tester.pumpAndSettle();
       expect(
-        find.byKey(ValueKey('calendar-month-${now.year + 1}-1')),
+        find.byKey(ValueKey('calendar-month-${now.year + 1}-${now.month}')),
         findsOneWidget,
       );
       await tester.tap(find.byTooltip('Previous year'));

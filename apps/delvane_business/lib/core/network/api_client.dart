@@ -202,6 +202,8 @@ class ApiException implements Exception {
   final String message;
   final int? statusCode;
   final ApiFailure? kind;
+  bool get isConnectionLoss =>
+      kind == ApiFailure.connection || kind == ApiFailure.timeout;
   @override
   String toString() => 'ApiException: $message';
 }
@@ -286,6 +288,8 @@ class ApiClient {
 
   void Function()? onUnauthorized;
   void Function()? onMutation;
+  void Function()? onConnectionLost;
+  bool Function()? offline;
 
   Future<Object?> get(String path) => _request('GET', path);
   Future<Object?> post(String path, Object body) =>
@@ -310,6 +314,14 @@ class ApiClient {
     String path, [
     Object? body,
   ]) async {
+    if (offline?.call() == true &&
+        !(method == 'GET' &&
+            const {'/api/client/environment', '/api/me'}.contains(path))) {
+      throw const ApiException(
+        'This action needs an internet connection.',
+        kind: ApiFailure.connection,
+      );
+    }
     // Uri.parse normalizes dot segments; validate the original path first too.
     final segments = Uri.decodeComponent(path.split('?').first).split('/');
     final relative = Uri.parse(path);
@@ -387,9 +399,11 @@ class ApiClient {
       return response;
     } on ApiException catch (failure) {
       outcome = failure.kind?.name ?? 'response';
+      if (failure.isConnectionLoss) onConnectionLost?.call();
       rethrow;
     } on TimeoutException {
       outcome = 'timeout';
+      onConnectionLost?.call();
       throw const ApiException(
         'The request timed out.',
         kind: ApiFailure.timeout,
@@ -408,6 +422,7 @@ class ApiClient {
       );
     } on IOException {
       outcome = 'connection';
+      onConnectionLost?.call();
       throw const ApiException(
         'The connection was interrupted.',
         kind: ApiFailure.connection,

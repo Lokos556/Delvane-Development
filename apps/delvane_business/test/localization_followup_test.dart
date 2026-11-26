@@ -288,6 +288,10 @@ void main() {
         await t.runAsync(loadVisualFonts);
         await t.pumpWidget(host(PmsShell(auth: auth, initialPage: entry.key)));
         await t.pumpAndSettle();
+        if (entry.key == PmsPage.inbox) {
+          await t.tap(find.text('Recepció áttekintése'));
+          await t.pumpAndSettle();
+        }
         for (final label in entry.value) {
           expect(find.text(label), findsWidgets);
         }
